@@ -128,6 +128,18 @@ airlock_ext_open = new_tile(
     light=(ord("/"), (150, 150, 200), (25, 25, 55)),
 )
 
+airlock_switch_off = new_tile(
+    walkable=False, transparent=False,
+    dark=(ord("/"), (80, 80, 120), (0, 0, 20)),
+    light=(ord("/"), (180, 180, 210), (30, 30, 60)),
+)
+
+airlock_switch_on = new_tile(
+    walkable=False, transparent=False,
+    dark=(ord("\\"), (80, 120, 80), (0, 20, 0)),
+    light=(ord("\\"), (180, 210, 180), (30, 60, 30)),
+)
+
 # ---------------------------------------------------------------------------
 # Tile flavor text -- keyed by tile_id
 # ---------------------------------------------------------------------------
@@ -224,6 +236,16 @@ TILE_FLAVORS: dict[int, tuple[str, list[str]]] = {
         "Stars drift silently in the dark.",
         "Infinite emptiness beyond the hull.",
         "The black of space, vast and still.",
+    ]),
+    int(airlock_switch_off["tile_id"]): ("Airlock Switch (Off)", [
+        "A heavy lever set into the wall. Currently off.",
+        "An airlock control switch in the off position.",
+        "A wall-mounted switch. The indicator light is dark.",
+    ]),
+    int(airlock_switch_on["tile_id"]): ("Airlock Switch (On)", [
+        "A heavy lever set into the wall. Currently on.",
+        "An airlock control switch in the on position.",
+        "A wall-mounted switch. The indicator light glows green.",
     ]),
 }
 

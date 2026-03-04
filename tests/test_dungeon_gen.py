@@ -2,6 +2,7 @@
 from world.dungeon_gen import (
     generate_dungeon, RectRoom, _room_wall_positions,
     _build_ship_skeleton, _ROOM_DRESSING, _pick_building_room_count,
+    _subdivide_building,
 )
 from world.game_map import GameMap
 from world import tile_types
@@ -1134,3 +1135,53 @@ def test_doors_not_clustered():
                     f"seed={seed}: doors at ({x1},{y1}) and ({x2},{y2}) "
                     f"are only {dist} apart"
                 )
+
+
+def test_subdivide_door_does_not_breach_outer_hull():
+    """Door force-clear must never breach the building's outer boundary walls."""
+    # Build a footprint where a vertical partition will land at x1+min_offset,
+    # so split_x-1 == x1 (the outer hull). The force-clear must skip it.
+    #
+    # min_offset = 4, so we need inner_w >= 7 (min_offset*2 - 1).
+    # Use x1=2, x2=13 → inner_w = 10, lo = x1+4 = 6, hi = x2-4 = 9.
+    # With num_rooms=2, rng picks split_x in [lo, hi].
+    # We try many seeds; any that place the partition at lo=6 will test that
+    # split_x-1 == 5 != x1, but we also craft a tight case: x1=2, x2=7 → inner_w=4
+    # which is too small to split. So we test the general invariant instead:
+    # no tile on the outer boundary columns/rows should become walkable.
+    x1, y1, x2, y2 = 2, 2, 13, 13
+
+    for seed in range(200):
+        gm = GameMap(20, 20, fill_tile=tile_types.wall)
+        rng = random.Random(seed)
+
+        # Carve boundary walls (non-walkable) and interior floor
+        for x in range(x1, x2 + 1):
+            for y in range(y1, y2 + 1):
+                if x1 < x < x2 and y1 < y < y2:
+                    gm.tiles[x, y] = tile_types.floor
+                else:
+                    gm.tiles[x, y] = tile_types.wall
+
+        _subdivide_building(
+            gm, rng, x1, y1, x2, y2,
+            num_rooms=2,
+            floor_tile=tile_types.floor,
+            wall_tile=tile_types.wall,
+        )
+
+        # Every tile on the outer boundary must remain non-walkable
+        for x in range(x1, x2 + 1):
+            assert not gm.tiles["walkable"][x, y1], (
+                f"seed={seed}: hull breach at ({x},{y1}) top edge"
+            )
+            assert not gm.tiles["walkable"][x, y2], (
+                f"seed={seed}: hull breach at ({x},{y2}) bottom edge"
+            )
+        for y in range(y1, y2 + 1):
+            assert not gm.tiles["walkable"][x1, y], (
+                f"seed={seed}: hull breach at ({x1},{y}) left edge"
+            )
+            assert not gm.tiles["walkable"][x2, y], (
+                f"seed={seed}: hull breach at ({x2},{y}) right edge"
+            )

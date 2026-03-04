@@ -57,3 +57,15 @@ def test_victory_clears_saved_player():
 
     assert engine._saved_player is None
     assert engine.area_cache == {}
+
+
+def test_game_over_stores_cause():
+    """GameOverState should store the cause of death."""
+    state = GameOverState(victory=False, cause="Lost to the void.")
+    assert state.cause == "Lost to the void."
+
+
+def test_game_over_default_cause_is_empty():
+    """GameOverState with no cause should default to empty string."""
+    state = GameOverState(victory=False)
+    assert state.cause == ""

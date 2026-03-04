@@ -71,6 +71,7 @@ def action_keys() -> Dict[str, Tuple]:
         "interact":  ({K.e},              "e", "interact"),
         "get":       ({K.g, K.COMMA},     "g", "get"),
         "wait":      ({K.PERIOD, K.KP_5}, ".", "wait"),
+        "quit":      ({K.Q},              "Q", "quit"),
     }
     return _ACTION_KEYS
 

@@ -10,8 +10,9 @@ if TYPE_CHECKING:
 
 
 class GameOverState(State):
-    def __init__(self, victory: bool = False) -> None:
+    def __init__(self, victory: bool = False, cause: str = "") -> None:
         self.victory = victory
+        self.cause = cause
 
     def ev_keydown(self, engine: Engine, event: Any) -> bool:
         from ui.keys import confirm_keys
@@ -42,6 +43,9 @@ class GameOverState(State):
             )
         else:
             console.print(x=cx - 4, y=cy - 2, string="YOU DIED", fg=(255, 0, 0))
+            if self.cause:
+                cause_x = cx - len(self.cause) // 2
+                console.print(x=cause_x, y=cy, string=self.cause, fg=(200, 200, 200))
 
         console.print(
             x=cx - 13, y=cy + 8,

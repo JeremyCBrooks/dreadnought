@@ -967,10 +967,13 @@ def _subdivide_building(
         if door_y is not None:
             game_map.tiles[split_x, door_y] = floor_tile
             # Only force-clear a side if it's still walled (perpendicular partition)
-            if (game_map.in_bounds(split_x - 1, door_y)
+            # but never breach the building's outer boundary walls
+            if (split_x - 1 > x1
+                    and game_map.in_bounds(split_x - 1, door_y)
                     and not game_map.tiles["walkable"][split_x - 1, door_y]):
                 game_map.tiles[split_x - 1, door_y] = floor_tile
-            if (game_map.in_bounds(split_x + 1, door_y)
+            if (split_x + 1 < x2
+                    and game_map.in_bounds(split_x + 1, door_y)
                     and not game_map.tiles["walkable"][split_x + 1, door_y]):
                 game_map.tiles[split_x + 1, door_y] = floor_tile
 
@@ -1015,10 +1018,13 @@ def _subdivide_building(
         door_x = _find_door_position_h(game_map, rng, split_y, x1, x2)
         if door_x is not None:
             game_map.tiles[door_x, split_y] = floor_tile
-            if (game_map.in_bounds(door_x, split_y - 1)
+            # Never breach the building's outer boundary walls
+            if (split_y - 1 > y1
+                    and game_map.in_bounds(door_x, split_y - 1)
                     and not game_map.tiles["walkable"][door_x, split_y - 1]):
                 game_map.tiles[door_x, split_y - 1] = floor_tile
-            if (game_map.in_bounds(door_x, split_y + 1)
+            if (split_y + 1 < y2
+                    and game_map.in_bounds(door_x, split_y + 1)
                     and not game_map.tiles["walkable"][door_x, split_y + 1]):
                 game_map.tiles[door_x, split_y + 1] = floor_tile
 
@@ -1947,10 +1953,50 @@ def _place_airlocks(
         for px, py in positions:
             used_positions.add((px, py))
 
+        # Place switch on a wall tile adjacent to the interior walkable tile
+        ix, iy = wx - dx, wy - dy  # interior walkable tile
+        switch_pos = None
+        # Search wall tiles adjacent to (ix, iy) that are also adjacent to
+        # a walkable tile (so the player can reach them)
+        for sdx in (-1, 0, 1):
+            for sdy in (-1, 0, 1):
+                if sdx == 0 and sdy == 0:
+                    continue
+                sx, sy = ix + sdx, iy + sdy
+                if not game_map.in_bounds(sx, sy):
+                    continue
+                if (sx, sy) in used_positions:
+                    continue
+                stid = int(game_map.tiles["tile_id"][sx, sy])
+                if stid != wall_tid:
+                    continue
+                # Must be adjacent to at least one walkable tile
+                has_walkable_neighbor = False
+                for ndx in (-1, 0, 1):
+                    for ndy in (-1, 0, 1):
+                        if ndx == 0 and ndy == 0:
+                            continue
+                        nnx, nny = sx + ndx, sy + ndy
+                        if game_map.in_bounds(nnx, nny) and walkable_mask[nnx, nny]:
+                            has_walkable_neighbor = True
+                            break
+                    if has_walkable_neighbor:
+                        break
+                if has_walkable_neighbor:
+                    switch_pos = (sx, sy)
+                    break
+            if switch_pos:
+                break
+
+        if switch_pos:
+            game_map.tiles[switch_pos[0], switch_pos[1]] = tile_types.airlock_switch_off
+            used_positions.add(switch_pos)
+
         game_map.airlocks.append({
             "interior_door": positions[0],
             "exterior_door": positions[2],
             "direction": (dx, dy),
+            "switch": switch_pos,
         })
         placed += 1
 

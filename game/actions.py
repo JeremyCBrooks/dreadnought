@@ -341,17 +341,16 @@ class ToggleDoorAction(Action):
         ext_closed_id = int(tile_types.airlock_ext_closed["tile_id"])
         ext_open_id = int(tile_types.airlock_ext_open["tile_id"])
 
-        if tile_id == closed_id:
+        if tile_id in (ext_closed_id, ext_open_id):
+            engine.message_log.add_message(
+                "The exterior door is controlled by a switch.", (255, 200, 100)
+            )
+            return 0
+        elif tile_id == closed_id:
             engine.game_map.tiles[tx, ty] = tile_types.door_open
             engine.message_log.add_message("You open the door.", (200, 200, 200))
             return 1
-        elif tile_id == ext_closed_id:
-            engine.game_map.tiles[tx, ty] = tile_types.airlock_ext_open
-            engine.message_log.add_message(
-                "You open the exterior airlock door.", (255, 200, 100)
-            )
-            return 1
-        elif tile_id in (open_id, ext_open_id):
+        elif tile_id == open_id:
             # Don't close if an entity is standing there
             if engine.game_map.get_blocking_entity(tx, ty):
                 engine.message_log.add_message("Something is in the way.", (255, 200, 100))
@@ -359,8 +358,7 @@ class ToggleDoorAction(Action):
             if engine.game_map.get_items_at(tx, ty):
                 engine.message_log.add_message("Something is in the way.", (255, 200, 100))
                 return 0
-            new_tile = tile_types.airlock_ext_closed if tile_id == ext_open_id else tile_types.door_closed
-            engine.game_map.tiles[tx, ty] = new_tile
+            engine.game_map.tiles[tx, ty] = tile_types.door_closed
             engine.message_log.add_message("You close the door.", (200, 200, 200))
             return 1
         else:
@@ -411,4 +409,59 @@ class RangedAction(Action):
         engine.message_log.add_message(msg, color)
 
         _apply_damage_and_death(engine, entity, self.target, damage)
+        return 1
+
+
+class ToggleSwitchAction(Action):
+    """Toggle an airlock switch, opening or closing the linked exterior door."""
+
+    def __init__(self, dx: int, dy: int) -> None:
+        self.dx = dx
+        self.dy = dy
+
+    def perform(self, engine: Engine, entity: Entity) -> int:
+        from world import tile_types
+
+        sx, sy = entity.x + self.dx, entity.y + self.dy
+        if not engine.game_map.in_bounds(sx, sy):
+            return 0
+
+        tile_id = int(engine.game_map.tiles["tile_id"][sx, sy])
+        off_id = int(tile_types.airlock_switch_off["tile_id"])
+        on_id = int(tile_types.airlock_switch_on["tile_id"])
+
+        if tile_id not in (off_id, on_id):
+            engine.message_log.add_message("No switch there.", (100, 100, 100))
+            return 0
+
+        # Find linked airlock
+        airlock = None
+        for al in engine.game_map.airlocks:
+            if al.get("switch") == (sx, sy):
+                airlock = al
+                break
+
+        if airlock is None:
+            engine.message_log.add_message("The switch doesn't seem connected.", (150, 150, 150))
+            return 0
+
+        ex, ey = airlock["exterior_door"]
+
+        if tile_id == off_id:
+            # Turn on: open exterior door
+            engine.game_map.tiles[sx, sy] = tile_types.airlock_switch_on
+            engine.game_map.tiles[ex, ey] = tile_types.airlock_ext_open
+            engine.message_log.add_message(
+                "You flip the switch. The exterior door grinds open.", (255, 200, 100)
+            )
+        else:
+            # Turn off: close exterior door
+            if engine.game_map.get_blocking_entity(ex, ey):
+                engine.message_log.add_message("Something is blocking the exterior door.", (255, 200, 100))
+                return 0
+            engine.game_map.tiles[sx, sy] = tile_types.airlock_switch_off
+            engine.game_map.tiles[ex, ey] = tile_types.airlock_ext_closed
+            engine.message_log.add_message(
+                "You flip the switch. The exterior door seals shut.", (200, 200, 200)
+            )
         return 1
