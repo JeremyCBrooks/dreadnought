@@ -1,0 +1,50 @@
+"""Entity and component definitions -- standalone, no game-logic imports."""
+from __future__ import annotations
+
+from typing import Any, List, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from game.loadout import Loadout
+
+
+class Fighter:
+    """Combat stats component."""
+    __slots__ = ("hp", "max_hp", "defense", "power", "base_power")
+
+    def __init__(self, hp: int, max_hp: int, defense: int, power: int) -> None:
+        self.hp = hp
+        self.max_hp = max_hp
+        self.defense = defense
+        self.power = power
+        self.base_power = power
+
+
+class Entity:
+    """Generic game object: player, enemy, item, interactable, etc."""
+
+    def __init__(
+        self,
+        x: int = 0,
+        y: int = 0,
+        char: str = "?",
+        color: Tuple[int, int, int] = (255, 255, 255),
+        name: str = "<unnamed>",
+        blocks_movement: bool = True,
+        fighter: Optional[Fighter] = None,
+        ai: Any = None,
+        item: Optional[dict] = None,
+        interactable: Optional[dict] = None,
+    ) -> None:
+        self.x = x
+        self.y = y
+        self.char = char
+        self.color = color
+        self.name = name
+        self.blocks_movement = blocks_movement
+        self.fighter = fighter
+        self.ai = ai
+        self.item = item
+        self.interactable = interactable  # {kind, hazard?: {type, severity, damage, equipment_damage}, loot?, scanned?}
+        self.inventory: List[Entity] = []
+        self.collection_tank: List[Entity] = []
+        self.loadout: Optional[Loadout] = None
