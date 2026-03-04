@@ -19,7 +19,7 @@ MIN_MAP_H = 42
 STATS_PANEL_W = 20
 LOG_PANEL_H = 8
 # Stats panel: reserved rows from bottom
-CTRL_LINES = 6
+CTRL_LINES = 4
 GROUND_MAX_LINES_DEFAULT = 8
 MAX_INVENTORY_DISPLAY = 8
 
@@ -59,25 +59,16 @@ def _area_seed(location_name: str, depth: int) -> int:
     return int(raw, 16)
 
 
-_MOVE_KEYS = None
+from ui.keys import move_keys as _move_keys, confirm_keys, cancel_keys, action_keys, is_action
 
 
-def _move_keys():
-    """Lazy-build the movement key map (avoids top-level tcod import). Cached after first call."""
-    global _MOVE_KEYS
-    if _MOVE_KEYS is not None:
-        return _MOVE_KEYS
-    import tcod.event
-    K = tcod.event.KeySym
-    _MOVE_KEYS = {
-        K.UP: (0, -1), K.DOWN: (0, 1), K.LEFT: (-1, 0), K.RIGHT: (1, 0),
-        K.KP_1: (-1, 1), K.KP_2: (0, 1), K.KP_3: (1, 1),
-        K.KP_4: (-1, 0), K.KP_6: (1, 0),
-        K.KP_7: (-1, -1), K.KP_8: (0, -1), K.KP_9: (1, -1),
-        K.h: (-1, 0), K.j: (0, 1), K.k: (0, -1), K.l: (1, 0),
-        K.y: (-1, -1), K.u: (1, -1), K.b: (-1, 1), K.n: (1, 1),
-    }
-    return _MOVE_KEYS
+def _hint(name: str) -> str:
+    """Build a HUD hint like '[x] look' from the action_keys registry."""
+    _, label, verb = action_keys()[name]
+    return f"[{label}] {verb}"
+
+
+DRIFT_INTERVAL = 2.0  # seconds between automatic drift ticks
 
 
 class TacticalState(State):
@@ -87,10 +78,12 @@ class TacticalState(State):
         self.exit_pos: Optional[tuple[int, int]] = None
         self._look_cursor: Optional[tuple[int, int]] = None
         self._ranged_cursor: Optional[tuple[int, int]] = None
+        self._interact_pending: bool = False
         self._visible_enemies: List = []
         self._enemy_cycle_index: int = 0
         self._ground_lines: List[Tuple[str, Color]] = []
         self._layout: Optional[SimpleNamespace] = None
+        self._drift_timer: float = 0.0
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -230,13 +223,20 @@ class TacticalState(State):
         import tcod.event
         key = event.sym
 
+        # While drifting, block all input — drift is automatic
+        if engine.player.drifting:
+            return True
+
+        if self._interact_pending:
+            return self._handle_interact_input(engine, key)
+
         if self._ranged_cursor is not None:
             return self._handle_ranged_input(engine, key)
 
         if self._look_cursor is not None:
             return self._handle_look_input(engine, key)
 
-        if key == tcod.event.KeySym.ESCAPE:
+        if key in cancel_keys():
             return True  # consumed — exit only via docking hatch
 
         if key == tcod.event.KeySym.PAGEUP:
@@ -246,24 +246,38 @@ class TacticalState(State):
             engine.message_log.scroll(-1)
             return True
 
-        if key == tcod.event.KeySym.i:
+        if is_action("inventory", key):
             from ui.inventory_state import InventoryState
             engine.push_state(InventoryState())
             return True
 
-        if key == tcod.event.KeySym.x:
+        if is_action("look", key):
             self._enter_look(engine)
             return True
 
-        if key == tcod.event.KeySym.f:
+        if is_action("fire", key):
             self._enter_ranged(engine)
             return True
 
-        if key == tcod.event.KeySym.e:
-            from game.actions import InteractAction
-            consumed = InteractAction().perform(engine, engine.player)
+        if is_action("interact", key):
+            interact_dirs = self._adjacent_interact_dirs(engine)
+            if len(interact_dirs) == 0:
+                engine.message_log.add_message("Nothing to interact with here.", (100, 100, 100))
+                consumed = 0
+            elif len(interact_dirs) == 1:
+                dx, dy, kind = interact_dirs[0]
+                if kind == "door":
+                    from game.actions import ToggleDoorAction
+                    consumed = ToggleDoorAction(dx, dy).perform(engine, engine.player)
+                else:
+                    from game.actions import InteractAction
+                    consumed = InteractAction(dx, dy).perform(engine, engine.player)
+            else:
+                self._interact_pending = True
+                engine.message_log.add_message("Which direction? (arrow/vi key)", (200, 200, 100))
+                return True
             moved = False
-        elif key == tcod.event.KeySym.s:
+        elif is_action("scan", key):
             from game.actions import ScanAction
             consumed = ScanAction().perform(engine, engine.player)
             moved = False
@@ -288,7 +302,7 @@ class TacticalState(State):
             engine.switch_state(GameOverState(victory=False))
             return True
 
-        for _ in range(int(consumed)):
+        for _ in range(consumed):
             self._after_player_turn(engine)
             if engine.current_state is not self:
                 return True
@@ -299,7 +313,7 @@ class TacticalState(State):
         return True
 
     def _after_player_turn(self, engine: Engine) -> None:
-        """Environment tick, radiation, enemy turns. Switch to game over if dead."""
+        """Environment tick, radiation, drift, enemy turns. Switch to game over if dead."""
         from game.environment import apply_environment_tick
         from game.hazards import apply_dot_effects
         from ui.game_over_state import GameOverState
@@ -309,6 +323,54 @@ class TacticalState(State):
         if engine.player.fighter.hp <= 0:
             engine.switch_state(GameOverState(victory=False))
             return
+
+        # Player drift
+        if engine.player.drifting:
+            dx, dy = engine.player.drift_direction
+            nx, ny = engine.player.x + dx, engine.player.y + dy
+            if not engine.game_map.in_bounds(nx, ny):
+                engine.message_log.add_message(
+                    "You drift beyond reach... lost to the void.", (255, 0, 0)
+                )
+                engine.player.fighter.hp = 0
+                engine.switch_state(GameOverState(victory=False))
+                return
+            # Death on hull collision
+            if not engine.game_map.tiles["walkable"][nx, ny] and not engine.game_map.tiles["transparent"][nx, ny]:
+                engine.message_log.add_message(
+                    "You slam into the hull. The impact is fatal.", (255, 0, 0)
+                )
+                engine.player.fighter.hp = 0
+                engine.switch_state(GameOverState(victory=False))
+                return
+            engine.player.x = nx
+            engine.player.y = ny
+            engine.message_log.add_message(
+                "You drift further into space...", (180, 100, 255)
+            )
+
+        # Enemy drift
+        for entity in list(engine.game_map.entities):
+            if entity is engine.player:
+                continue
+            if not entity.drifting:
+                continue
+            edx, edy = entity.drift_direction
+            enx, eny = entity.x + edx, entity.y + edy
+            if not engine.game_map.in_bounds(enx, eny):
+                if entity in engine.game_map.entities:
+                    engine.game_map.entities.remove(entity)
+                continue
+            # Hull collision kills drifting enemies too
+            if not engine.game_map.tiles["walkable"][enx, eny] and not engine.game_map.tiles["transparent"][enx, eny]:
+                if entity in engine.game_map.entities:
+                    engine.game_map.entities.remove(entity)
+                engine.message_log.add_message(
+                    f"The {entity.name} slams into the hull!", (200, 200, 200)
+                )
+                continue
+            entity.x = enx
+            entity.y = eny
 
         import debug
         if not debug.DISABLE_ENEMY_AI:
@@ -332,9 +394,8 @@ class TacticalState(State):
 
     def _handle_look_input(self, engine: Engine, key: Any) -> bool:
         import tcod.event
-        K = tcod.event.KeySym
 
-        if key in (K.ESCAPE, K.x, K.RETURN):
+        if key in cancel_keys() | confirm_keys() | action_keys()["look"][0]:
             self._look_cursor = None
             self._update_ground_underfoot(engine)
             return True
@@ -382,14 +443,13 @@ class TacticalState(State):
 
     def _handle_ranged_input(self, engine: Engine, key: Any) -> bool:
         import tcod.event
-        K = tcod.event.KeySym
 
-        if key == K.ESCAPE:
+        if key in cancel_keys():
             self._ranged_cursor = None
             self._update_ground_underfoot(engine)
             return True
 
-        if key == K.TAB and self._visible_enemies:
+        if key == tcod.event.KeySym.TAB and self._visible_enemies:
             self._enemy_cycle_index = (self._enemy_cycle_index + 1) % len(self._visible_enemies)
             e = self._visible_enemies[self._enemy_cycle_index]
             self._ranged_cursor = (e.x, e.y)
@@ -405,7 +465,7 @@ class TacticalState(State):
                 self._update_ground_look_at_cursor(engine, self._ranged_cursor)
             return True
 
-        if key == K.RETURN:
+        if key in confirm_keys():
             # Fire at cursor position
             cx, cy = self._ranged_cursor
             target = engine.game_map.get_blocking_entity(cx, cy)
@@ -427,6 +487,90 @@ class TacticalState(State):
                 engine.message_log.add_message("No target at cursor.", (150, 150, 150))
             return True
 
+        return True
+
+    # ------------------------------------------------------------------
+    # Interact direction prompt
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _adjacent_interact_dirs(engine: Engine) -> List[Tuple[int, int, str]]:
+        """Return list of (dx, dy, kind) for all 8-adjacent interactables.
+
+        ``kind`` is ``"door"`` for door tiles and ``"entity"`` for
+        interactable entities (consoles, crates, lockers, etc.).
+        """
+        from world import tile_types as tt
+        door_ids = {
+            int(tt.door_closed["tile_id"]),
+            int(tt.door_open["tile_id"]),
+            int(tt.airlock_ext_closed["tile_id"]),
+            int(tt.airlock_ext_open["tile_id"]),
+        }
+        px, py = engine.player.x, engine.player.y
+        dirs: List[Tuple[int, int, str]] = []
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                nx, ny = px + dx, py + dy
+                if not engine.game_map.in_bounds(nx, ny):
+                    continue
+                tid = int(engine.game_map.tiles["tile_id"][nx, ny])
+                if tid in door_ids:
+                    dirs.append((dx, dy, "door"))
+                elif engine.game_map.get_interactable_at(nx, ny):
+                    dirs.append((dx, dy, "entity"))
+        return dirs
+
+    def _handle_interact_input(self, engine: Engine, key: Any) -> bool:
+        """Handle direction key after interact prompt."""
+        if key in cancel_keys():
+            self._interact_pending = False
+            return True
+
+        move = _move_keys().get(key)
+        if move:
+            dx, dy = move
+            self._interact_pending = False
+
+            # Determine what's at the chosen offset
+            from world import tile_types as tt
+            nx, ny = engine.player.x + dx, engine.player.y + dy
+            if engine.game_map.in_bounds(nx, ny):
+                tid = int(engine.game_map.tiles["tile_id"][nx, ny])
+                door_ids = {
+                    int(tt.door_closed["tile_id"]),
+                    int(tt.door_open["tile_id"]),
+                    int(tt.airlock_ext_closed["tile_id"]),
+                    int(tt.airlock_ext_open["tile_id"]),
+                }
+                if tid in door_ids:
+                    from game.actions import ToggleDoorAction
+                    consumed = ToggleDoorAction(dx, dy).perform(engine, engine.player)
+                elif engine.game_map.get_interactable_at(nx, ny):
+                    from game.actions import InteractAction
+                    consumed = InteractAction(dx, dy).perform(engine, engine.player)
+                else:
+                    engine.message_log.add_message("Nothing there.", (150, 150, 150))
+                    return True
+            else:
+                engine.message_log.add_message("Nothing there.", (150, 150, 150))
+                return True
+
+            if consumed:
+                if self.exit_pos and (engine.player.x, engine.player.y) == self.exit_pos:
+                    engine.message_log.add_message("You return to your ship.", (100, 255, 100))
+                    engine.pop_state()
+                    return True
+                for _ in range(consumed):
+                    self._after_player_turn(engine)
+                    if engine.current_state is not self:
+                        return True
+                engine.game_map.update_fov(engine.player.x, engine.player.y)
+            return True
+
+        self._interact_pending = False
         return True
 
     def _update_ground_look_at_cursor(self, engine: Engine, cursor: tuple) -> None:
@@ -459,18 +603,14 @@ class TacticalState(State):
 
     @staticmethod
     def _get_action(key: Any) -> Optional[Action]:
-        import tcod.event
         from game.actions import BumpAction, WaitAction, PickupAction
-
-        WAIT_KEYS = {tcod.event.KeySym.PERIOD, tcod.event.KeySym.KP_5}
-        PICKUP_KEYS = {tcod.event.KeySym.g, tcod.event.KeySym.COMMA}
 
         move = _move_keys().get(key)
         if move:
             return BumpAction(*move)
-        if key in WAIT_KEYS:
+        if is_action("wait", key):
             return WaitAction()
-        if key in PICKUP_KEYS:
+        if is_action("get", key):
             return PickupAction()
         return None
 
@@ -482,6 +622,20 @@ class TacticalState(State):
         if not engine.game_map or not engine.player:
             return
 
+        # Automatic drift: advance one tile every DRIFT_INTERVAL seconds
+        if engine.player.drifting and engine.player.fighter.hp > 0:
+            import time
+            now = time.time()
+            if self._drift_timer == 0.0:
+                # First frame of drift — initialize timer
+                self._drift_timer = now
+            elif now - self._drift_timer >= DRIFT_INTERVAL:
+                self._drift_timer = now
+                self._after_player_turn(engine)
+                if engine.current_state is not self:
+                    return
+                engine.game_map.update_fov(engine.player.x, engine.player.y)
+
         layout = self._layout
         cam_x = engine.player.x - layout.viewport_w // 2
         cam_y = engine.player.y - layout.viewport_h // 2
@@ -489,6 +643,11 @@ class TacticalState(State):
         cam_y = max(0, min(cam_y, max(0, engine.game_map.height - layout.viewport_h)))
 
         engine.game_map.render(
+            console, cam_x, cam_y,
+            vp_x=0, vp_y=0, vp_w=layout.viewport_w, vp_h=layout.viewport_h,
+        )
+
+        engine.game_map.animate_space(
             console, cam_x, cam_y,
             vp_x=0, vp_y=0, vp_w=layout.viewport_w, vp_h=layout.viewport_h,
         )
@@ -632,15 +791,20 @@ class TacticalState(State):
             look_label = f"TARGETING: {dist}/{max_range}"
             look_color = (100, 255, 100) if in_range else (255, 100, 100)
         elif self._look_cursor is not None:
-            look_label = "[x] LOOKING"
+            ak = action_keys()
+            look_label = f"[{ak['look'][1]}] LOOKING"
             look_color = (200, 200, 100)
         else:
-            look_label = "[x]look"
+            look_label = _hint("look")
             look_color = (70, 70, 70)
 
+        col2_x = x + layout.stats_w // 2
+        hint_color = (70, 70, 70)
         console.print(x=x, y=ctrl_y, string=look_label, fg=look_color)
-        console.print(x=x, y=ctrl_y + 1, string="[i]nventory [f]ire", fg=(70, 70, 70))
-        console.print(x=x, y=ctrl_y + 2, string="[e] interact [s] scan", fg=(70, 70, 70))
-        console.print(x=x, y=ctrl_y + 3, string="[g]et item", fg=(70, 70, 70))
-        console.print(x=x, y=ctrl_y + 4, string="[.]wait", fg=(70, 70, 70))
-        console.print(x=x, y=ctrl_y + 5, string="arrows/vi:move", fg=(70, 70, 70))
+        console.print(x=col2_x, y=ctrl_y, string=_hint("fire"), fg=hint_color)
+        console.print(x=x, y=ctrl_y + 1, string=_hint("inventory"), fg=hint_color)
+        console.print(x=col2_x, y=ctrl_y + 1, string=_hint("scan"), fg=hint_color)
+        console.print(x=x, y=ctrl_y + 2, string=_hint("interact"), fg=hint_color)
+        console.print(x=col2_x, y=ctrl_y + 2, string=_hint("get"), fg=hint_color)
+        console.print(x=x, y=ctrl_y + 3, string=_hint("wait"), fg=hint_color)
+        console.print(x=col2_x, y=ctrl_y + 3, string="arrows move", fg=hint_color)

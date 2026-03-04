@@ -1,10 +1,11 @@
 """Tests for dungeon generation."""
 from world.dungeon_gen import (
     generate_dungeon, RectRoom, _room_wall_positions,
-    _build_ship_skeleton, _ROOM_DRESSING,
+    _build_ship_skeleton, _ROOM_DRESSING, _pick_building_room_count,
 )
 from world.game_map import GameMap
 from world import tile_types
+import numpy as np
 import random
 
 
@@ -533,3 +534,603 @@ def test_derelict_room_to_room_connections():
         if found_link:
             break
     assert found_link, "No room-to-room connections found across 30 seeds"
+
+
+# ---- Multi-room colony building tests ----
+
+
+def test_colony_buildings_have_internal_rooms():
+    """Verify some colony buildings contain more than 1 wing (room)."""
+    found_multi = False
+    for seed in range(50):
+        _, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
+        # With wing composition, multiple wings per building produce more rooms
+        # than the number of unique labels placed.
+        if len(rooms) > 4:
+            found_multi = True
+            break
+    assert found_multi, "No multi-room buildings found across 50 seeds"
+
+
+def test_colony_internal_rooms_connected():
+    """Sub-rooms within a colony building should be connected via walkable tiles."""
+    from collections import deque
+
+    def flood_fill(game_map, start_x, start_y):
+        """Return set of walkable tiles reachable from (start_x, start_y)."""
+        visited = set()
+        queue = deque([(start_x, start_y)])
+        while queue:
+            x, y = queue.popleft()
+            if (x, y) in visited:
+                continue
+            if not game_map.in_bounds(x, y):
+                continue
+            tid = int(game_map.tiles["tile_id"][x, y])
+            is_door = tid in (int(tile_types.door_closed["tile_id"]), int(tile_types.door_open["tile_id"]))
+            if not game_map.tiles["walkable"][x, y] and not is_door:
+                continue
+            visited.add((x, y))
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                queue.append((x + dx, y + dy))
+        return visited
+
+    for seed in range(30):
+        game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
+        if len(rooms) < 2:
+            continue
+        # All room centers should be reachable from each other (colony is open ground)
+        first_cx, first_cy = rooms[0].center
+        reachable = flood_fill(game_map, first_cx, first_cy)
+        for room in rooms[1:]:
+            cx, cy = room.center
+            assert (cx, cy) in reachable, (
+                f"seed={seed}: room center ({cx},{cy}) not reachable from "
+                f"first room ({first_cx},{first_cy})"
+            )
+
+
+def test_colony_hallways_within_footprint():
+    """No dirt_floor tiles should appear outside building footprints or the map border."""
+    from world.dungeon_gen import _pick_building_room_count
+    dirt_tid = int(tile_types.dirt_floor["tile_id"])
+    ground_tid = int(tile_types.ground["tile_id"])
+    structure_wall_tid = int(tile_types.structure_wall["tile_id"])
+
+    for seed in range(50):
+        game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
+        for x in range(game_map.width):
+            for y in range(game_map.height):
+                tid = int(game_map.tiles["tile_id"][x, y])
+                if tid == dirt_tid:
+                    # This tile must be inside some room's footprint
+                    inside = any(
+                        r.x1 <= x <= r.x2 and r.y1 <= y <= r.y2
+                        for r in rooms
+                    )
+                    assert inside, (
+                        f"seed={seed}: dirt_floor at ({x},{y}) outside all building footprints"
+                    )
+
+
+def test_colony_no_crash_200_seeds():
+    """Colony generator must not crash across 200 seeds."""
+    for seed in range(200):
+        game_map, rooms, exit_pos = generate_dungeon(
+            width=80, height=45, seed=seed, loc_type="colony"
+        )
+        assert rooms
+
+
+def test_colony_sub_rooms_minimum_size():
+    """All colony sub-rooms should have at least 3x3 interior."""
+    for seed in range(100):
+        _, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
+        for room in rooms:
+            inner_w = room.x2 - room.x1 - 1
+            inner_h = room.y2 - room.y1 - 1
+            assert inner_w >= 3, (
+                f"seed={seed}: room {room.label} inner width {inner_w} < 3"
+            )
+            assert inner_h >= 3, (
+                f"seed={seed}: room {room.label} inner height {inner_h} < 3"
+            )
+
+
+def test_colony_buildings_have_irregular_footprints():
+    """Across seeds, some buildings should produce non-rectangular silhouettes.
+
+    A multi-wing building is irregular if the union of its wings doesn't form
+    a single rectangle (i.e. the bounding box area > sum of wing areas).
+    """
+    found_irregular = False
+    for seed in range(100):
+        _, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
+        # Group rooms by label to identify buildings with multiple wings
+        from collections import defaultdict
+        by_label: dict[str, list] = defaultdict(list)
+        for r in rooms:
+            by_label[r.label].append(r)
+        for label, wing_rooms in by_label.items():
+            if len(wing_rooms) < 2:
+                continue
+            # Compute bounding box of all wings
+            bb_x1 = min(r.x1 for r in wing_rooms)
+            bb_y1 = min(r.y1 for r in wing_rooms)
+            bb_x2 = max(r.x2 for r in wing_rooms)
+            bb_y2 = max(r.y2 for r in wing_rooms)
+            bb_area = (bb_x2 - bb_x1) * (bb_y2 - bb_y1)
+            wing_area = sum((r.x2 - r.x1) * (r.y2 - r.y1) for r in wing_rooms)
+            if wing_area < bb_area:
+                found_irregular = True
+                break
+        if found_irregular:
+            break
+    assert found_irregular, "No irregular building footprints found across 100 seeds"
+
+
+# ---- Colony window tests ----
+
+def test_colony_windows_are_transparent_not_walkable():
+    """All structure_window tiles must be transparent=True, walkable=False."""
+    window_tid = int(tile_types.structure_window["tile_id"])
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
+        mask = game_map.tiles["tile_id"] == window_tid
+        if not mask.any():
+            continue
+        assert not game_map.tiles["walkable"][mask].any(), (
+            f"seed={seed}: window tile is walkable"
+        )
+        assert game_map.tiles["transparent"][mask].all(), (
+            f"seed={seed}: window tile is not transparent"
+        )
+
+
+def test_colony_windows_on_exterior_walls():
+    """Every window tile must have at least one ground neighbor."""
+    window_tid = int(tile_types.structure_window["tile_id"])
+    ground_tid = int(tile_types.ground["tile_id"])
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
+        for x in range(game_map.width):
+            for y in range(game_map.height):
+                if int(game_map.tiles["tile_id"][x, y]) != window_tid:
+                    continue
+                has_ground = False
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nx, ny = x + dx, y + dy
+                    if (game_map.in_bounds(nx, ny)
+                            and int(game_map.tiles["tile_id"][nx, ny]) == ground_tid):
+                        has_ground = True
+                        break
+                assert has_ground, (
+                    f"seed={seed}: window at ({x},{y}) has no ground neighbor"
+                )
+
+
+def test_colony_windows_not_adjacent_to_doors():
+    """No window should be orthogonally adjacent to a door (floor on exterior wall)."""
+    window_tid = int(tile_types.structure_window["tile_id"])
+    ground_tid = int(tile_types.ground["tile_id"])
+    dirt_tid = int(tile_types.dirt_floor["tile_id"])
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
+        for x in range(game_map.width):
+            for y in range(game_map.height):
+                if int(game_map.tiles["tile_id"][x, y]) != window_tid:
+                    continue
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nx, ny = x + dx, y + dy
+                    if not game_map.in_bounds(nx, ny):
+                        continue
+                    ntid = int(game_map.tiles["tile_id"][nx, ny])
+                    # A door is a walkable dirt_floor tile that has ground on
+                    # its other side (i.e. it's on the building perimeter)
+                    if ntid == dirt_tid and game_map.tiles["walkable"][nx, ny]:
+                        for dx2, dy2 in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                            gx, gy = nx + dx2, ny + dy2
+                            if (game_map.in_bounds(gx, gy)
+                                    and int(game_map.tiles["tile_id"][gx, gy]) == ground_tid):
+                                assert False, (
+                                    f"seed={seed}: window at ({x},{y}) adjacent "
+                                    f"to door at ({nx},{ny})"
+                                )
+
+
+def test_colony_has_windows():
+    """Across seeds, colony maps should contain window tiles."""
+    window_tid = int(tile_types.structure_window["tile_id"])
+    found = False
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
+        if (game_map.tiles["tile_id"] == window_tid).any():
+            found = True
+            break
+    assert found, "No window tiles found in any colony map across 50 seeds"
+
+
+def test_derelict_has_windows():
+    """Across seeds, derelict (ship) maps should contain window tiles."""
+    window_tid = int(tile_types.structure_window["tile_id"])
+    found = False
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        if (game_map.tiles["tile_id"] == window_tid).any():
+            found = True
+            break
+    assert found, "No window tiles found in any derelict map across 50 seeds"
+
+
+def test_starbase_has_windows():
+    """Across seeds, starbase maps should contain window tiles."""
+    window_tid = int(tile_types.structure_window["tile_id"])
+    found = False
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="starbase")
+        if (game_map.tiles["tile_id"] == window_tid).any():
+            found = True
+            break
+    assert found, "No window tiles found in any starbase map across 50 seeds"
+
+
+def test_ship_windows_are_transparent_not_walkable():
+    """All window tiles in derelict maps must be transparent=True, walkable=False."""
+    window_tid = int(tile_types.structure_window["tile_id"])
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        mask = game_map.tiles["tile_id"] == window_tid
+        if not mask.any():
+            continue
+        assert not game_map.tiles["walkable"][mask].any(), (
+            f"seed={seed}: derelict window tile is walkable"
+        )
+        assert game_map.tiles["transparent"][mask].all(), (
+            f"seed={seed}: derelict window tile is not transparent"
+        )
+
+
+def test_ship_windows_adjacent_to_corridor():
+    """Every window in a derelict should have a walkable or window neighbor."""
+    window_tid = int(tile_types.structure_window["tile_id"])
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        for x in range(game_map.width):
+            for y in range(game_map.height):
+                if int(game_map.tiles["tile_id"][x, y]) != window_tid:
+                    continue
+                has_neighbor = False
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nx, ny = x + dx, y + dy
+                    if not game_map.in_bounds(nx, ny):
+                        continue
+                    if (game_map.tiles["walkable"][nx, ny]
+                            or int(game_map.tiles["tile_id"][nx, ny]) == window_tid):
+                        has_neighbor = True
+                        break
+                assert has_neighbor, (
+                    f"seed={seed}: window at ({x},{y}) has no walkable or window neighbor"
+                )
+
+
+def test_colony_no_crash_with_windows():
+    """Colony generator with windows must not crash across 200 seeds."""
+    for seed in range(200):
+        game_map, rooms, exit_pos = generate_dungeon(
+            width=80, height=45, seed=seed, loc_type="colony"
+        )
+        assert rooms
+
+
+def test_derelict_no_crash_with_windows():
+    """Derelict generator with windows must not crash across 200 seeds."""
+    for seed in range(200):
+        game_map, rooms, exit_pos = generate_dungeon(
+            width=80, height=45, seed=seed, loc_type="derelict"
+        )
+        assert rooms
+
+
+def test_derelict_has_hull_facing_windows():
+    """Across seeds, at least some derelict windows have a wall (hull) neighbor."""
+    window_tid = int(tile_types.structure_window["tile_id"])
+    wall_tid = int(tile_types.wall["tile_id"])
+    found = False
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        for x in range(1, game_map.width - 1):
+            for y in range(1, game_map.height - 1):
+                if int(game_map.tiles["tile_id"][x, y]) != window_tid:
+                    continue
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nx, ny = x + dx, y + dy
+                    if (game_map.in_bounds(nx, ny)
+                            and int(game_map.tiles["tile_id"][nx, ny]) == wall_tid):
+                        found = True
+                        break
+                if found:
+                    break
+            if found:
+                break
+        if found:
+            break
+    assert found, "No hull-facing windows found in any derelict map across 50 seeds"
+
+
+def test_derelict_bridge_has_forward_windows():
+    """Bridge rooms should have windows facing west (forward/bow direction)."""
+    window_tid = int(tile_types.structure_window["tile_id"])
+    found = False
+    for seed in range(50):
+        game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        bridges = [r for r in rooms if r.label == "bridge"]
+        for br in bridges:
+            # Check west wall of bridge (x=x1) for windows
+            for y in range(br.y1 + 1, br.y2):
+                x = br.x1
+                if int(game_map.tiles["tile_id"][x, y]) == window_tid:
+                    # Verify hull-side window to the west (x-1 is also window)
+                    if (game_map.in_bounds(x - 1, y)
+                            and int(game_map.tiles["tile_id"][x - 1, y]) == window_tid):
+                        found = True
+                        break
+            if found:
+                break
+        if found:
+            break
+    assert found, "No forward-facing bridge windows found across 50 seeds"
+
+
+def test_derelict_hull_windows_properties():
+    """Hull-facing windows on derelicts must be transparent and not walkable."""
+    window_tid = int(tile_types.structure_window["tile_id"])
+    wall_tid = int(tile_types.wall["tile_id"])
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        for x in range(1, game_map.width - 1):
+            for y in range(1, game_map.height - 1):
+                if int(game_map.tiles["tile_id"][x, y]) != window_tid:
+                    continue
+                # Check if this is a hull-facing window (has wall neighbor)
+                has_hull = False
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nx, ny = x + dx, y + dy
+                    if (game_map.in_bounds(nx, ny)
+                            and int(game_map.tiles["tile_id"][nx, ny]) == wall_tid):
+                        has_hull = True
+                        break
+                if has_hull:
+                    assert game_map.tiles["transparent"][x, y], (
+                        f"seed={seed}: hull window at ({x},{y}) not transparent"
+                    )
+                    assert not game_map.tiles["walkable"][x, y], (
+                        f"seed={seed}: hull window at ({x},{y}) is walkable"
+                    )
+
+
+def test_starbase_has_hull_facing_windows():
+    """Across seeds, at least some starbase windows have hull (wall) on one side."""
+    window_tid = int(tile_types.structure_window["tile_id"])
+    wall_tid = int(tile_types.wall["tile_id"])
+    found = False
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="starbase")
+        for x in range(1, game_map.width - 1):
+            for y in range(1, game_map.height - 1):
+                if int(game_map.tiles["tile_id"][x, y]) != window_tid:
+                    continue
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nx, ny = x + dx, y + dy
+                    if (game_map.in_bounds(nx, ny)
+                            and int(game_map.tiles["tile_id"][nx, ny]) == wall_tid):
+                        found = True
+                        break
+                if found:
+                    break
+            if found:
+                break
+        if found:
+            break
+    assert found, "No hull-facing windows found in any starbase map across 50 seeds"
+
+
+def test_starbase_hull_windows_properties():
+    """Hull-facing windows on starbases must be transparent and not walkable."""
+    window_tid = int(tile_types.structure_window["tile_id"])
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="starbase")
+        mask = game_map.tiles["tile_id"] == window_tid
+        if not mask.any():
+            continue
+        assert not game_map.tiles["walkable"][mask].any(), (
+            f"seed={seed}: starbase window tile is walkable"
+        )
+        assert game_map.tiles["transparent"][mask].all(), (
+            f"seed={seed}: starbase window tile is not transparent"
+        )
+
+
+def test_starbase_no_crash_with_windows():
+    """Starbase generator with windows must not crash across 200 seeds."""
+    for seed in range(200):
+        game_map, rooms, exit_pos = generate_dungeon(
+            width=80, height=45, seed=seed, loc_type="starbase"
+        )
+        assert rooms
+
+
+# ---- Space tile tests ----
+
+
+def test_derelict_has_space_tiles():
+    """Derelict maps should contain space tiles outside the hull."""
+    space_tid = int(tile_types.space["tile_id"])
+    found = False
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        if (game_map.tiles["tile_id"] == space_tid).any():
+            found = True
+            break
+    assert found, "No space tiles found in any derelict map across 50 seeds"
+
+
+def test_starbase_has_space_tiles():
+    """Starbase maps should contain space tiles outside the hull."""
+    space_tid = int(tile_types.space["tile_id"])
+    found = False
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="starbase")
+        if (game_map.tiles["tile_id"] == space_tid).any():
+            found = True
+            break
+    assert found, "No space tiles found in any starbase map across 50 seeds"
+
+
+def test_asteroid_has_no_space_tiles():
+    """Asteroid maps (organic generator) should not have space tiles."""
+    space_tid = int(tile_types.space["tile_id"])
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="asteroid")
+        assert not (game_map.tiles["tile_id"] == space_tid).any(), (
+            f"seed={seed}: asteroid map should not have space tiles"
+        )
+
+
+def test_colony_has_no_space_tiles():
+    """Colony maps (village generator) should not have space tiles."""
+    space_tid = int(tile_types.space["tile_id"])
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
+        assert not (game_map.tiles["tile_id"] == space_tid).any(), (
+            f"seed={seed}: colony map should not have space tiles"
+        )
+
+
+def test_space_tiles_not_adjacent_to_walkable():
+    """Space tiles should never be orthogonally adjacent to walkable tiles."""
+    space_tid = int(tile_types.space["tile_id"])
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        is_space = game_map.tiles["tile_id"] == space_tid
+        is_walkable = game_map.tiles["walkable"]
+        # Check all 4 cardinal neighbors
+        adj_walkable = np.zeros_like(is_space)
+        adj_walkable[1:, :] |= is_walkable[:-1, :]
+        adj_walkable[:-1, :] |= is_walkable[1:, :]
+        adj_walkable[:, 1:] |= is_walkable[:, :-1]
+        adj_walkable[:, :-1] |= is_walkable[:, 1:]
+        bad = is_space & adj_walkable
+        assert not bad.any(), (
+            f"seed={seed}: space tile adjacent to walkable tile"
+        )
+
+
+def test_space_tiles_are_transparent():
+    """All space tiles must be transparent (LOS passes through)."""
+    space_tid = int(tile_types.space["tile_id"])
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        mask = game_map.tiles["tile_id"] == space_tid
+        if mask.any():
+            assert game_map.tiles["transparent"][mask].all(), (
+                f"seed={seed}: space tile is not transparent"
+            )
+
+
+def test_space_conversion_preserves_hull_walls():
+    """Walls adjacent to walkable tiles (structural hull) must not be converted."""
+    wall_tid = int(tile_types.wall["tile_id"])
+    for seed in range(20):
+        game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        # Every room boundary wall that neighbors a walkable interior should still be wall
+        for room in rooms:
+            cx, cy = room.center
+            # Check that at least some walls remain around the room
+            perimeter_walls = 0
+            for x in range(room.x1, room.x2 + 1):
+                for y in [room.y1, room.y2]:
+                    if game_map.in_bounds(x, y):
+                        tid = int(game_map.tiles["tile_id"][x, y])
+                        if tid == wall_tid:
+                            perimeter_walls += 1
+            for y in range(room.y1, room.y2 + 1):
+                for x in [room.x1, room.x2]:
+                    if game_map.in_bounds(x, y):
+                        tid = int(game_map.tiles["tile_id"][x, y])
+                        if tid == wall_tid:
+                            perimeter_walls += 1
+            # Room should have hull walls (some may be windows/doors, but not all space)
+            assert perimeter_walls > 0, (
+                f"seed={seed}: room at {room.center} lost all hull walls"
+            )
+
+
+def test_derelict_has_space_flag():
+    """Derelict game_map should have has_space=True."""
+    game_map, _, _ = generate_dungeon(seed=42, loc_type="derelict")
+    assert game_map.has_space
+
+
+def test_asteroid_has_no_space_flag():
+    """Asteroid game_map should have has_space=False."""
+    game_map, _, _ = generate_dungeon(seed=42, loc_type="asteroid")
+    assert not game_map.has_space
+
+
+def test_door_placement():
+    """Doors appear at room entrances in generated dungeons."""
+    door_closed_id = int(tile_types.door_closed["tile_id"])
+    # Try multiple seeds — at least one should produce doors
+    found = False
+    for seed in range(50):
+        game_map, rooms, _ = generate_dungeon(seed=seed, max_rooms=8)
+        if (game_map.tiles["tile_id"] == door_closed_id).any():
+            found = True
+            break
+    assert found, "No doors placed in any of 50 seeds"
+
+
+def test_asteroid_has_no_doors():
+    """Asteroid (organic) maps should never have doors."""
+    door_closed_id = int(tile_types.door_closed["tile_id"])
+    for seed in range(20):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="asteroid")
+        assert not (game_map.tiles["tile_id"] == door_closed_id).any(), (
+            f"seed={seed}: asteroid map should have no doors"
+        )
+
+
+def test_no_overlapping_items():
+    """No two non-blocking entities should share the same tile."""
+    for seed in range(30):
+        game_map, _, _ = generate_dungeon(seed=seed, max_rooms=8)
+        occupied: set = set()
+        for e in game_map.entities:
+            if e.blocks_movement:
+                continue
+            pos = (e.x, e.y)
+            assert pos not in occupied, (
+                f"seed={seed}: overlapping entities at {pos}"
+            )
+            occupied.add(pos)
+
+
+def test_doors_not_clustered():
+    """No two doors should be within 3 Manhattan distance of each other (excluding airlock pairs)."""
+    door_closed_id = int(tile_types.door_closed["tile_id"])
+    for seed in range(20):
+        game_map, _, _ = generate_dungeon(seed=seed, max_rooms=8)
+        # Collect airlock door positions to exclude from clustering check
+        airlock_doors = set()
+        for al in game_map.airlocks:
+            airlock_doors.add(al["interior_door"])
+            airlock_doors.add(al["exterior_door"])
+        door_positions = list(zip(*np.where(game_map.tiles["tile_id"] == door_closed_id)))
+        non_airlock_doors = [(x, y) for x, y in door_positions if (x, y) not in airlock_doors]
+        for i, (x1, y1) in enumerate(non_airlock_doors):
+            for x2, y2 in non_airlock_doors[i + 1:]:
+                dist = abs(x1 - x2) + abs(y1 - y2)
+                assert dist >= 3, (
+                    f"seed={seed}: doors at ({x1},{y1}) and ({x2},{y2}) "
+                    f"are only {dist} apart"
+                )

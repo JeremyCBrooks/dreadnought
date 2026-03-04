@@ -58,3 +58,8 @@ class MockEngine:
         self.suit = suit
         self.environment = environment
         self.active_effects = []
+        self.area_cache = {}
+        self._state_stack = []
+        self._saved_player = None
+        self.ship = None
+        self._pending_loadout = None

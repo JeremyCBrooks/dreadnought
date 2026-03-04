@@ -42,19 +42,17 @@ class BriefingState(State):
         self.depth = depth
 
     def ev_keydown(self, engine: Engine, event: Any) -> bool:
-        import tcod.event
+        from ui.keys import confirm_keys, cancel_keys
+
         key = event.sym
 
-        if key in (tcod.event.KeySym.ESCAPE, tcod.event.KeySym.b):
+        if key in cancel_keys():
             engine.pop_state()
             return True
 
-        if key == tcod.event.KeySym.c:
+        if key in confirm_keys():
             from ui.loadout_state import LoadoutState
-            loadout = LoadoutState()
-            loadout._location = self.location
-            loadout._depth = self.depth
-            engine.switch_state(loadout)
+            engine.switch_state(LoadoutState(location=self.location, depth=self.depth))
             return True
 
         return True
@@ -94,6 +92,6 @@ class BriefingState(State):
 
         console.print(
             x=bx + 2, y=by + bh - 2,
-            string="[C] Continue to Loadout  [B/ESC] Back",
+            string="[ENTER] Continue to Loadout  [ESC] Back",
             fg=(100, 100, 100),
         )

@@ -31,17 +31,32 @@ class InventoryState(State):
         ]
 
     def ev_keydown(self, engine: Engine, event: Any) -> bool:
-        import tcod.event
+        from ui.keys import move_keys, confirm_keys, cancel_keys
 
         key = event.sym
 
-        if key == tcod.event.KeySym.ESCAPE:
+        if key in cancel_keys():
             engine.pop_state()
             return True
 
-        if key == tcod.event.KeySym.TAB:
-            self._section = 1 - self._section
-            self.selected = 0
+        direction = move_keys().get(key)
+        if direction:
+            dx, dy = direction
+            if dx < 0:  # left
+                if self._section != _LOADOUT:
+                    self._section = _LOADOUT
+                    self.selected = 0
+                return True
+            if dx > 0:  # right
+                if self._section != _COLLECTION:
+                    self._section = _COLLECTION
+                    self.selected = 0
+                return True
+            if dy != 0:
+                if self._section == _LOADOUT:
+                    return self._handle_loadout_nav(engine, dy)
+                else:
+                    return self._handle_collection_nav(engine, dy)
             return True
 
         if self._section == _LOADOUT:
@@ -49,21 +64,32 @@ class InventoryState(State):
         else:
             return self._handle_collection(engine, key)
 
+    def _handle_loadout_nav(self, engine: Engine, dy: int) -> bool:
+        slots = self._loadout_slots(engine)
+        if not slots:
+            return True
+        if dy < 0:
+            self.selected = max(0, self.selected - 1)
+        elif dy > 0:
+            self.selected = min(len(slots) - 1, self.selected + 1)
+        return True
+
+    def _handle_collection_nav(self, engine: Engine, dy: int) -> bool:
+        tank = engine.player.collection_tank
+        if dy < 0:
+            self.selected = max(0, self.selected - 1)
+        elif dy > 0 and tank:
+            self.selected = min(len(tank) - 1, self.selected + 1)
+        return True
+
     def _handle_loadout(self, engine: Engine, key: Any) -> bool:
-        import tcod.event
+        from ui.keys import confirm_keys
 
         slots = self._loadout_slots(engine)
         if not slots:
             return True
 
-        if key in (tcod.event.KeySym.UP, tcod.event.KeySym.k):
-            self.selected = max(0, self.selected - 1)
-            return True
-        if key in (tcod.event.KeySym.DOWN, tcod.event.KeySym.j):
-            self.selected = min(len(slots) - 1, self.selected + 1)
-            return True
-
-        if key == tcod.event.KeySym.RETURN:
+        if key in confirm_keys():
             if self.selected < len(slots):
                 label, item, usable = slots[self.selected]
                 if usable and item:
@@ -73,19 +99,11 @@ class InventoryState(State):
         return True
 
     def _handle_collection(self, engine: Engine, key: Any) -> bool:
-        import tcod.event
-
-        tank = engine.player.collection_tank
-
-        if key in (tcod.event.KeySym.UP, tcod.event.KeySym.k):
-            self.selected = max(0, self.selected - 1)
-            return True
-        if key in (tcod.event.KeySym.DOWN, tcod.event.KeySym.j):
-            if tank:
-                self.selected = min(len(tank) - 1, self.selected + 1)
-            return True
-
         return True
+
+    def _clamp_selected(self, engine: Engine) -> None:
+        """Clamp selected index to valid loadout range after slot changes."""
+        self.selected = max(0, min(self.selected, len(self._loadout_slots(engine)) - 1))
 
     def _use_consumable(self, engine: Engine, item: Any) -> None:
         """Apply consumable effect and clear slot."""
@@ -101,7 +119,7 @@ class InventoryState(State):
                 f"Used {item.name}. Healed {heal} HP.", (0, 255, 0)
             )
             engine.player.loadout.use_consumable(item)
-            self.selected = max(0, min(self.selected, len(self._loadout_slots(engine)) - 1))
+            self._clamp_selected(engine)
 
         elif itype == "repair":
             repaired = None
@@ -167,7 +185,7 @@ class InventoryState(State):
                     item_name = item.name if item else "--"
                     use_hint = " [ENTER]" if usable and item else ""
                     line = f"{prefix} {label}: {item_name}{use_hint}"
-                    if len(line) > label_width:
+                    if label_width > 3 and len(line) > label_width:
                         line = line[:label_width - 3] + "..."
                     console.print(x=bx + 2, y=row + j, string=line, fg=color)
         else:
@@ -184,12 +202,12 @@ class InventoryState(State):
                     line = f"{prefix} {item.name}"
                     if item.item:
                         line += f" [{item.item.get('type', '?')}]"
-                    if len(line) > label_width:
+                    if label_width > 3 and len(line) > label_width:
                         line = line[:label_width - 3] + "..."
                     console.print(x=bx + 2, y=row + j, string=line, fg=color)
 
         console.print(
             x=bx + 2, y=by + bh - 2,
-            string="[TAB] Switch [ENTER] Use [ESC] Close",
+            string="[LEFT/RIGHT] Switch [ENTER] Use [ESC] Close",
             fg=(100, 100, 100),
         )

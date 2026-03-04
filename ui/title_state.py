@@ -11,9 +11,9 @@ if TYPE_CHECKING:
 
 class TitleState(State):
     def ev_keydown(self, engine: Engine, event: Any) -> bool:
-        import tcod.event
+        from ui.keys import cancel_keys
 
-        if event.sym == tcod.event.KeySym.ESCAPE:
+        if event.sym in cancel_keys():
             return False
 
         from world.galaxy import Galaxy

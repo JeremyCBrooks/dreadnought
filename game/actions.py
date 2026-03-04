@@ -1,11 +1,40 @@
 """Action classes executed by entities each turn."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
     from game.entity import Entity
+
+
+def _calc_damage(engine: Engine, attacker: Entity, target: Entity, base_power: int) -> int:
+    """Calculate damage after defense, respecting debug flags."""
+    import debug
+    if debug.ONE_HIT_KILL and attacker is engine.player:
+        damage = target.fighter.hp
+    else:
+        defense = target.fighter.defense
+        if target is engine.player and getattr(engine, "suit", None):
+            defense += engine.suit.defense_bonus
+        damage = max(1, base_power - defense)
+    if debug.GOD_MODE and target is engine.player:
+        damage = 0
+    return damage
+
+
+def _apply_damage_and_death(engine: Engine, attacker: Entity, target: Entity, damage: int) -> None:
+    """Apply damage to target and handle death/removal."""
+    target.fighter.hp = max(0, target.fighter.hp - damage)
+    if target.fighter.hp <= 0:
+        if target is engine.player:
+            engine.message_log.add_message("You die...", (255, 0, 0))
+        else:
+            engine.message_log.add_message(
+                f"The {target.name} is destroyed!", (200, 200, 200)
+            )
+            if target in engine.game_map.entities:
+                engine.game_map.entities.remove(target)
 
 
 class Action:
@@ -15,8 +44,8 @@ class Action:
 
 
 class WaitAction(Action):
-    def perform(self, engine: Engine, entity: Entity) -> bool:
-        return True
+    def perform(self, engine: Engine, entity: Entity) -> int:
+        return 1
 
 
 class MovementAction(Action):
@@ -28,37 +57,27 @@ class MovementAction(Action):
         dest_x = entity.x + self.dx
         dest_y = entity.y + self.dy
         if not engine.game_map.is_walkable(dest_x, dest_y):
-            return False
+            return 0
         if engine.game_map.get_blocking_entity(dest_x, dest_y):
-            return False
+            return 0
         if engine.game_map.get_interactable_at(dest_x, dest_y):
-            return False
+            return 0
         entity.x = dest_x
         entity.y = dest_y
         from game.environment import has_low_gravity
         if has_low_gravity(engine):
             return 2
-        return True
+        return 1
 
 
 class MeleeAction(Action):
     def __init__(self, target: Entity) -> None:
         self.target = target
 
-    def perform(self, engine: Engine, entity: Entity) -> bool:
+    def perform(self, engine: Engine, entity: Entity) -> int:
         if not entity.fighter or not self.target.fighter:
-            return False
-        import debug
-        if debug.ONE_HIT_KILL and entity is engine.player:
-            damage = self.target.fighter.hp
-        else:
-            defense = self.target.fighter.defense
-            if self.target is engine.player and getattr(engine, "suit", None):
-                defense += engine.suit.defense_bonus
-            damage = max(1, entity.fighter.power - defense)
-        if debug.GOD_MODE and self.target is engine.player:
-            damage = 0
-        self.target.fighter.hp = max(0, self.target.fighter.hp - damage)
+            return 0
+        damage = _calc_damage(engine, entity, self.target, entity.fighter.power)
 
         if entity is engine.player:
             msg = f"You hit the {self.target.name} for {damage} damage."
@@ -68,16 +87,8 @@ class MeleeAction(Action):
             color = (255, 200, 200)
         engine.message_log.add_message(msg, color)
 
-        if self.target.fighter.hp <= 0:
-            if self.target is engine.player:
-                engine.message_log.add_message("You die...", (255, 0, 0))
-            else:
-                engine.message_log.add_message(
-                    f"The {self.target.name} is destroyed!", (200, 200, 200)
-                )
-                if self.target in engine.game_map.entities:
-                    engine.game_map.entities.remove(self.target)
-        return True
+        _apply_damage_and_death(engine, entity, self.target, damage)
+        return 1
 
 
 class BumpAction(Action):
@@ -87,21 +98,45 @@ class BumpAction(Action):
         self.dx = dx
         self.dy = dy
 
-    def perform(self, engine: Engine, entity: Entity) -> bool:
+    def perform(self, engine: Engine, entity: Entity) -> int:
         dest_x = entity.x + self.dx
         dest_y = entity.y + self.dy
         target = engine.game_map.get_blocking_entity(dest_x, dest_y)
         if target and target.fighter:
             return MeleeAction(target).perform(engine, entity)
+
+        # Check for airlock→space transition
+        if engine.game_map.in_bounds(dest_x, dest_y):
+            from world import tile_types
+            dest_tid = int(engine.game_map.tiles["tile_id"][dest_x, dest_y])
+            space_tid = int(tile_types.space["tile_id"])
+            airlock_tid = int(tile_types.airlock_floor["tile_id"])
+            ext_open_tid = int(tile_types.airlock_ext_open["tile_id"])
+            cur_tid = int(engine.game_map.tiles["tile_id"][entity.x, entity.y])
+            # Allow stepping into space from airlock floor or from an open
+            # exterior airlock door
+            on_airlock = cur_tid in (airlock_tid, ext_open_tid)
+            if dest_tid == space_tid and on_airlock:
+                # Step into the void
+                entity.x = dest_x
+                entity.y = dest_y
+                entity.drifting = True
+                entity.drift_direction = (self.dx, self.dy)
+                if entity is engine.player:
+                    engine.message_log.add_message(
+                        "You step into the void...", (200, 100, 255)
+                    )
+                return 1
+
         return MovementAction(self.dx, self.dy).perform(engine, entity)
 
 
 class PickupAction(Action):
-    def perform(self, engine: Engine, entity: Entity) -> bool:
+    def perform(self, engine: Engine, entity: Entity) -> int:
         items = engine.game_map.get_items_at(entity.x, entity.y)
         if not items:
             engine.message_log.add_message("Nothing to pick up.", (100, 100, 100))
-            return False
+            return 0
         item = items[0]
         # Player picks up into collection tank (not usable until return to ship)
         if entity is engine.player:
@@ -109,28 +144,33 @@ class PickupAction(Action):
         else:
             entity.inventory.append(item)
         engine.game_map.entities.remove(item)
-        engine.message_log.add_message(
-            f"You pick up the {item.name}.", (200, 200, 255)
-        )
-        return True
+        if entity is engine.player:
+            engine.message_log.add_message(
+                f"You pick up the {item.name}.", (200, 200, 255)
+            )
+        else:
+            engine.message_log.add_message(
+                f"The {entity.name} picks up the {item.name}.", (200, 200, 255)
+            )
+        return 1
 
 
 class DropAction(Action):
     def __init__(self, item_index: int) -> None:
         self.item_index = item_index
 
-    def perform(self, engine: Engine, entity: Entity) -> bool:
+    def perform(self, engine: Engine, entity: Entity) -> int:
         if self.item_index < 0 or self.item_index >= len(entity.inventory):
-            return False
+            return 0
         item = entity.inventory.pop(self.item_index)
         item.x = entity.x
         item.y = entity.y
         engine.game_map.entities.append(item)
         engine.message_log.add_message(f"You drop the {item.name}.", (200, 200, 200))
-        return True
+        return 1
 
 
-def _adjacent_interactable(engine: Engine, entity: Entity):
+def _adjacent_interactable(engine: Engine, entity: Entity) -> Optional[Entity]:
     """Return first interactable entity adjacent to entity, or None."""
     gm = engine.game_map
     for dx in (-1, 0, 1):
@@ -147,11 +187,20 @@ def _adjacent_interactable(engine: Engine, entity: Entity):
 class InteractAction(Action):
     """Interact with an adjacent object (console, crate, etc.); may trigger hazards."""
 
-    def perform(self, engine: Engine, entity: Entity) -> bool:
-        target = _adjacent_interactable(engine, entity)
+    def __init__(self, dx: int = 0, dy: int = 0) -> None:
+        self.dx = dx
+        self.dy = dy
+
+    def perform(self, engine: Engine, entity: Entity) -> int:
+        if self.dx or self.dy:
+            target = engine.game_map.get_interactable_at(
+                entity.x + self.dx, entity.y + self.dy
+            )
+        else:
+            target = _adjacent_interactable(engine, entity)
         if not target or not target.interactable:
             engine.message_log.add_message("Nothing to interact with here.", (100, 100, 100))
-            return False
+            return 0
 
         ih = target.interactable
         name = target.name
@@ -167,7 +216,7 @@ class InteractAction(Action):
 
         # Loot
         loot = ih.get("loot")
-        if loot and isinstance(loot, dict):
+        if loot and isinstance(loot, dict) and all(k in loot for k in ("char", "color", "name")):
             from game.entity import Entity as E
             from data import db
             item_data = db.build_item_data(loot)
@@ -193,13 +242,17 @@ class InteractAction(Action):
         # Remove interactable after use
         if target in engine.game_map.entities:
             engine.game_map.entities.remove(target)
-        return True
+        return 1
 
 
 class ScanAction(Action):
     """Use scanner tool on an adjacent interactable; tiered reveal of hazards. Costs 1 turn."""
 
-    def perform(self, engine: Engine, entity: Entity) -> bool:
+    def __init__(self, dx: int = 0, dy: int = 0) -> None:
+        self.dx = dx
+        self.dy = dy
+
+    def perform(self, engine: Engine, entity: Entity) -> int:
         # Check loadout tool slot first (player), fallback to inventory (enemies)
         scanner = None
         if getattr(entity, "loadout", None):
@@ -211,12 +264,17 @@ class ScanAction(Action):
                     break
         if not scanner:
             engine.message_log.add_message("You need a scanner to scan.", (150, 150, 150))
-            return False
+            return 0
 
-        target = _adjacent_interactable(engine, entity)
+        if self.dx or self.dy:
+            target = engine.game_map.get_interactable_at(
+                entity.x + self.dx, entity.y + self.dy
+            )
+        else:
+            target = _adjacent_interactable(engine, entity)
         if not target or not target.interactable:
             engine.message_log.add_message("Nothing to scan here.", (100, 100, 100))
-            return False
+            return 0
 
         tier = scanner.item.get("scanner_tier", 1)
         hazard = target.interactable.get("hazard")
@@ -224,7 +282,7 @@ class ScanAction(Action):
 
         if not hazard:
             engine.message_log.add_message("Scan clear. Safe to interact.", (0, 255, 100))
-            return True
+            return 1
 
         if tier == 1:
             engine.message_log.add_message("WARNING: Hazard detected.", (255, 200, 0))
@@ -240,10 +298,10 @@ class ScanAction(Action):
             engine.message_log.add_message(
                 f"{htype.title()} hazard ({sev}). Proceed with caution.", (255, 255, 150)
             )
-        return True
+        return 1
 
 
-def _get_equipped_ranged_weapon(entity: Entity):
+def _get_equipped_ranged_weapon(entity: Entity) -> Optional[Entity]:
     """Return the ranged weapon from loadout if available, else fallback to inventory (enemies)."""
     # Check loadout weapon slot first (player)
     if getattr(entity, "loadout", None):
@@ -262,20 +320,68 @@ def _get_equipped_ranged_weapon(entity: Entity):
     return None
 
 
+class ToggleDoorAction(Action):
+    """Open or close a door at a cardinal offset from the entity."""
+
+    def __init__(self, dx: int, dy: int) -> None:
+        self.dx = dx
+        self.dy = dy
+
+    def perform(self, engine: Engine, entity: Entity) -> int:
+        from world import tile_types
+
+        tx, ty = entity.x + self.dx, entity.y + self.dy
+        if not engine.game_map.in_bounds(tx, ty):
+            engine.message_log.add_message("No door there.", (100, 100, 100))
+            return 0
+
+        tile_id = int(engine.game_map.tiles["tile_id"][tx, ty])
+        closed_id = int(tile_types.door_closed["tile_id"])
+        open_id = int(tile_types.door_open["tile_id"])
+        ext_closed_id = int(tile_types.airlock_ext_closed["tile_id"])
+        ext_open_id = int(tile_types.airlock_ext_open["tile_id"])
+
+        if tile_id == closed_id:
+            engine.game_map.tiles[tx, ty] = tile_types.door_open
+            engine.message_log.add_message("You open the door.", (200, 200, 200))
+            return 1
+        elif tile_id == ext_closed_id:
+            engine.game_map.tiles[tx, ty] = tile_types.airlock_ext_open
+            engine.message_log.add_message(
+                "You open the exterior airlock door.", (255, 200, 100)
+            )
+            return 1
+        elif tile_id in (open_id, ext_open_id):
+            # Don't close if an entity is standing there
+            if engine.game_map.get_blocking_entity(tx, ty):
+                engine.message_log.add_message("Something is in the way.", (255, 200, 100))
+                return 0
+            if engine.game_map.get_items_at(tx, ty):
+                engine.message_log.add_message("Something is in the way.", (255, 200, 100))
+                return 0
+            new_tile = tile_types.airlock_ext_closed if tile_id == ext_open_id else tile_types.door_closed
+            engine.game_map.tiles[tx, ty] = new_tile
+            engine.message_log.add_message("You close the door.", (200, 200, 200))
+            return 1
+        else:
+            engine.message_log.add_message("No door there.", (100, 100, 100))
+            return 0
+
+
 class RangedAction(Action):
     """Fire a ranged weapon at a target."""
 
     def __init__(self, target: Entity) -> None:
         self.target = target
 
-    def perform(self, engine: Engine, entity: Entity) -> bool:
+    def perform(self, engine: Engine, entity: Entity) -> int:
         if not entity.fighter or not self.target.fighter:
-            return False
+            return 0
 
         weapon = _get_equipped_ranged_weapon(entity)
         if not weapon:
             engine.message_log.add_message("No ranged weapon with ammo.", (255, 100, 100))
-            return False
+            return 0
 
         # Check range
         dx = abs(entity.x - self.target.x)
@@ -284,29 +390,17 @@ class RangedAction(Action):
         max_range = weapon.item.get("range", 5)
         if distance > max_range:
             engine.message_log.add_message("Target out of range.", (255, 100, 100))
-            return False
+            return 0
 
         # Check FOV
         if not engine.game_map.visible[self.target.x, self.target.y]:
             engine.message_log.add_message("Target not visible.", (255, 100, 100))
-            return False
+            return 0
 
         # Consume ammo
         weapon.item["ammo"] -= 1
 
-        # Damage
-        import debug
-        if debug.ONE_HIT_KILL and entity is engine.player:
-            damage = self.target.fighter.hp
-        else:
-            defense = self.target.fighter.defense
-            if self.target is engine.player and getattr(engine, "suit", None):
-                defense += engine.suit.defense_bonus
-            damage = max(1, weapon.item["value"] - defense)
-        if debug.GOD_MODE and self.target is engine.player:
-            damage = 0
-
-        self.target.fighter.hp = max(0, self.target.fighter.hp - damage)
+        damage = _calc_damage(engine, entity, self.target, weapon.item["value"])
 
         if entity is engine.player:
             msg = f"You shoot the {self.target.name} for {damage} damage."
@@ -316,13 +410,5 @@ class RangedAction(Action):
             color = (255, 150, 150)
         engine.message_log.add_message(msg, color)
 
-        if self.target.fighter.hp <= 0:
-            if self.target is engine.player:
-                engine.message_log.add_message("You die...", (255, 0, 0))
-            else:
-                engine.message_log.add_message(
-                    f"The {self.target.name} is destroyed!", (200, 200, 200)
-                )
-                if self.target in engine.game_map.entities:
-                    engine.game_map.entities.remove(self.target)
-        return True
+        _apply_damage_and_death(engine, entity, self.target, damage)
+        return 1

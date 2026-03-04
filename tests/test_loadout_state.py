@@ -30,10 +30,10 @@ def test_loadout_tab_cycles_panels():
     state = LoadoutState()
     engine.push_state(state)
     for expected in range(1, 5):
-        state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.TAB))
+        state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RIGHT))
         assert state._panel == expected
     # Wraps around to 0
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.TAB))
+    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RIGHT))
     assert state._panel == 0
 
 
@@ -57,7 +57,7 @@ def test_loadout_weapon_selection():
     state = LoadoutState()
     engine.push_state(state)
     # Navigate to weapon panel
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.TAB))
+    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RIGHT))
     assert state._panel == 1
     # Toggle select
     state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.SPACE))
@@ -73,7 +73,7 @@ def test_loadout_consumable_selection():
     engine.push_state(state)
     # Navigate to consumable 1 panel (TAB x3)
     for _ in range(3):
-        state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.TAB))
+        state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RIGHT))
     assert state._panel == 3
     state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.SPACE))
     assert state._selections[3] is not None
@@ -87,7 +87,7 @@ def test_loadout_deselect_toggle():
     state = LoadoutState()
     engine.push_state(state)
     for _ in range(3):
-        state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.TAB))
+        state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RIGHT))
     state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.SPACE))
     assert state._selections[3] is not None
     # Toggle again to deselect
@@ -130,16 +130,16 @@ def test_loadout_confirm_builds_loadout():
     engine.push_state(state)
 
     # Select weapon (panel 1)
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.TAB))
+    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RIGHT))
     state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.SPACE))
     # Select tool (panel 2)
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.TAB))
+    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RIGHT))
     state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.SPACE))
     # Select consumable1 (panel 3) - heal
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.TAB))
+    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RIGHT))
     state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.SPACE))
     # Select consumable2 (panel 4) - o2
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.TAB))
+    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RIGHT))
     state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.SPACE))
 
     state._confirm(engine)
@@ -170,7 +170,7 @@ def test_loadout_confirm_removes_from_cargo():
     engine.push_state(state)
     import tcod.event
     # Select weapon panel, select first weapon
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.TAB))
+    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RIGHT))
     state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.SPACE))
 
     state._confirm(engine)
@@ -248,11 +248,11 @@ def test_same_consumable_not_in_both_slots():
     engine.push_state(state)
     # Select in consumable 1 (panel 3)
     for _ in range(3):
-        state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.TAB))
+        state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RIGHT))
     state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.SPACE))
 
     # Move to consumable 2 (panel 4)
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.TAB))
+    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RIGHT))
     # The heal should not appear since it's already assigned to C1
     filtered = state._filtered_cargo(engine, 4)
     assert heal not in filtered

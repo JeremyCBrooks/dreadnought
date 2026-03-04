@@ -23,7 +23,7 @@ _PANEL_NAMES = ["SUIT", "WEAPON", "TOOL", "CONSUMABLE 1", "CONSUMABLE 2"]
 class LoadoutState(State):
     """Select suit and 4 typed equipment slots to bring on mission."""
 
-    def __init__(self) -> None:
+    def __init__(self, location: Any = None, depth: int = 0) -> None:
         self._panel = 0
         self._suit_index = 0
         self._cursor = 0  # cursor within current equipment panel's filtered list
@@ -31,8 +31,8 @@ class LoadoutState(State):
             _WEAPON: None, _TOOL: None, _CONSUMABLE1: None, _CONSUMABLE2: None,
         }  # panel -> index into _filtered_items for that panel
         self._suits: list = []
-        self._location = None
-        self._depth = 0
+        self.location = location
+        self.depth = depth
 
     def on_enter(self, engine: Engine) -> None:
         from game.suit import EVA_SUIT, HAZARD_SUIT
@@ -43,16 +43,24 @@ class LoadoutState(State):
                     self._suit_index = i
                     break
 
-    def _filtered_cargo(self, engine: Engine, panel: int) -> List[Entity]:
-        """Return cargo items matching the panel's slot type, excluding already-assigned items."""
-        from game.loadout import SlotType, item_slot_type
-
-        slot_map = {
+    @staticmethod
+    def _get_slot_map() -> Dict:
+        from game.loadout import SlotType
+        return {
             _WEAPON: SlotType.WEAPON,
             _TOOL: SlotType.TOOL,
             _CONSUMABLE1: SlotType.CONSUMABLE,
             _CONSUMABLE2: SlotType.CONSUMABLE,
         }
+
+    def _filtered_cargo(self, engine: Engine, panel: int, *, exclude_cross: bool = True) -> List[Entity]:
+        """Return cargo items matching the panel's slot type.
+
+        If *exclude_cross* is True (default), items already selected in other panels are excluded.
+        """
+        from game.loadout import item_slot_type
+
+        slot_map = self._get_slot_map()
         target_slot = slot_map.get(panel)
         if not target_slot:
             return []
@@ -60,11 +68,14 @@ class LoadoutState(State):
         ship = getattr(engine, "ship", None)
         cargo = ship.cargo if ship else []
 
+        if not exclude_cross:
+            return [item for item in cargo if item_slot_type(item) == target_slot]
+
         # Collect items already selected in OTHER panels
         already_selected: set = set()
         for p, sel_idx in self._selections.items():
             if p != panel and sel_idx is not None:
-                items = self._filtered_cargo_raw(engine, p)
+                items = self._filtered_cargo(engine, p, exclude_cross=False)
                 if sel_idx < len(items):
                     already_selected.add(id(items[sel_idx]))
 
@@ -74,67 +85,63 @@ class LoadoutState(State):
             and id(item) not in already_selected
         ]
 
-    def _filtered_cargo_raw(self, engine: Engine, panel: int) -> List[Entity]:
-        """Filtered cargo without excluding cross-panel selections (for internal use)."""
-        from game.loadout import SlotType, item_slot_type
-
-        slot_map = {
-            _WEAPON: SlotType.WEAPON,
-            _TOOL: SlotType.TOOL,
-            _CONSUMABLE1: SlotType.CONSUMABLE,
-            _CONSUMABLE2: SlotType.CONSUMABLE,
-        }
-        target_slot = slot_map.get(panel)
-        if not target_slot:
-            return []
-
-        ship = getattr(engine, "ship", None)
-        cargo = ship.cargo if ship else []
-        return [item for item in cargo if item_slot_type(item) == target_slot]
-
     def _selected_item(self, engine: Engine, panel: int) -> Optional[Entity]:
         """Return the actual Entity selected for a panel, or None."""
         sel = self._selections.get(panel)
         if sel is None:
             return None
-        items = self._filtered_cargo_raw(engine, panel)
+        items = self._filtered_cargo(engine, panel, exclude_cross=False)
         if sel < len(items):
             return items[sel]
         return None
 
     def ev_keydown(self, engine: Engine, event: Any) -> bool:
         import tcod.event
+        from ui.keys import move_keys, confirm_keys, cancel_keys
+
         key = event.sym
 
-        if key == tcod.event.KeySym.ESCAPE:
+        if key in cancel_keys():
             engine.pop_state()
             return True
 
-        if key == tcod.event.KeySym.TAB:
-            self._panel = (self._panel + 1) % _NUM_PANELS
-            self._cursor = 0
-            return True
-
-        if key == tcod.event.KeySym.RETURN:
+        if key in confirm_keys():
             self._confirm(engine)
             return True
 
-        if self._panel == _SUIT:
-            if key in (tcod.event.KeySym.UP, tcod.event.KeySym.k):
-                self._suit_index = max(0, self._suit_index - 1)
-            elif key in (tcod.event.KeySym.DOWN, tcod.event.KeySym.j):
-                self._suit_index = min(len(self._suits) - 1, self._suit_index + 1)
-        else:
+        direction = move_keys().get(key)
+        if direction:
+            dx, dy = direction
+            if dx > 0 and dy == 0:
+                self._panel = (self._panel + 1) % _NUM_PANELS
+                self._cursor = 0
+                return True
+            if dx < 0 and dy == 0:
+                self._panel = (self._panel - 1) % _NUM_PANELS
+                self._cursor = 0
+                return True
+            if dy < 0:
+                if self._panel == _SUIT:
+                    self._suit_index = max(0, self._suit_index - 1)
+                else:
+                    self._cursor = max(0, self._cursor - 1)
+                return True
+            if dy > 0:
+                if self._panel == _SUIT:
+                    self._suit_index = min(len(self._suits) - 1, self._suit_index + 1)
+                else:
+                    items = self._filtered_cargo(engine, self._panel)
+                    if items:
+                        self._cursor = min(len(items) - 1, self._cursor + 1)
+                return True
+            return True
+
+        if self._panel != _SUIT:
             items = self._filtered_cargo(engine, self._panel)
-            if key in (tcod.event.KeySym.UP, tcod.event.KeySym.k):
-                self._cursor = max(0, self._cursor - 1)
-            elif key in (tcod.event.KeySym.DOWN, tcod.event.KeySym.j):
-                if items:
-                    self._cursor = min(len(items) - 1, self._cursor + 1)
-            elif key == tcod.event.KeySym.SPACE:
+            if key == tcod.event.KeySym.SPACE:
                 if items and 0 <= self._cursor < len(items):
                     # Find the raw index for this item
-                    raw_items = self._filtered_cargo_raw(engine, self._panel)
+                    raw_items = self._filtered_cargo(engine, self._panel, exclude_cross=False)
                     selected_entity = items[self._cursor]
                     raw_idx = None
                     for ri, raw_item in enumerate(raw_items):
@@ -171,13 +178,13 @@ class LoadoutState(State):
 
         from ui.tactical_state import TacticalState
         engine.switch_state(TacticalState(
-            location=self._location,
-            depth=self._depth,
+            location=self.location,
+            depth=self.depth,
         ))
 
     def on_render(self, console: Any, engine: Engine) -> None:
         cw, ch = engine.CONSOLE_WIDTH, engine.CONSOLE_HEIGHT
-        bw = min(60, cw - 10)
+        bw = min(72, cw - 10)
         bh = min(35, ch - 6)
         bx = (cw - bw) // 2
         by = (ch - bh) // 2
@@ -203,7 +210,7 @@ class LoadoutState(State):
                 color = (255, 255, 255) if i == self._suit_index else (150, 150, 150)
                 res_str = ", ".join(f"{k}:{v}" for k, v in suit.resistances.items())
                 label = f"{prefix} {suit.name} (DEF+{suit.defense_bonus}, {res_str})"
-                console.print(x=bx + 4, y=row, string=label[:bw - 6], fg=color)
+                console.print(x=bx + 4, y=row, string=label[:max(1, bw - 6)], fg=color)
                 row += 1
         else:
             panel_label = _PANEL_NAMES[self._panel]
@@ -213,7 +220,7 @@ class LoadoutState(State):
             if not items:
                 console.print(x=bx + 4, y=row, string="(no matching cargo)", fg=(80, 80, 80))
             else:
-                raw_items = self._filtered_cargo_raw(engine, self._panel)
+                raw_items = self._filtered_cargo(engine, self._panel, exclude_cross=False)
                 for j, item in enumerate(items):
                     cursor = j == self._cursor
                     # Check if this item is the currently selected one
@@ -227,7 +234,7 @@ class LoadoutState(State):
                     prefix = ">" if cursor else " "
                     color = (100, 255, 100) if selected else (255, 255, 255) if cursor else (150, 150, 150)
                     label = f"{prefix} {mark} {item.name}"
-                    console.print(x=bx + 4, y=row + j, string=label[:bw - 6], fg=color)
+                    console.print(x=bx + 4, y=row + j, string=label[:max(1, bw - 6)], fg=color)
 
         # Summary
         summary_y = by + bh - 4
@@ -245,6 +252,6 @@ class LoadoutState(State):
                       fg=(200, 200, 200))
         console.print(
             x=bx + 2, y=by + bh - 1,
-            string="[TAB] Panel [SPACE] Toggle [ENTER] Confirm [ESC] Back",
+            string="[LEFT/RIGHT] Panel [SPACE] Toggle [ENTER] Confirm [ESC] Back",
             fg=(100, 100, 100),
         )

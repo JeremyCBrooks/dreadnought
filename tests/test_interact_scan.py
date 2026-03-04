@@ -1,7 +1,8 @@
 """Tests for InteractAction and ScanAction."""
 from game.entity import Entity, Fighter
-from game.actions import InteractAction, ScanAction
+from game.actions import InteractAction, ScanAction, ToggleDoorAction
 from game.loadout import Loadout
+from world import tile_types
 from tests.conftest import make_engine as _make_engine
 
 
@@ -155,3 +156,85 @@ def test_scan_no_scanner():
     ScanAction().perform(engine, engine.player)
     msgs = [m[0] for m in engine.message_log.messages]
     assert any("need a scanner" in m for m in msgs)
+
+
+# --- Directed interaction tests ---
+
+
+def test_interact_directed_entity():
+    """InteractAction with dx/dy targets the specific offset."""
+    engine = _make_engine()
+    loot = {"char": "!", "color": (0, 255, 100), "name": "Med-kit", "type": "heal", "value": 5}
+    inter = Entity(
+        x=6, y=6, name="Crate", blocks_movement=False,
+        interactable={"kind": "crate", "hazard": None, "loot": loot},
+    )
+    engine.game_map.entities.append(inter)
+    # Directed: dx=1, dy=1 (diagonal from player at 5,5)
+    consumed = InteractAction(dx=1, dy=1).perform(engine, engine.player)
+    assert consumed == 1
+    assert len(engine.player.collection_tank) == 1
+    assert inter not in engine.game_map.entities
+
+
+def test_interact_directed_misses():
+    """InteractAction with dx/dy targeting empty space finds nothing."""
+    engine = _make_engine()
+    inter = Entity(
+        x=6, y=5, name="Crate", blocks_movement=False,
+        interactable={"kind": "crate", "hazard": None, "loot": None},
+    )
+    engine.game_map.entities.append(inter)
+    # Point away from the entity
+    consumed = InteractAction(dx=-1, dy=0).perform(engine, engine.player)
+    assert consumed == 0
+    # Entity still there
+    assert inter in engine.game_map.entities
+
+
+def test_scan_directed():
+    """ScanAction with dx/dy targets the specific offset."""
+    engine = _make_engine()
+    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1})
+    engine.player.loadout = Loadout(tool=scanner)
+    hazard = {"type": "electric", "damage": 2, "equipment_damage": False}
+    inter = Entity(
+        x=6, y=6, name="Console", blocks_movement=False,
+        interactable={"kind": "console", "hazard": hazard, "loot": None},
+    )
+    engine.game_map.entities.append(inter)
+    consumed = ScanAction(dx=1, dy=1).perform(engine, engine.player)
+    assert consumed == 1
+    assert inter.interactable["scanned"] is True
+
+
+def test_adjacent_interact_dirs_mixed():
+    """_adjacent_interact_dirs finds both doors and entities in all 8 dirs."""
+    from ui.tactical_state import TacticalState
+    engine = _make_engine()
+    # Place a door to the east (cardinal)
+    engine.game_map.tiles[6, 5] = tile_types.door_closed
+    # Place an interactable entity to the northeast (diagonal)
+    inter = Entity(
+        x=6, y=4, name="Console", blocks_movement=False,
+        interactable={"kind": "console", "hazard": None, "loot": None},
+    )
+    engine.game_map.entities.append(inter)
+    dirs = TacticalState._adjacent_interact_dirs(engine)
+    kinds = {(dx, dy): kind for dx, dy, kind in dirs}
+    assert kinds[(1, 0)] == "door"
+    assert kinds[(1, -1)] == "entity"
+    assert len(dirs) == 2
+
+
+def test_adjacent_interact_dirs_diagonal_door():
+    """Doors at diagonal offsets are now detected (8-directional)."""
+    from ui.tactical_state import TacticalState
+    engine = _make_engine()
+    # Place a door diagonally (northeast)
+    engine.game_map.tiles[6, 4] = tile_types.door_closed
+    dirs = TacticalState._adjacent_interact_dirs(engine)
+    assert len(dirs) == 1
+    dx, dy, kind = dirs[0]
+    assert (dx, dy) == (1, -1)
+    assert kind == "door"

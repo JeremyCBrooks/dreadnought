@@ -36,7 +36,7 @@ def test_scan_nothing_nearby():
     scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1})
     engine.player.loadout = Loadout(tool=scanner)
     result = ScanAction().perform(engine, engine.player)
-    assert result is False
+    assert result == 0
     msgs = [m[0] for m in engine.message_log.messages]
     assert any("Nothing to scan" in m for m in msgs)
 
@@ -50,7 +50,7 @@ def test_melee_returns_false_without_attacker_fighter():
     target = Entity(x=6, y=5, name="Rat", fighter=Fighter(3, 3, 0, 1))
     gm.entities.extend([attacker, target])
     result = MeleeAction(target).perform(MockEngine(gm, attacker), attacker)
-    assert result is False
+    assert result == 0
 
 
 def test_melee_returns_false_without_target_fighter():
@@ -59,7 +59,7 @@ def test_melee_returns_false_without_target_fighter():
     target = Entity(x=6, y=5, name="Prop")  # No fighter
     gm.entities.extend([attacker, target])
     result = MeleeAction(target).perform(MockEngine(gm, attacker), attacker)
-    assert result is False
+    assert result == 0
 
 
 # --- Electric hazard with equipment damage ---

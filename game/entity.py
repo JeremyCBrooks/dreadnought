@@ -48,3 +48,5 @@ class Entity:
         self.inventory: List[Entity] = []
         self.collection_tank: List[Entity] = []
         self.loadout: Optional[Loadout] = None
+        self.drifting: bool = False
+        self.drift_direction: Tuple[int, int] = (0, 0)

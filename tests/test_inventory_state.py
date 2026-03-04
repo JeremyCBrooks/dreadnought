@@ -173,11 +173,11 @@ def test_tab_switches_section():
     state = InventoryState()
     assert state._section == 0
 
-    _press(state, engine, tcod.event.KeySym.TAB)
+    _press(state, engine, tcod.event.KeySym.RIGHT)
     assert state._section == 1
     assert state.selected == 0
 
-    _press(state, engine, tcod.event.KeySym.TAB)
+    _press(state, engine, tcod.event.KeySym.LEFT)
     assert state._section == 0
 
 
@@ -191,7 +191,7 @@ def test_collection_tank_view_only():
     engine.player.collection_tank.append(item)
 
     state = InventoryState()
-    _press(state, engine, tcod.event.KeySym.TAB)  # switch to collection
+    _press(state, engine, tcod.event.KeySym.RIGHT)  # switch to collection
     _press(state, engine, tcod.event.KeySym.RETURN)  # should do nothing
 
     assert engine.player.collection_tank[0] is item
@@ -206,7 +206,7 @@ def test_collection_tank_navigation():
     ])
 
     state = InventoryState()
-    _press(state, engine, tcod.event.KeySym.TAB)  # switch to collection
+    _press(state, engine, tcod.event.KeySym.RIGHT)  # switch to collection
     assert state.selected == 0
 
     _press(state, engine, tcod.event.KeySym.DOWN)

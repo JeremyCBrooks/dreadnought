@@ -59,7 +59,7 @@ def test_ranged_hit():
     # Make target visible
     engine.game_map.visible[7, 5] = True
     result = RangedAction(target).perform(engine, engine.player)
-    assert result is True
+    assert result == 1
     assert target.fighter.hp < 5  # took damage
 
 
@@ -83,7 +83,7 @@ def test_ranged_out_of_range():
     engine.game_map.entities.append(target)
     engine.game_map.visible[8, 5] = True
     result = RangedAction(target).perform(engine, engine.player)
-    assert result is False
+    assert result == 0
     msgs = [m[0] for m in engine.message_log.messages]
     assert any("out of range" in m for m in msgs)
 
@@ -95,7 +95,7 @@ def test_ranged_no_weapon():
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = True
     result = RangedAction(target).perform(engine, engine.player)
-    assert result is False
+    assert result == 0
     msgs = [m[0] for m in engine.message_log.messages]
     assert any("No ranged weapon" in m for m in msgs)
 
@@ -108,7 +108,7 @@ def test_ranged_no_ammo():
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = True
     result = RangedAction(target).perform(engine, engine.player)
-    assert result is False
+    assert result == 0
 
 
 def test_ranged_kills_removes():
@@ -130,7 +130,7 @@ def test_ranged_not_visible():
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = False
     result = RangedAction(target).perform(engine, engine.player)
-    assert result is False
+    assert result == 0
 
 
 # --- AI ranged attack ---
@@ -159,9 +159,9 @@ def test_ai_wander_when_not_visible():
     engine.game_map.visible[3, 3] = False
     old_x, old_y = enemy.x, enemy.y
     enemy.ai.perform(enemy, engine)
-    # Should have wandered (moved or stayed if boxed in)
-    # Just verify no crash
-    assert True
+    # Should have wandered (moved to adjacent tile or stayed if blocked)
+    dist = abs(enemy.x - old_x) + abs(enemy.y - old_y)
+    assert dist <= 2  # moved at most 1 step (Manhattan distance for diagonal)
 
 
 def test_ai_boxed_in_no_crash():

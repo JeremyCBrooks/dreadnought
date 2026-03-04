@@ -45,11 +45,11 @@ class Engine:
         self.game_map: Optional[GameMap] = None
         self.player: Optional[Entity] = None
         # Phase 3: environment hazards and suit resources
-        self.environment: Optional[dict] = None  # {hazard_type: severity}
+        self.environment: Optional[Dict[str, int]] = None
         self.suit: Optional[Suit] = None
         self.active_effects: List[dict] = []
-        self.ship = None  # game.ship.Ship instance, created on new game
-        self._pending_loadout = None  # Loadout instance from LoadoutState
+        self.ship: Any = None
+        self._pending_loadout: Any = None
         # Persist player stats between areas
         self._saved_player: Optional[dict] = None
         # Persisted areas: (location_name, depth) -> {game_map, rooms, exit_pos, seed}
@@ -77,6 +77,13 @@ class Engine:
         self._state_stack.append(state)
         state.on_enter(self)
 
+    def reset_to_state(self, state: State) -> None:
+        """Clear the entire state stack and start fresh with *state*."""
+        while self._state_stack:
+            self._state_stack.pop().on_exit(self)
+        self._state_stack.append(state)
+        state.on_enter(self)
+
     def run(self) -> None:
         """Main loop: open window, run state machine until quit."""
         import tcod.context
@@ -84,6 +91,7 @@ class Engine:
         import tcod.event
 
         from engine.font import load_tileset
+        from ui.keys import is_move_key
 
         tileset = load_tileset()
         with tcod.context.new(
@@ -97,13 +105,30 @@ class Engine:
             )
             while True:
                 self._root_console.clear()
+                state_before = self.current_state
                 if self.current_state:
                     self.current_state.on_render(self._root_console, self)
                 self._context.present(self._root_console)
-                for event in tcod.event.wait():
+                # If state changed during render (e.g. drift death), immediately
+                # re-render the new state instead of blocking for input.
+                if self.current_state is not state_before:
+                    continue
+                # Short timeout when space tiles need animation; None (blocking) otherwise
+                _ANIM_TIMEOUT = 0.1
+                timeout = _ANIM_TIMEOUT if (self.game_map and getattr(self.game_map, 'has_space', False)) else None
+                for event in tcod.event.wait(timeout=timeout):
                     if isinstance(event, tcod.event.Quit):
                         return
                     if isinstance(event, tcod.event.KeyDown):
+                        if not is_move_key(event.sym):
+                            continue
+                        if self.current_state:
+                            self.current_state.ev_keydown(self, event)
+                        else:
+                            return
+                    elif isinstance(event, tcod.event.KeyUp):
+                        if is_move_key(event.sym):
+                            continue
                         if self.current_state:
                             handled = self.current_state.ev_keydown(self, event)
                             if not handled and event.sym == tcod.event.KeySym.ESCAPE:

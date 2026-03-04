@@ -29,7 +29,7 @@ def _blend_graphic(dark: tuple, light: tuple, factor: float = 0.7) -> tuple:
     return (ch, fg, bg)
 
 
-def new_tile(*, walkable: int, transparent: int, dark: tuple, light: tuple) -> np.ndarray:
+def new_tile(*, walkable: bool, transparent: bool, dark: tuple, light: tuple) -> np.ndarray:
     global _next_tile_id
     tid = _next_tile_id
     _next_tile_id += 1
@@ -79,10 +79,53 @@ structure_wall = new_tile(
     light=(ord("#"), (140, 160, 140), (25, 35, 25)),
 )
 
+structure_window = new_tile(
+    walkable=False, transparent=True,
+    dark=(ord("░"), (60, 80, 100), (10, 15, 25)),
+    light=(ord("░"), (120, 180, 200), (20, 30, 50)),
+)
+
 ground = new_tile(
     walkable=True, transparent=True,
     dark=(ord(","), (65, 60, 45), (6, 5, 4)),
     light=(ord(","), (130, 120, 90), (12, 10, 7)),
+)
+
+space = new_tile(
+    walkable=False, transparent=True,
+    dark=(ord(" "), (5, 5, 15), (0, 0, 2)),
+    light=(ord(" "), (10, 10, 20), (0, 0, 4)),
+)
+
+door_closed = new_tile(
+    walkable=False, transparent=False,
+    dark=(ord("+"), (80, 60, 30), (10, 8, 5)),
+    light=(ord("+"), (160, 120, 60), (20, 15, 10)),
+)
+
+door_open = new_tile(
+    walkable=True, transparent=True,
+    dark=(ord("/"), (60, 50, 25), (10, 8, 5)),
+    light=(ord("/"), (130, 100, 50), (20, 15, 10)),
+)
+
+airlock_floor = new_tile(
+    walkable=True, transparent=True,
+    dark=(ord("="), (120, 100, 30), (10, 8, 2)),
+    light=(ord("="), (220, 180, 50), (20, 18, 5)),
+)
+
+# Exterior airlock door — hull-colored so it blends with the hull
+airlock_ext_closed = new_tile(
+    walkable=False, transparent=False,
+    dark=(ord("+"), (80, 80, 120), (0, 0, 20)),
+    light=(ord("+"), (170, 170, 210), (25, 25, 55)),
+)
+
+airlock_ext_open = new_tile(
+    walkable=True, transparent=True,
+    dark=(ord("/"), (70, 70, 110), (0, 0, 20)),
+    light=(ord("/"), (150, 150, 200), (25, 25, 55)),
 )
 
 # ---------------------------------------------------------------------------
@@ -135,11 +178,52 @@ TILE_FLAVORS: dict[int, tuple[str, list[str]]] = {
         "A makeshift partition of salvaged metal.",
         "Thin walls, you can hear the wind outside.",
     ]),
+    int(structure_window["tile_id"]): ("Window", [
+        "A translucent composite pane, slightly fogged.",
+        "Thick glass bolted into the wall frame.",
+        "A narrow window letting in pale light.",
+        "Scratched viewport, you can just see through.",
+    ]),
     int(ground["tile_id"]): ("Open Ground", [
         "Dry, dusty terrain stretches around you.",
         "Loose soil crunches beneath your feet.",
         "Barren ground under an alien sky.",
         "Hard-packed earth between the buildings.",
+    ]),
+    int(door_closed["tile_id"]): ("Closed Door", [
+        "A heavy door, sealed shut.",
+        "A closed bulkhead door.",
+        "A reinforced door blocks the way.",
+        "A sealed hatch, firmly latched.",
+    ]),
+    int(door_open["tile_id"]): ("Open Door", [
+        "An open doorway.",
+        "A door, propped open.",
+        "An open hatch in the bulkhead.",
+        "A doorframe, passage clear.",
+    ]),
+    int(airlock_ext_closed["tile_id"]): ("Exterior Airlock Door", [
+        "A heavy hull door. Space lies beyond.",
+        "Reinforced exterior hatch, sealed tight.",
+        "The outer airlock door. Think carefully.",
+        "Hull-grade plating. One-way trip beyond this.",
+    ]),
+    int(airlock_ext_open["tile_id"]): ("Exterior Airlock Door (Open)", [
+        "The outer door gapes open. Stars beckon.",
+        "An open hatch to the void. No going back.",
+        "The exterior door stands open. Vacuum beyond.",
+    ]),
+    int(airlock_floor["tile_id"]): ("Airlock", [
+        "A narrow airlock chamber. The void waits beyond.",
+        "Warning stripes line the airlock floor.",
+        "The airlock hums with pressure equalization systems.",
+        "A cramped chamber between you and the vacuum.",
+    ]),
+    int(space["tile_id"]): ("Space", [
+        "The cold void stretches endlessly.",
+        "Stars drift silently in the dark.",
+        "Infinite emptiness beyond the hull.",
+        "The black of space, vast and still.",
     ]),
 }
 

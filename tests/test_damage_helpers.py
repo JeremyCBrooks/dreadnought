@@ -1,0 +1,81 @@
+"""Tests for _calc_damage and _apply_damage_and_death helpers."""
+import debug
+from game.actions import _calc_damage, _apply_damage_and_death
+from game.entity import Entity, Fighter
+from game.suit import Suit
+from tests.conftest import make_engine
+
+
+# -- _calc_damage -------------------------------------------------------------
+
+def test_calc_damage_basic():
+    eng = make_engine()
+    target = Entity(x=6, y=5, name="Drone", fighter=Fighter(10, 10, 2, 1))
+    eng.game_map.entities.append(target)
+    # power=5, defense=2 -> max(1, 5-2) = 3
+    assert _calc_damage(eng, eng.player, target, 5) == 3
+
+
+def test_calc_damage_minimum_one():
+    eng = make_engine()
+    target = Entity(x=6, y=5, name="Tank", fighter=Fighter(10, 10, 99, 1))
+    eng.game_map.entities.append(target)
+    assert _calc_damage(eng, eng.player, target, 1) == 1
+
+
+def test_calc_damage_suit_defense_bonus_for_player():
+    eng = make_engine(suit=Suit("Test Suit", {"vacuum": 10}, defense_bonus=3))
+    attacker = Entity(x=6, y=5, name="Drone", fighter=Fighter(10, 10, 0, 5))
+    eng.game_map.entities.append(attacker)
+    # player defense=0, suit bonus=3, power=5 -> max(1, 5-(0+3)) = 2
+    assert _calc_damage(eng, attacker, eng.player, 5) == 2
+
+
+def test_calc_damage_god_mode_zeroes_player_damage():
+    eng = make_engine()
+    attacker = Entity(x=6, y=5, name="Drone", fighter=Fighter(10, 10, 0, 5))
+    eng.game_map.entities.append(attacker)
+    debug.GOD_MODE = True
+    assert _calc_damage(eng, attacker, eng.player, 5) == 0
+
+
+def test_calc_damage_one_hit_kill():
+    eng = make_engine()
+    target = Entity(x=6, y=5, name="Drone", fighter=Fighter(50, 50, 99, 1))
+    eng.game_map.entities.append(target)
+    debug.ONE_HIT_KILL = True
+    assert _calc_damage(eng, eng.player, target, 1) == 50
+
+
+# -- _apply_damage_and_death --------------------------------------------------
+
+def test_apply_damage_reduces_hp():
+    eng = make_engine()
+    target = Entity(x=6, y=5, name="Drone", fighter=Fighter(10, 10, 0, 1))
+    eng.game_map.entities.append(target)
+    _apply_damage_and_death(eng, eng.player, target, 3)
+    assert target.fighter.hp == 7
+
+
+def test_apply_damage_kills_enemy():
+    eng = make_engine()
+    target = Entity(x=6, y=5, name="Drone", fighter=Fighter(5, 5, 0, 1))
+    eng.game_map.entities.append(target)
+    _apply_damage_and_death(eng, eng.player, target, 5)
+    assert target.fighter.hp == 0
+    assert target not in eng.game_map.entities
+
+
+def test_apply_damage_kills_player_message():
+    eng = make_engine()
+    _apply_damage_and_death(eng, eng.player, eng.player, 999)
+    assert eng.player.fighter.hp == 0
+    assert any("die" in m[0].lower() for m in eng.message_log._messages)
+
+
+def test_apply_damage_enemy_death_message():
+    eng = make_engine()
+    target = Entity(x=6, y=5, name="Drone", fighter=Fighter(1, 1, 0, 1))
+    eng.game_map.entities.append(target)
+    _apply_damage_and_death(eng, eng.player, target, 1)
+    assert any("destroyed" in m[0].lower() for m in eng.message_log._messages)

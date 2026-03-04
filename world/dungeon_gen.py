@@ -88,7 +88,7 @@ def _carve_wide_h_tunnel(
 ) -> None:
     """Carve a 2-tile wide horizontal corridor."""
     _carve_h_tunnel(game_map, x1, x2, y, floor_tile)
-    if game_map.in_bounds(0, y + 1):
+    if y + 1 < game_map.height:
         _carve_h_tunnel(game_map, x1, x2, y + 1, floor_tile)
 
 
@@ -98,7 +98,7 @@ def _carve_wide_v_tunnel(
 ) -> None:
     """Carve a 2-tile wide vertical corridor."""
     _carve_v_tunnel(game_map, y1, y2, x, floor_tile)
-    if game_map.in_bounds(x + 1, 0):
+    if x + 1 < game_map.width:
         _carve_v_tunnel(game_map, y1, y2, x + 1, floor_tile)
 
 
@@ -164,13 +164,19 @@ def _carve_winding_tunnel(
 # Spawning helpers
 # -------------------------------------------------------------------
 
+def _random_room_pos(room: RectRoom, rng: random.Random) -> Tuple[int, int]:
+    """Pick a random floor position inside a room."""
+    x = rng.randint(room.x1 + 1, max(room.x1 + 1, room.x2 - 1))
+    y = rng.randint(room.y1 + 1, max(room.y1 + 1, room.y2 - 1))
+    return x, y
+
+
 def _spawn_enemies(
     room: RectRoom, game_map: GameMap, rng: random.Random, max_enemies: int = 2,
     exit_pos: Optional[Tuple[int, int]] = None,
 ) -> None:
     for _ in range(rng.randint(0, max_enemies)):
-        x = rng.randint(room.x1 + 1, max(room.x1 + 1, room.x2 - 1))
-        y = rng.randint(room.y1 + 1, max(room.y1 + 1, room.y2 - 1))
+        x, y = _random_room_pos(room, rng)
         if not game_map.in_bounds(x, y) or not game_map.tiles["walkable"][x, y]:
             continue
         if game_map.get_blocking_entity(x, y):
@@ -194,11 +200,12 @@ def _spawn_items(
     exit_pos: Optional[Tuple[int, int]] = None,
 ) -> None:
     for _ in range(rng.randint(0, max_items)):
-        x = rng.randint(room.x1 + 1, max(room.x1 + 1, room.x2 - 1))
-        y = rng.randint(room.y1 + 1, max(room.y1 + 1, room.y2 - 1))
+        x, y = _random_room_pos(room, rng)
         if not game_map.in_bounds(x, y) or not game_map.tiles["walkable"][x, y]:
             continue
         if _near_exit(x, y, exit_pos):
+            continue
+        if game_map.get_blocking_entity(x, y) or game_map.get_non_blocking_entity_at(x, y):
             continue
         defn = rng.choice(db.items())
         game_map.entities.append(
@@ -234,6 +241,8 @@ def _spawn_interactables(
     floor_pool = db.floor_interactables()
     wall_defn = db.interactable_by_name(wall_interactable_name) if wall_interactable_name else None
     pool = floor_pool + ([wall_defn] if wall_defn else [])
+    if not pool:
+        return
 
     for _ in range(count):
         defn = rng.choice(pool)
@@ -245,18 +254,17 @@ def _spawn_interactables(
                 (wx, wy) for wx, wy in _room_wall_positions(room)
                 if game_map.in_bounds(wx, wy)
                 and not game_map.tiles["walkable"][wx, wy]
-                and not game_map.get_interactable_at(wx, wy)
+                and not game_map.get_non_blocking_entity_at(wx, wy)
                 and not _near_exit(wx, wy, exit_pos)
             ]
             if not candidates:
                 continue
             x, y = rng.choice(candidates)
         else:
-            x = rng.randint(room.x1 + 1, max(room.x1 + 1, room.x2 - 1))
-            y = rng.randint(room.y1 + 1, max(room.y1 + 1, room.y2 - 1))
+            x, y = _random_room_pos(room, rng)
             if not game_map.in_bounds(x, y) or not game_map.tiles["walkable"][x, y]:
                 continue
-            if game_map.get_blocking_entity(x, y) or game_map.get_interactable_at(x, y):
+            if game_map.get_blocking_entity(x, y) or game_map.get_non_blocking_entity_at(x, y):
                 continue
             if _near_exit(x, y, exit_pos):
                 continue
@@ -657,7 +665,18 @@ def _generate_ship(
                 _carve_h_tunnel(game_map, ci[0], cj[0], ci[1], floor_tile)
                 _carve_v_tunnel(game_map, ci[1], cj[1], cj[0], floor_tile)
 
-    # Step 6: Room-specific dressing for all rooms
+    # Step 6: Place windows on room walls facing corridors
+    corridor_tid = int(floor_tile["tile_id"])
+    for room in rooms:
+        _place_building_windows(
+            game_map, rng, [room], wall_tile, floor_tile,
+            outside_tid=corridor_tid,
+        )
+
+    # Step 7: Place windows on hull-facing walls (exterior)
+    _place_ship_exterior_windows(game_map, rng, rooms, wall_tile, floor_tile)
+
+    # Step 8: Room-specific dressing for all rooms
     exit_pos = rooms[0].center if rooms else None
     for room in rooms:
         _dress_ship_room(room, game_map, rng, exit_pos=exit_pos)
@@ -785,7 +804,799 @@ def _generate_standard(
         rooms.append(room)
         label_counts[spec.label] = label_counts.get(spec.label, 0) + 1
 
+    # Place windows on room walls facing corridors
+    corridor_tid = int(floor_tile["tile_id"])
+    for room in rooms:
+        _place_building_windows(
+            game_map, rng, [room], wall_tile, floor_tile,
+            outside_tid=corridor_tid,
+        )
+
+    # Place windows on walls facing the hull (uncarved wall fill)
+    _place_exterior_windows(game_map, rng, wall_tile, floor_tile)
+
     return rooms
+
+
+def _carve_room_interior(
+    game_map: GameMap,
+    x1: int, y1: int, x2: int, y2: int,
+    floor_tile: np.ndarray,
+) -> None:
+    """Carve the interior of a room bounded by outer walls at (x1,y1)-(x2,y2)."""
+    for bx in range(x1 + 1, x2):
+        for by in range(y1 + 1, y2):
+            if game_map.in_bounds(bx, by):
+                game_map.tiles[bx, by] = floor_tile
+
+
+def _find_door_position_v(
+    game_map: GameMap,
+    rng: random.Random,
+    split_x: int, y1: int, y2: int,
+) -> Optional[int]:
+    """Find a y-position for a door through a vertical partition at split_x.
+
+    Prefers positions where both adjacent tiles (split_x-1, split_x+1) are
+    already walkable, producing a clean 1-tile doorway.  Falls back to any
+    valid position if none are ideal.
+    """
+    lo, hi = y1 + 2, y2 - 2
+    if lo > hi:
+        return None
+    good = [
+        y for y in range(lo, hi + 1)
+        if (game_map.in_bounds(split_x - 1, y)
+            and game_map.tiles["walkable"][split_x - 1, y]
+            and game_map.in_bounds(split_x + 1, y)
+            and game_map.tiles["walkable"][split_x + 1, y])
+    ]
+    if good:
+        return rng.choice(good)
+    return rng.randint(lo, hi)
+
+
+def _find_door_position_h(
+    game_map: GameMap,
+    rng: random.Random,
+    split_y: int, x1: int, x2: int,
+) -> Optional[int]:
+    """Find an x-position for a door through a horizontal partition at split_y.
+
+    Same logic as the vertical variant but for a horizontal wall.
+    """
+    lo, hi = x1 + 2, x2 - 2
+    if lo > hi:
+        return None
+    good = [
+        x for x in range(lo, hi + 1)
+        if (game_map.in_bounds(x, split_y - 1)
+            and game_map.tiles["walkable"][x, split_y - 1]
+            and game_map.in_bounds(x, split_y + 1)
+            and game_map.tiles["walkable"][x, split_y + 1])
+    ]
+    if good:
+        return rng.choice(good)
+    return rng.randint(lo, hi)
+
+
+def _subdivide_building(
+    game_map: GameMap,
+    rng: random.Random,
+    x1: int, y1: int, x2: int, y2: int,
+    num_rooms: int,
+    floor_tile: np.ndarray,
+    wall_tile: np.ndarray,
+    label: str = "",
+) -> List[RectRoom]:
+    """Recursively subdivide a building footprint into rooms with internal doors.
+
+    (x1, y1) and (x2, y2) are the outer wall coordinates of this sub-area.
+    Interior is (x1+1..x2-1, y1+1..y2-1).
+    Returns a list of RectRooms representing each carved sub-room.
+    """
+    inner_w = x2 - x1 - 1
+    inner_h = y2 - y1 - 1
+
+    # Min sub-room interior 3×3 → each half needs outer width ≥ 4 → min_offset 4
+    min_offset = 4
+    can_split_v = inner_w >= (min_offset * 2 - 1)  # vertical partition (split x)
+    can_split_h = inner_h >= (min_offset * 2 - 1)  # horizontal partition (split y)
+
+    # Base case: single room
+    if num_rooms <= 1 or (not can_split_v and not can_split_h):
+        _carve_room_interior(game_map, x1, y1, x2, y2, floor_tile)
+        return [RectRoom(x1, y1, x2 - x1, y2 - y1, label=label)]
+
+    # Choose split axis from viable options; prefer longer dimension
+    if can_split_v and can_split_h:
+        if inner_w > inner_h:
+            axis = "vertical"
+        elif inner_h > inner_w:
+            axis = "horizontal"
+        else:
+            axis = rng.choice(["vertical", "horizontal"])
+    elif can_split_v:
+        axis = "vertical"
+    else:
+        axis = "horizontal"
+
+    if axis == "vertical":
+        lo = x1 + min_offset
+        hi = x2 - min_offset
+
+        # Asymmetric split: when we need >2 rooms, push the partition
+        # toward one side so the larger half can subdivide further.
+        if num_rooms > 2:
+            if rng.random() < 0.5:
+                split_x = lo  # small left, big right
+            else:
+                split_x = hi  # big left, small right
+        else:
+            split_x = rng.randint(lo, hi)
+
+        # Draw partition wall
+        for by in range(y1 + 1, y2):
+            if game_map.in_bounds(split_x, by):
+                game_map.tiles[split_x, by] = wall_tile
+
+        # Assign room counts: give 1 to the smaller half, rest to the bigger
+        left_w = split_x - x1
+        right_w = x2 - split_x
+        if left_w >= right_w:
+            left_count = num_rooms - 1
+            right_count = 1
+        else:
+            left_count = 1
+            right_count = num_rooms - 1
+        # For 2-room case keep even split
+        if num_rooms == 2:
+            left_count = right_count = 1
+
+        left_rooms = _subdivide_building(
+            game_map, rng, x1, y1, split_x, y2,
+            left_count, floor_tile, wall_tile, label,
+        )
+        right_rooms = _subdivide_building(
+            game_map, rng, split_x, y1, x2, y2,
+            right_count, floor_tile, wall_tile, label,
+        )
+
+        # Carve a 1-tile doorway, preferring positions with floor on both sides
+        door_y = _find_door_position_v(game_map, rng, split_x, y1, y2)
+        if door_y is not None:
+            game_map.tiles[split_x, door_y] = floor_tile
+            # Only force-clear a side if it's still walled (perpendicular partition)
+            if (game_map.in_bounds(split_x - 1, door_y)
+                    and not game_map.tiles["walkable"][split_x - 1, door_y]):
+                game_map.tiles[split_x - 1, door_y] = floor_tile
+            if (game_map.in_bounds(split_x + 1, door_y)
+                    and not game_map.tiles["walkable"][split_x + 1, door_y]):
+                game_map.tiles[split_x + 1, door_y] = floor_tile
+
+        return left_rooms + right_rooms
+
+    else:  # horizontal
+        lo = y1 + min_offset
+        hi = y2 - min_offset
+
+        if num_rooms > 2:
+            if rng.random() < 0.5:
+                split_y = lo
+            else:
+                split_y = hi
+        else:
+            split_y = rng.randint(lo, hi)
+
+        for bx in range(x1 + 1, x2):
+            if game_map.in_bounds(bx, split_y):
+                game_map.tiles[bx, split_y] = wall_tile
+
+        top_h = split_y - y1
+        bot_h = y2 - split_y
+        if top_h >= bot_h:
+            top_count = num_rooms - 1
+            bot_count = 1
+        else:
+            top_count = 1
+            bot_count = num_rooms - 1
+        if num_rooms == 2:
+            top_count = bot_count = 1
+
+        top_rooms = _subdivide_building(
+            game_map, rng, x1, y1, x2, split_y,
+            top_count, floor_tile, wall_tile, label,
+        )
+        bot_rooms = _subdivide_building(
+            game_map, rng, x1, split_y, x2, y2,
+            bot_count, floor_tile, wall_tile, label,
+        )
+
+        door_x = _find_door_position_h(game_map, rng, split_y, x1, x2)
+        if door_x is not None:
+            game_map.tiles[door_x, split_y] = floor_tile
+            if (game_map.in_bounds(door_x, split_y - 1)
+                    and not game_map.tiles["walkable"][door_x, split_y - 1]):
+                game_map.tiles[door_x, split_y - 1] = floor_tile
+            if (game_map.in_bounds(door_x, split_y + 1)
+                    and not game_map.tiles["walkable"][door_x, split_y + 1]):
+                game_map.tiles[door_x, split_y + 1] = floor_tile
+
+        return top_rooms + bot_rooms
+
+
+# Weighted wing count distribution for village buildings
+_VILLAGE_WING_WEIGHTS = [(1, 40), (2, 45), (3, 15)]
+
+
+def _pick_building_room_count(rng: random.Random) -> int:
+    """Pick number of wings using weighted distribution."""
+    total = sum(w for _, w in _VILLAGE_WING_WEIGHTS)
+    roll = rng.randint(1, total)
+    cumulative = 0
+    for count, weight in _VILLAGE_WING_WEIGHTS:
+        cumulative += weight
+        if roll <= cumulative:
+            return count
+    return 1
+
+
+def _compose_building_wings(
+    rng: random.Random,
+    main_x: int, main_y: int, main_w: int, main_h: int,
+    num_wings: int,
+    min_w: int = 5, min_h: int = 5,
+) -> List[Tuple[int, int, int, int]]:
+    """Return list of (x, y, w, h) rectangles forming a multi-wing building.
+
+    The main wing is always first.  Secondary wings attach to random sides
+    of the main wing with a random offset, producing L/T/U-shaped footprints.
+    """
+    wings = [(main_x, main_y, main_w, main_h)]
+    if num_wings <= 1:
+        return wings
+
+    sides = ["north", "south", "east", "west"]
+    rng.shuffle(sides)
+
+    for i in range(num_wings - 1):
+        side = sides[i % len(sides)]
+        # Secondary wing dimensions: 60-80% of main, clamped to min
+        sw = max(min_w, rng.randint(int(main_w * 0.6), max(int(main_w * 0.8), min_w)))
+        sh = max(min_h, rng.randint(int(main_h * 0.6), max(int(main_h * 0.8), min_h)))
+
+        # Minimum overlap of 3 tiles for a doorway
+        min_overlap = 3
+        if side in ("north", "south"):
+            edge_len = main_w
+            wing_edge = sw
+            if wing_edge > edge_len:
+                wing_edge = edge_len
+                sw = wing_edge
+            max_offset = max(0, edge_len - min_overlap)
+            min_offset = max(0, wing_edge - edge_len + min_overlap)
+            if min_offset > max_offset:
+                # Can't get 3-tile overlap; just center it
+                offset = max(0, (edge_len - wing_edge) // 2)
+            else:
+                offset = rng.randint(min(min_offset, max_offset), max(min_offset, max_offset))
+            sx = main_x + offset
+            if side == "north":
+                sy = main_y - sh  # extends upward
+            else:
+                sy = main_y + main_h  # extends downward
+            # Clamp offset so wing doesn't extend past main + wing width
+            sx = min(sx, main_x + main_w - min_overlap)
+            wings.append((sx, sy, sw, sh))
+        else:  # east or west
+            edge_len = main_h
+            wing_edge = sh
+            if wing_edge > edge_len:
+                wing_edge = edge_len
+                sh = wing_edge
+            max_offset = max(0, edge_len - min_overlap)
+            min_offset = max(0, wing_edge - edge_len + min_overlap)
+            if min_offset > max_offset:
+                offset = max(0, (edge_len - wing_edge) // 2)
+            else:
+                offset = rng.randint(min(min_offset, max_offset), max(min_offset, max_offset))
+            sy = main_y + offset
+            if side == "west":
+                sx = main_x - sw  # extends left
+            else:
+                sx = main_x + main_w  # extends right
+            sy = min(sy, main_y + main_h - min_overlap)
+            wings.append((sx, sy, sw, sh))
+
+    return wings
+
+
+def _carve_wing_doorway(
+    game_map: GameMap,
+    wing_a: RectRoom, wing_b: RectRoom,
+    floor_tile: np.ndarray,
+) -> None:
+    """Carve a 1-tile doorway through the shared wall between two adjacent wings.
+
+    Two wings that share a side have an overlapping range of wall tiles.
+    We find that overlap, carve the shared wall tile, and force-clear the
+    tiles on both sides so internal partition walls don't block the passage.
+    """
+
+    def _clear_if_blocked(x: int, y: int) -> None:
+        if (game_map.in_bounds(x, y)
+                and not game_map.tiles["walkable"][x, y]):
+            game_map.tiles[x, y] = floor_tile
+
+    # A's east wall == B's west wall (x2a == x1b)
+    if wing_a.x2 == wing_b.x1:
+        y_lo = max(wing_a.y1 + 1, wing_b.y1 + 1)
+        y_hi = min(wing_a.y2 - 1, wing_b.y2 - 1)
+        if y_lo <= y_hi:
+            door_y = (y_lo + y_hi) // 2
+            x = wing_a.x2
+            if game_map.in_bounds(x, door_y):
+                game_map.tiles[x, door_y] = floor_tile
+            _clear_if_blocked(x - 1, door_y)
+            _clear_if_blocked(x + 1, door_y)
+            return
+
+    # A's west wall == B's east wall (x1a == x2b)
+    if wing_a.x1 == wing_b.x2:
+        y_lo = max(wing_a.y1 + 1, wing_b.y1 + 1)
+        y_hi = min(wing_a.y2 - 1, wing_b.y2 - 1)
+        if y_lo <= y_hi:
+            door_y = (y_lo + y_hi) // 2
+            x = wing_a.x1
+            if game_map.in_bounds(x, door_y):
+                game_map.tiles[x, door_y] = floor_tile
+            _clear_if_blocked(x - 1, door_y)
+            _clear_if_blocked(x + 1, door_y)
+            return
+
+    # A's south wall == B's north wall (y2a == y1b)
+    if wing_a.y2 == wing_b.y1:
+        x_lo = max(wing_a.x1 + 1, wing_b.x1 + 1)
+        x_hi = min(wing_a.x2 - 1, wing_b.x2 - 1)
+        if x_lo <= x_hi:
+            door_x = (x_lo + x_hi) // 2
+            y = wing_a.y2
+            if game_map.in_bounds(door_x, y):
+                game_map.tiles[door_x, y] = floor_tile
+            _clear_if_blocked(door_x, y - 1)
+            _clear_if_blocked(door_x, y + 1)
+            return
+
+    # A's north wall == B's south wall (y1a == y2b)
+    if wing_a.y1 == wing_b.y2:
+        x_lo = max(wing_a.x1 + 1, wing_b.x1 + 1)
+        x_hi = min(wing_a.x2 - 1, wing_b.x2 - 1)
+        if x_lo <= x_hi:
+            door_x = (x_lo + x_hi) // 2
+            y = wing_a.y1
+            if game_map.in_bounds(door_x, y):
+                game_map.tiles[door_x, y] = floor_tile
+            _clear_if_blocked(door_x, y - 1)
+            _clear_if_blocked(door_x, y + 1)
+            return
+
+
+def _carve_external_door(
+    game_map: GameMap,
+    rng: random.Random,
+    wing_rooms: List[RectRoom],
+    floor_tile: np.ndarray,
+) -> None:
+    """Carve a 1-tile door on a building's outer wall.
+
+    Iterates over all wing perimeter tiles and picks ones that face outward
+    (adjacent to a ground tile), so the door connects the building to the
+    outside.  Prefers positions where the inside tile is already walkable.
+    """
+    ground_tid = int(tile_types.ground["tile_id"])
+
+    # Collect all wall tiles across all wings with their inward direction
+    door_candidates: List[Tuple[Tuple[int, int], Tuple[int, int]]] = []
+    for wing in wing_rooms:
+        # North wall
+        for x in range(wing.x1 + 1, wing.x2):
+            wall = (x, wing.y1)
+            inside = (x, wing.y1 + 1)
+            outside = (x, wing.y1 - 1)
+            if (game_map.in_bounds(*outside)
+                    and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid):
+                door_candidates.append((wall, inside))
+        # South wall
+        for x in range(wing.x1 + 1, wing.x2):
+            wall = (x, wing.y2)
+            inside = (x, wing.y2 - 1)
+            outside = (x, wing.y2 + 1)
+            if (game_map.in_bounds(*outside)
+                    and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid):
+                door_candidates.append((wall, inside))
+        # West wall
+        for y in range(wing.y1 + 1, wing.y2):
+            wall = (wing.x1, y)
+            inside = (wing.x1 + 1, y)
+            outside = (wing.x1 - 1, y)
+            if (game_map.in_bounds(*outside)
+                    and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid):
+                door_candidates.append((wall, inside))
+        # East wall
+        for y in range(wing.y1 + 1, wing.y2):
+            wall = (wing.x2, y)
+            inside = (wing.x2 - 1, y)
+            outside = (wing.x2 + 1, y)
+            if (game_map.in_bounds(*outside)
+                    and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid):
+                door_candidates.append((wall, inside))
+
+    # Prefer positions where the inside tile is already walkable floor
+    good = [
+        (wall, inside) for wall, inside in door_candidates
+        if (game_map.in_bounds(*wall) and game_map.in_bounds(*inside)
+            and game_map.tiles["walkable"][inside[0], inside[1]])
+    ]
+    if good:
+        wall_pos, _ = rng.choice(good)
+        game_map.tiles[wall_pos[0], wall_pos[1]] = floor_tile
+    elif door_candidates:
+        # Fallback: pick any position, force-clear the inside tile too
+        wall_pos, inside_pos = rng.choice(door_candidates)
+        if game_map.in_bounds(*wall_pos):
+            game_map.tiles[wall_pos[0], wall_pos[1]] = floor_tile
+        if game_map.in_bounds(*inside_pos):
+            game_map.tiles[inside_pos[0], inside_pos[1]] = floor_tile
+
+
+def _place_exterior_windows(
+    game_map: GameMap,
+    rng: random.Random,
+    wall_tile: np.ndarray,
+    floor_tile: np.ndarray,
+) -> None:
+    """Place window tiles on walls facing the hull (uncarved wall fill).
+
+    Scans all wall tiles (excluding map border). A tile is a candidate if it
+    has walkable floor on one side and more wall (hull) on the opposite side.
+    Candidates are grouped into contiguous segments by orientation, then
+    windows are placed with context-aware sizing.
+    """
+    w, h = game_map.width, game_map.height
+    wall_tid = int(wall_tile["tile_id"])
+
+    # Direction pairs: (dx, dy) for the inside (floor) side;
+    # opposite direction is the outside (hull) side.
+    directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+
+    # Collect candidates: map (x,y) -> (inside_dx, inside_dy)
+    # If a tile qualifies in multiple directions, keep only the first.
+    candidates: dict[Tuple[int, int], Tuple[int, int]] = {}
+
+    for x in range(1, w - 1):
+        for y in range(1, h - 1):
+            if int(game_map.tiles["tile_id"][x, y]) != wall_tid:
+                continue
+            for dx, dy in directions:
+                inside_x, inside_y = x + dx, y + dy
+                outside_x, outside_y = x - dx, y - dy
+                if not game_map.in_bounds(inside_x, inside_y):
+                    continue
+                if not game_map.in_bounds(outside_x, outside_y):
+                    continue
+                if not game_map.tiles["walkable"][inside_x, inside_y]:
+                    continue
+                if int(game_map.tiles["tile_id"][outside_x, outside_y]) != wall_tid:
+                    continue
+                if (x, y) not in candidates:
+                    candidates[(x, y)] = (dx, dy)
+                break
+
+    # Group candidates into contiguous segments sharing orientation.
+    # Horizontal segments: same y and same (dx,dy), consecutive x.
+    # Vertical segments: same x and same (dx,dy), consecutive y.
+    # Sort by orientation, then by row/col.
+    by_orient: dict[Tuple[int, int], list[Tuple[int, int]]] = {}
+    for (x, y), direction in candidates.items():
+        by_orient.setdefault(direction, []).append((x, y))
+
+    all_segments: list[list[Tuple[int, int]]] = []
+    for direction, positions in by_orient.items():
+        dx, dy = direction
+        if dx == 0:
+            # Wall faces north/south — segments run horizontally (same y, consecutive x)
+            by_row: dict[int, list[int]] = {}
+            for x, y in positions:
+                by_row.setdefault(y, []).append(x)
+            for row_y, xs in by_row.items():
+                xs.sort()
+                seg: list[Tuple[int, int]] = [(xs[0], row_y)]
+                for i in range(1, len(xs)):
+                    if xs[i] == xs[i - 1] + 1:
+                        seg.append((xs[i], row_y))
+                    else:
+                        all_segments.append(seg)
+                        seg = [(xs[i], row_y)]
+                all_segments.append(seg)
+        else:
+            # Wall faces east/west — segments run vertically (same x, consecutive y)
+            by_col: dict[int, list[int]] = {}
+            for x, y in positions:
+                by_col.setdefault(x, []).append(y)
+            for col_x, ys in by_col.items():
+                ys.sort()
+                seg = [(col_x, ys[0])]
+                for i in range(1, len(ys)):
+                    if ys[i] == ys[i - 1] + 1:
+                        seg.append((col_x, ys[i]))
+                    else:
+                        all_segments.append(seg)
+                        seg = [(col_x, ys[i])]
+                all_segments.append(seg)
+
+    # Place windows per segment with context-aware sizing
+    for seg in all_segments:
+        n = len(seg)
+        if n < 2:
+            continue
+        if n <= 3:
+            count = 1
+        elif n <= 5:
+            count = 2
+        elif n <= 8:
+            count = 3
+        else:
+            count = 5
+        start = (n - count) // 2
+        for i in range(start, start + count):
+            x, y = seg[i]
+            game_map.tiles[x, y] = tile_types.structure_window
+
+
+def _place_ship_exterior_windows(
+    game_map: GameMap,
+    rng: random.Random,
+    rooms: List[RectRoom],
+    wall_tile: np.ndarray,
+    floor_tile: np.ndarray,
+) -> None:
+    """Place hull-facing windows on ship rooms.
+
+    Bridge rooms get larger observation windows on forward (west) and side
+    (north/south) walls. Other rooms get small portholes (1-2 max) on any
+    hull-facing wall.
+    """
+    w, h = game_map.width, game_map.height
+    wall_tid = int(wall_tile["tile_id"])
+
+    # Direction pairs: (dx, dy) for the inside (floor) side
+    directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+
+    # Collect hull-facing candidates with their room association
+    # candidate -> (inside_direction, room)
+    candidates: dict[Tuple[int, int], Tuple[Tuple[int, int], RectRoom]] = {}
+
+    for x in range(1, w - 1):
+        for y in range(1, h - 1):
+            if int(game_map.tiles["tile_id"][x, y]) != wall_tid:
+                continue
+            for dx, dy in directions:
+                inside_x, inside_y = x + dx, y + dy
+                outside_x, outside_y = x - dx, y - dy
+                if not game_map.in_bounds(inside_x, inside_y):
+                    continue
+                if not game_map.in_bounds(outside_x, outside_y):
+                    continue
+                if not game_map.tiles["walkable"][inside_x, inside_y]:
+                    continue
+                if int(game_map.tiles["tile_id"][outside_x, outside_y]) != wall_tid:
+                    continue
+
+                # Find which room this wall belongs to
+                room = None
+                for r in rooms:
+                    if (r.x1 <= x <= r.x2 and r.y1 <= y <= r.y2):
+                        room = r
+                        break
+                if room is None:
+                    continue
+
+                # Filter by room type and direction
+                # dx, dy is direction from wall to inside (floor side)
+                # So the wall faces *away* from inside, i.e. toward (-dx, -dy)
+                # Wall facing west (forward): outside is to the west, inside east
+                #   -> dx=1, dy=0 (inside is east of wall)
+                # Wall facing north: outside north, inside south -> dx=0, dy=1
+                # Wall facing south: outside south, inside north -> dx=0, dy=-1
+                # Wall facing east (aft): outside east, inside west -> dx=-1, dy=0
+                if room.label == "bridge":
+                    # Bridge: allow west (forward), north, south — no aft (east)
+                    # Aft-facing wall: inside is west (dx=-1), so block dx=-1
+                    if dx == -1 and dy == 0:
+                        continue  # skip aft-facing bridge windows
+                else:
+                    pass  # other rooms: allow all hull-facing directions
+
+                if (x, y) not in candidates:
+                    candidates[(x, y)] = ((dx, dy), room)
+                break
+
+    # Group candidates by (room, orientation) for segment building
+    grouped: dict[Tuple[str, Tuple[int, int]], list[Tuple[int, int]]] = {}
+    for (x, y), ((dx, dy), room) in candidates.items():
+        key = (id(room), room.label, (dx, dy))
+        # Use a hashable key that includes room identity
+        group_key = (room.label + str(id(room)), (dx, dy))
+        grouped.setdefault(group_key, []).append((x, y))
+
+    # Build segments and place windows
+    for (room_key, direction), positions in grouped.items():
+        is_bridge = room_key.startswith("bridge")
+        segments = _split_into_segments(positions)
+        for seg in segments:
+            n = len(seg)
+            if n < 2:
+                continue
+            if is_bridge:
+                # Bridge: fill entire segment (observation windows)
+                count = n
+            else:
+                # Other rooms: porthole sizing
+                if n <= 4:
+                    count = 1
+                else:
+                    count = 2
+            start = (n - count) // 2
+            # Look up the hull direction for this group from any candidate
+            sample = seg[0]
+            (sdx, sdy), _ = candidates[sample]
+            hull_dx, hull_dy = -sdx, -sdy  # direction toward hull
+            for i in range(start, start + count):
+                x, y = seg[i]
+                game_map.tiles[x, y] = tile_types.structure_window
+                # Also replace the hull wall outside so the window isn't blocked
+                hx, hy = x + hull_dx, y + hull_dy
+                if game_map.in_bounds(hx, hy):
+                    game_map.tiles[hx, hy] = tile_types.structure_window
+
+
+def _place_building_windows(
+    game_map: GameMap,
+    rng: random.Random,
+    wing_rects: List[RectRoom],
+    wall_tile: np.ndarray,
+    floor_tile: np.ndarray,
+    outside_tid: Optional[int] = None,
+) -> None:
+    """Place window tiles on exterior walls of rooms/buildings.
+
+    Scans each rect's 4 exterior edges (excluding corners), identifies
+    candidate wall tiles that face *outside_tid* outside and walkable floor
+    inside, groups them into contiguous segments, then places centered
+    window tile(s) per segment.
+
+    *outside_tid* defaults to ground for colony buildings; pass
+    ``int(floor_tile["tile_id"])`` for ship/starbase corridors.
+    """
+    wall_tid = int(wall_tile["tile_id"])
+    if outside_tid is None:
+        outside_tid = int(tile_types.ground["tile_id"])
+
+    # Collect candidate positions per side, grouped by wing & direction
+    # Each candidate: (x, y)
+    # Directions: outside_dx/dy tells which way is outside
+    sides: list[list[Tuple[int, int]]] = []
+
+    for wing in wing_rects:
+        # North wall: y=wing.y1, x in (x1+1 .. x2-1), outside = y-1
+        north = []
+        for x in range(wing.x1 + 1, wing.x2):
+            pos = (x, wing.y1)
+            outside = (x, wing.y1 - 1)
+            inside = (x, wing.y1 + 1)
+            if _is_window_candidate(game_map, pos, outside, inside, wall_tid, outside_tid):
+                north.append(pos)
+        sides.append(north)
+
+        # South wall: y=wing.y2, outside = y+1
+        south = []
+        for x in range(wing.x1 + 1, wing.x2):
+            pos = (x, wing.y2)
+            outside = (x, wing.y2 + 1)
+            inside = (x, wing.y2 - 1)
+            if _is_window_candidate(game_map, pos, outside, inside, wall_tid, outside_tid):
+                south.append(pos)
+        sides.append(south)
+
+        # West wall: x=wing.x1, outside = x-1
+        west = []
+        for y in range(wing.y1 + 1, wing.y2):
+            pos = (wing.x1, y)
+            outside = (wing.x1 - 1, y)
+            inside = (wing.x1 + 1, y)
+            if _is_window_candidate(game_map, pos, outside, inside, wall_tid, outside_tid):
+                west.append(pos)
+        sides.append(west)
+
+        # East wall: x=wing.x2, outside = x+1
+        east = []
+        for y in range(wing.y1 + 1, wing.y2):
+            pos = (wing.x2, y)
+            outside = (wing.x2 + 1, y)
+            inside = (wing.x2 - 1, y)
+            if _is_window_candidate(game_map, pos, outside, inside, wall_tid, outside_tid):
+                east.append(pos)
+        sides.append(east)
+
+    # For each side, split candidates into contiguous segments and place windows
+    for candidates in sides:
+        if not candidates:
+            continue
+        segments = _split_into_segments(candidates)
+        for seg in segments:
+            _place_centered_windows(game_map, seg)
+
+
+def _is_window_candidate(
+    game_map: GameMap,
+    pos: Tuple[int, int],
+    outside: Tuple[int, int],
+    inside: Tuple[int, int],
+    wall_tid: int,
+    outside_tid: int,
+) -> bool:
+    """Check if a wall tile qualifies as a window candidate."""
+    if not game_map.in_bounds(*outside) or not game_map.in_bounds(*inside):
+        return False
+    if int(game_map.tiles["tile_id"][pos[0], pos[1]]) != wall_tid:
+        return False
+    if int(game_map.tiles["tile_id"][outside[0], outside[1]]) != outside_tid:
+        return False
+    if not game_map.tiles["walkable"][inside[0], inside[1]]:
+        return False
+    return True
+
+
+def _split_into_segments(
+    candidates: list[Tuple[int, int]],
+) -> list[list[Tuple[int, int]]]:
+    """Split a list of positions into contiguous segments.
+
+    Positions are contiguous if they differ by 1 in either x or y
+    (they'll all share one axis since they're on the same wall side).
+    """
+    if not candidates:
+        return []
+    segments: list[list[Tuple[int, int]]] = [[candidates[0]]]
+    for pos in candidates[1:]:
+        prev = segments[-1][-1]
+        if abs(pos[0] - prev[0]) + abs(pos[1] - prev[1]) == 1:
+            segments[-1].append(pos)
+        else:
+            segments.append([pos])
+    return segments
+
+
+def _place_centered_windows(
+    game_map: GameMap,
+    segment: list[Tuple[int, int]],
+) -> None:
+    """Place centered window tile(s) in a wall segment."""
+    n = len(segment)
+    if n < 3:
+        return  # too narrow
+
+    if n <= 4:
+        count = 1
+    elif n <= 6:
+        count = 2
+    else:
+        count = 3
+
+    start = (n - count) // 2
+    for i in range(start, start + count):
+        x, y = segment[i]
+        game_map.tiles[x, y] = tile_types.structure_window
 
 
 def _generate_village(
@@ -795,10 +1606,12 @@ def _generate_village(
     wall_tile: np.ndarray,
     floor_tile: np.ndarray,
 ) -> List[RectRoom]:
-    """Colony village: open ground with walled buildings."""
+    """Colony village: open ground with irregular multi-wing buildings."""
     w, h = game_map.width, game_map.height
     rooms: List[RectRoom] = []
     label_counts: dict[str, int] = {}
+    # Track all placed wing rectangles for collision checks
+    placed_wings: List[RectRoom] = []
 
     # Fill entire map with walkable ground
     game_map.tiles[:] = tile_types.ground
@@ -809,11 +1622,57 @@ def _generate_village(
     game_map.tiles[:, 0] = wall_tile
     game_map.tiles[:, h - 1] = wall_tile
 
+    # Square-footage budget: buildings may cover 50-60% of usable area
+    usable_area = (w - 2) * (h - 2)
+    target_coverage = rng.uniform(0.15, 0.30)
+    max_sq_ft = int(usable_area * target_coverage)
+    used_sq_ft = 0
+    gap = 1  # minimum tiles between buildings
+
     # Place required rooms first, then fill
     all_specs: List[RoomSpec] = list(_required_specs(profile))
 
-    for _ in range(profile.max_rooms * 4):
-        if len(rooms) >= profile.max_rooms:
+    def _try_place_building(
+        rx: int, ry: int, spec: RoomSpec,
+    ) -> Optional[List[RectRoom]]:
+        """Attempt to place a building at (rx, ry). Return wing rects or None."""
+        rw = rng.randint(spec.min_w, spec.max_w)
+        rh = rng.randint(spec.min_h, spec.max_h)
+        num_wings = _pick_building_room_count(rng)
+        wing_tuples = _compose_building_wings(
+            rng, rx, ry, rw, rh, num_wings, min_w=5, min_h=5,
+        )
+        result: List[RectRoom] = []
+        for wx, wy, ww, wh in wing_tuples:
+            if wx < 2 or wy < 2 or wx + ww >= w - 2 or wy + wh >= h - 2:
+                return None
+            wing_rect = RectRoom(wx, wy, ww, wh, label=spec.label)
+            expanded = RectRoom(wx - gap, wy - gap, ww + gap * 2, wh + gap * 2)
+            for other in placed_wings:
+                if expanded.intersects(other):
+                    return None
+            result.append(wing_rect)
+        return result
+
+    # Build a shuffled grid of candidate positions covering the map
+    # Buildings must start at x/y >= 2 to keep 1-tile ground gap from border
+    step_x, step_y = 7, 6  # dense grid for good coverage
+    grid_positions = [
+        (gx, gy)
+        for gx in range(2, w - 6, step_x)
+        for gy in range(2, h - 6, step_y)
+    ]
+    rng.shuffle(grid_positions)
+    # Also add random jittered positions for gap-filling
+    random_positions = [
+        (rng.randint(2, max(2, w - 9)), rng.randint(2, max(2, h - 9)))
+        for _ in range(150)
+    ]
+    candidate_positions = grid_positions + random_positions
+    retries_per_pos = 3  # retry with different wing configs
+
+    for rx, ry in candidate_positions:
+        if used_sq_ft >= max_sq_ft:
             break
 
         if all_specs:
@@ -821,58 +1680,131 @@ def _generate_village(
         else:
             spec = _pick_room_spec(rng, profile, label_counts)
 
-        rw = rng.randint(spec.min_w, spec.max_w)
-        rh = rng.randint(spec.min_h, spec.max_h)
-        rx = rng.randint(2, max(2, w - rw - 3))
-        ry = rng.randint(2, max(2, h - rh - 3))
-        room = RectRoom(rx, ry, rw, rh, label=spec.label)
-
-        # Check for overlap with 3-tile gap
-        too_close = False
-        for other in rooms:
-            expanded = RectRoom(room.x1 - 3, room.y1 - 3, rw + 6, rh + 6)
-            if expanded.intersects(other):
-                too_close = True
+        wing_rects: Optional[List[RectRoom]] = None
+        for _ in range(retries_per_pos):
+            wing_rects = _try_place_building(rx, ry, spec)
+            if wing_rects is not None:
                 break
-        if too_close:
+        if wing_rects is None:
             continue
 
-        # Draw building: wall boundary, dirt floor interior
-        for bx in range(room.x1, room.x2 + 1):
-            for by in range(room.y1, room.y2 + 1):
-                if not game_map.in_bounds(bx, by):
-                    continue
-                if bx == room.x1 or bx == room.x2 or by == room.y1 or by == room.y2:
-                    game_map.tiles[bx, by] = wall_tile
-                else:
-                    game_map.tiles[bx, by] = floor_tile
+        # Place all wings: fill with wall
+        for wing in wing_rects:
+            for bx in range(wing.x1, wing.x2 + 1):
+                for by in range(wing.y1, wing.y2 + 1):
+                    if game_map.in_bounds(bx, by):
+                        game_map.tiles[bx, by] = wall_tile
 
-        # Carve a 1-tile doorway on a random wall side
-        side = rng.choice(["north", "south", "east", "west"])
-        if side == "north" and room.x2 > room.x1 + 2:
-            dx = rng.randint(room.x1 + 1, room.x2 - 1)
-            if game_map.in_bounds(dx, room.y1):
-                game_map.tiles[dx, room.y1] = floor_tile
-        elif side == "south" and room.x2 > room.x1 + 2:
-            dx = rng.randint(room.x1 + 1, room.x2 - 1)
-            if game_map.in_bounds(dx, room.y2):
-                game_map.tiles[dx, room.y2] = floor_tile
-        elif side == "east" and room.y2 > room.y1 + 2:
-            dy = rng.randint(room.y1 + 1, room.y2 - 1)
-            if game_map.in_bounds(room.x2, dy):
-                game_map.tiles[room.x2, dy] = floor_tile
-        elif side == "west" and room.y2 > room.y1 + 2:
-            dy = rng.randint(room.y1 + 1, room.y2 - 1)
-            if game_map.in_bounds(room.x1, dy):
-                game_map.tiles[room.x1, dy] = floor_tile
+        # Subdivide each wing into sub-rooms or carve as single room.
+        # Larger wings (inner ≥ 7 in both dims) get 2-3 sub-rooms.
+        all_sub_rooms: List[RectRoom] = []
+        for wing in wing_rects:
+            inner_w = wing.x2 - wing.x1 - 1
+            inner_h = wing.y2 - wing.y1 - 1
+            # Min offset for subdivision is 4, so need inner ≥ 7 on both axes
+            if inner_w >= 7 and inner_h >= 7:
+                num_sub = rng.randint(2, 3)
+            elif inner_w >= 7 or inner_h >= 7:
+                num_sub = 2
+            else:
+                num_sub = 1
+            sub_rooms = _subdivide_building(
+                game_map, rng,
+                wing.x1, wing.y1, wing.x2, wing.y2,
+                num_sub, floor_tile, wall_tile, label=spec.label,
+            )
+            all_sub_rooms.extend(sub_rooms)
 
-        rooms.append(room)
+        # Carve doorways between adjacent wing pairs
+        for i in range(len(wing_rects)):
+            for j in range(i + 1, len(wing_rects)):
+                _carve_wing_doorway(game_map, wing_rects[i], wing_rects[j], floor_tile)
+
+        # Carve external door on the building's outer perimeter
+        _carve_external_door(game_map, rng, wing_rects, floor_tile)
+
+        # Place windows on exterior walls
+        _place_building_windows(game_map, rng, wing_rects, wall_tile, floor_tile)
+
+        building_sq_ft = sum(
+            (wr.x2 - wr.x1) * (wr.y2 - wr.y1) for wr in wing_rects
+        )
+        used_sq_ft += building_sq_ft
+        placed_wings.extend(wing_rects)
+        rooms.extend(all_sub_rooms)
         label_counts[spec.label] = label_counts.get(spec.label, 0) + 1
 
     return rooms
 
 
 # -------------------------------------------------------------------
+# -------------------------------------------------------------------
+# Door placement
+# -------------------------------------------------------------------
+
+def _is_room_adjacent(x: int, y: int, rooms: List[RectRoom]) -> bool:
+    """Return True if (x, y) is cardinally adjacent to any room's inner area."""
+    for room in rooms:
+        ix, iy = room.inner
+        # Check if any cardinal neighbor falls inside the room interior
+        for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+            nx, ny = x + dx, y + dy
+            if ix.start <= nx < ix.stop and iy.start <= ny < iy.stop:
+                return True
+    return False
+
+
+def _place_doors(
+    game_map: GameMap,
+    rng: random.Random,
+    floor_tile: np.ndarray,
+    rooms: List[RectRoom],
+    door_chance: float = 0.65,
+    min_spacing: int = 3,
+) -> None:
+    """Place closed doors at room entrances — chokepoints adjacent to a room's
+    inner area, with minimum spacing to avoid door clusters."""
+    floor_tid = int(floor_tile["tile_id"])
+    w, h = game_map.width, game_map.height
+
+    candidates: List[Tuple[int, int]] = []
+    for x in range(1, w - 1):
+        for y in range(1, h - 1):
+            if int(game_map.tiles["tile_id"][x, y]) != floor_tid:
+                continue
+            n = bool(game_map.tiles["walkable"][x, y - 1])
+            s = bool(game_map.tiles["walkable"][x, y + 1])
+            e = bool(game_map.tiles["walkable"][x + 1, y])
+            w_ = bool(game_map.tiles["walkable"][x - 1, y])
+
+            is_chokepoint = False
+            # Vertical chokepoint: walls E+W, floor N+S
+            if not e and not w_ and n and s:
+                is_chokepoint = True
+            # Horizontal chokepoint: walls N+S, floor E+W
+            elif not n and not s and e and w_:
+                is_chokepoint = True
+
+            if is_chokepoint and _is_room_adjacent(x, y, rooms):
+                candidates.append((x, y))
+
+    # Place doors with minimum spacing
+    placed: List[Tuple[int, int]] = []
+    rng.shuffle(candidates)
+    for x, y in candidates:
+        if rng.random() >= door_chance:
+            continue
+        # Enforce minimum spacing from already-placed doors
+        too_close = False
+        for px, py in placed:
+            if abs(x - px) + abs(y - py) < min_spacing:
+                too_close = True
+                break
+        if not too_close:
+            game_map.tiles[x, y] = tile_types.door_closed
+            placed.append((x, y))
+
+
 # Generator dispatch
 # -------------------------------------------------------------------
 
@@ -882,6 +1814,204 @@ _GENERATORS = {
     "standard": _generate_standard,
     "village": _generate_village,
 }
+
+
+# -------------------------------------------------------------------
+# Space conversion — replace outer hull walls with space tiles
+# -------------------------------------------------------------------
+
+def _place_airlocks(
+    game_map: GameMap,
+    rng: random.Random,
+    rooms: List[RectRoom],
+    wall_tile: np.ndarray,
+    floor_tile: np.ndarray,
+) -> None:
+    """Place 1-2 airlocks on the hull exterior.
+
+    Each airlock is a 3-tile extension outward from a hull wall:
+    [interior_door] [airlock_floor] [exterior_door]
+    surrounded by wall tiles to preserve structure during hull conversion.
+    Must be called before _convert_hull_to_space().
+    """
+    wall_tid = int(wall_tile["tile_id"])
+    num_airlocks = rng.randint(1, 2)
+    directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]  # N, S, W, E
+
+    # Collect all walkable positions (room interiors + corridors)
+    walkable_mask = game_map.tiles["walkable"]
+
+    candidates: List[tuple] = []  # (wall_x, wall_y, dx, dy)
+
+    for room in rooms:
+        for wx, wy in _room_wall_positions(room):
+            if not game_map.in_bounds(wx, wy):
+                continue
+            if int(game_map.tiles["tile_id"][wx, wy]) != wall_tid:
+                continue
+            for dx, dy in directions:
+                # Interior side: tile inside the room (opposite of outward direction)
+                ix, iy = wx - dx, wy - dy
+                if not game_map.in_bounds(ix, iy):
+                    continue
+                if not walkable_mask[ix, iy]:
+                    continue
+
+                # The 3 outward tiles: wall pos (becomes interior door),
+                # wall+1*dir (airlock floor), wall+2*dir (exterior door)
+                positions = [
+                    (wx + i * dx, wy + i * dy) for i in range(3)
+                ]
+                # All 3 must be in bounds and currently wall tiles
+                valid = True
+                for px, py in positions:
+                    if not game_map.in_bounds(px, py):
+                        valid = False
+                        break
+                    if int(game_map.tiles["tile_id"][px, py]) != wall_tid:
+                        valid = False
+                        break
+                if not valid:
+                    continue
+
+                # Perpendicular directions for wall checks
+                if dx == 0:
+                    perp = [(1, 0), (-1, 0)]
+                else:
+                    perp = [(0, 1), (0, -1)]
+
+                # The tile beyond the exterior door must be wall (will become space),
+                # and its perpendicular neighbors must also be wall to avoid
+                # creating space tiles adjacent to walkable corridors/rooms.
+                bx, by = wx + 3 * dx, wy + 3 * dy
+                if not game_map.in_bounds(bx, by):
+                    continue
+                if int(game_map.tiles["tile_id"][bx, by]) != wall_tid:
+                    continue
+                # Check all cardinal neighbors of beyond-tile are wall
+                beyond_ok = True
+                for cdx, cdy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
+                    bnx, bny = bx + cdx, by + cdy
+                    # Skip the exterior door direction (back toward airlock)
+                    if (cdx, cdy) == (-dx, -dy):
+                        continue
+                    if not game_map.in_bounds(bnx, bny):
+                        beyond_ok = False
+                        break
+                    if int(game_map.tiles["tile_id"][bnx, bny]) != wall_tid:
+                        beyond_ok = False
+                        break
+                if not beyond_ok:
+                    continue
+
+                # Check that surrounding wall tiles exist for chamber walls
+                # (perpendicular neighbors of the airlock tiles must be wall)
+                walls_ok = True
+                for px, py in positions:
+                    for pdx, pdy in perp:
+                        nx, ny = px + pdx, py + pdy
+                        if not game_map.in_bounds(nx, ny):
+                            walls_ok = False
+                            break
+                        if int(game_map.tiles["tile_id"][nx, ny]) != wall_tid:
+                            walls_ok = False
+                            break
+                    if not walls_ok:
+                        break
+                if not walls_ok:
+                    continue
+
+                candidates.append((wx, wy, dx, dy))
+
+    rng.shuffle(candidates)
+    placed = 0
+    used_positions: set = set()
+
+    for wx, wy, dx, dy in candidates:
+        if placed >= num_airlocks:
+            break
+
+        # Ensure no overlap with already-placed airlocks
+        positions = [(wx + i * dx, wy + i * dy) for i in range(3)]
+        if any((px, py) in used_positions for px, py in positions):
+            continue
+
+        # Carve the airlock
+        # Position 0: interior door (at hull wall)
+        game_map.tiles[positions[0][0], positions[0][1]] = tile_types.door_closed
+        # Position 1: airlock floor
+        game_map.tiles[positions[1][0], positions[1][1]] = tile_types.airlock_floor
+        # Position 2: exterior door (hull-colored)
+        game_map.tiles[positions[2][0], positions[2][1]] = tile_types.airlock_ext_closed
+
+        for px, py in positions:
+            used_positions.add((px, py))
+
+        game_map.airlocks.append({
+            "interior_door": positions[0],
+            "exterior_door": positions[2],
+            "direction": (dx, dy),
+        })
+        placed += 1
+
+
+def _convert_hull_to_space(game_map: GameMap, wall_tile: np.ndarray) -> None:
+    """Replace wall tiles not adjacent to any walkable or window tile with space.
+
+    Uses numpy array shifts for vectorized adjacency checking (no Python loops).
+    Walls adjacent (8-directional) to walkable or window tiles are structural
+    hull and kept.  Then a cleanup pass converts hull filler behind exterior
+    windows (adjacent to a window but not to any walkable tile) to space so
+    that windows actually provide a view into space.
+    """
+    wall_tid = int(wall_tile["tile_id"])
+    window_tid = int(tile_types.structure_window["tile_id"])
+
+    is_wall = game_map.tiles["tile_id"] == wall_tid
+    is_walkable = game_map.tiles["walkable"].copy()
+    is_window = game_map.tiles["tile_id"] == window_tid
+
+    # A tile is "interesting" if walkable or a window
+    interesting = is_walkable | is_window
+
+    # Check adjacency to interesting tiles in all 8 directions
+    # (diagonal checks prevent corner gaps that allow FOV peek-through)
+    adj = np.zeros_like(interesting)
+    # Cardinal
+    adj[1:, :] |= interesting[:-1, :]   # neighbor to the left
+    adj[:-1, :] |= interesting[1:, :]   # neighbor to the right
+    adj[:, 1:] |= interesting[:, :-1]   # neighbor above
+    adj[:, :-1] |= interesting[:, 1:]   # neighbor below
+    # Diagonal
+    adj[1:, 1:] |= interesting[:-1, :-1]
+    adj[1:, :-1] |= interesting[:-1, 1:]
+    adj[:-1, 1:] |= interesting[1:, :-1]
+    adj[:-1, :-1] |= interesting[1:, 1:]
+
+    # Wall tiles NOT adjacent to anything interesting become space
+    to_space = is_wall & ~adj
+    game_map.tiles[to_space] = tile_types.space
+
+    # Cleanup: walls adjacent to windows but not to any walkable tile are
+    # hull filler behind exterior windows — convert to space so windows
+    # actually look out into space.
+    is_wall_now = game_map.tiles["tile_id"] == wall_tid
+    is_window_now = game_map.tiles["tile_id"] == window_tid
+
+    adj_walkable = np.zeros_like(is_walkable)
+    adj_walkable[1:, :] |= is_walkable[:-1, :]
+    adj_walkable[:-1, :] |= is_walkable[1:, :]
+    adj_walkable[:, 1:] |= is_walkable[:, :-1]
+    adj_walkable[:, :-1] |= is_walkable[:, 1:]
+
+    adj_window = np.zeros_like(is_window_now)
+    adj_window[1:, :] |= is_window_now[:-1, :]
+    adj_window[:-1, :] |= is_window_now[1:, :]
+    adj_window[:, 1:] |= is_window_now[:, :-1]
+    adj_window[:, :-1] |= is_window_now[:, 1:]
+
+    hull_filler = is_wall_now & adj_window & ~adj_walkable
+    game_map.tiles[hull_filler] = tile_types.space
 
 
 # -------------------------------------------------------------------
@@ -916,6 +2046,10 @@ def generate_dungeon(
             game_map, rng, max_rooms, room_min, room_max, floor_tile,
         )
 
+    # Place doors at room entrances (skip organic/cave layouts)
+    if rooms and profile.generator != "organic":
+        _place_doors(game_map, rng, floor_tile, rooms)
+
     # Exit hatch at entrance so the player can always leave from where they entered.
     exit_pos: Optional[Tuple[int, int]] = None
     if rooms:
@@ -949,6 +2083,22 @@ def generate_dungeon(
                     wall_interactable_name=profile.wall_interactable,
                     exit_pos=exit_pos,
                 )
+
+    # Place airlocks before hull conversion (need wall tiles to identify hull)
+    if profile.generator in ("ship", "standard"):
+        _place_airlocks(game_map, rng, rooms, wall_tile, floor_tile)
+
+    # Convert outer hull walls to space tiles for ship/starbase maps
+    if profile.generator in ("ship", "standard"):
+        _convert_hull_to_space(game_map, wall_tile)
+        game_map.has_space = True
+        # Ensure space beyond airlock exterior doors
+        for al in game_map.airlocks:
+            ex, ey = al["exterior_door"]
+            dx, dy = al["direction"]
+            bx, by = ex + dx, ey + dy
+            if game_map.in_bounds(bx, by):
+                game_map.tiles[bx, by] = tile_types.space
 
     return game_map, rooms, exit_pos
 

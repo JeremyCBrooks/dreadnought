@@ -14,9 +14,9 @@ class GameOverState(State):
         self.victory = victory
 
     def ev_keydown(self, engine: Engine, event: Any) -> bool:
-        import tcod.event
+        from ui.keys import confirm_keys
 
-        if event.sym != tcod.event.KeySym.RETURN:
+        if event.sym not in confirm_keys():
             return True
         from ui.title_state import TitleState
         engine._saved_player = None
@@ -26,11 +26,7 @@ class GameOverState(State):
         engine.environment = None
         engine.ship = None
         engine._pending_loadout = None
-        # Clear entire stack to prevent stale states accumulating across restarts
-        while engine._state_stack:
-            engine._state_stack.pop().on_exit(engine)
-        engine._state_stack.append(TitleState())
-        engine._state_stack[-1].on_enter(engine)
+        engine.reset_to_state(TitleState())
         return True
 
     def on_render(self, console: Any, engine: Engine) -> None:

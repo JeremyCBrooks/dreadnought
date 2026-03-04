@@ -18,38 +18,40 @@ class StrategicState(State):
         engine.message_log.add_message("You are aboard your ship.", (180, 180, 220))
 
     def ev_keydown(self, engine: Engine, event: Any) -> bool:
-        import tcod.event
+        from ui.keys import move_keys, confirm_keys
 
         key = event.sym
         system = self.galaxy.systems[self.galaxy.current_system]
 
-        if key in (tcod.event.KeySym.UP, tcod.event.KeySym.k):
-            self.selected = max(0, self.selected - 1)
-            return True
-        if key in (tcod.event.KeySym.DOWN, tcod.event.KeySym.j):
-            self.selected = min(len(system.locations) - 1, self.selected + 1)
-            return True
+        direction = move_keys().get(key)
+        if direction:
+            dx, dy = direction
+            if dy < 0:  # up
+                self.selected = max(0, self.selected - 1)
+                return True
+            if dy > 0:  # down
+                self.selected = min(len(system.locations) - 1, self.selected + 1)
+                return True
+            if dx < 0:  # left
+                connected = list(system.connections.keys())
+                if connected:
+                    self.galaxy.current_system = connected[0]
+                    self.selected = 0
+                    engine.message_log.add_message(
+                        f"Traveling to {self.galaxy.current_system}.", (100, 200, 255)
+                    )
+                return True
+            if dx > 0:  # right
+                connected = list(system.connections.keys())
+                if connected:
+                    self.galaxy.current_system = connected[-1]
+                    self.selected = 0
+                    engine.message_log.add_message(
+                        f"Traveling to {self.galaxy.current_system}.", (100, 200, 255)
+                    )
+                return True
 
-        if key in (tcod.event.KeySym.LEFT, tcod.event.KeySym.h):
-            connected = list(system.connections.keys())
-            if connected:
-                self.galaxy.current_system = connected[0]
-                self.selected = 0
-                engine.message_log.add_message(
-                    f"Traveling to {self.galaxy.current_system}.", (100, 200, 255)
-                )
-            return True
-        if key in (tcod.event.KeySym.RIGHT, tcod.event.KeySym.l):
-            connected = list(system.connections.keys())
-            if connected:
-                self.galaxy.current_system = connected[-1]
-                self.selected = 0
-                engine.message_log.add_message(
-                    f"Traveling to {self.galaxy.current_system}.", (100, 200, 255)
-                )
-            return True
-
-        if key == tcod.event.KeySym.RETURN:
+        if key in confirm_keys():
             if not system.locations:
                 return True
             loc = system.locations[self.selected]
@@ -93,9 +95,9 @@ class StrategicState(State):
             status = "VISITED" if loc.visited else "UNVISITED"
             color = (255, 255, 255) if i == self.selected else (140, 140, 140)
             text = f"{prefix} {loc.name} ({loc.loc_type}) - {status}"
-            if len(text) > text_width:
+            if text_width > 3 and len(text) > text_width:
                 text = text[: text_width - 3] + "..."
-            console.print(x=2, y=y, string=text, fg=color)
+            console.print(x=2, y=y, string=text[:text_width], fg=color)
 
         y = loc_start_y + max_locs + 2
         console.print(x=2, y=y, string="CONNECTED SYSTEMS:", fg=(180, 180, 200))
@@ -104,7 +106,7 @@ class StrategicState(State):
                 break
             y += 1
             text = f"{name} (fuel: {fuel})"
-            if len(text) > text_width - 2:
+            if text_width > 5 and len(text) > text_width - 2:
                 text = text[: text_width - 5] + "..."
             console.print(x=4, y=y, string=text, fg=(100, 200, 255))
 

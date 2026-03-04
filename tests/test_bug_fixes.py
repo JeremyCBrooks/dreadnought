@@ -298,7 +298,7 @@ def test_drop_negative_index_rejected():
     gm.entities.append(p)
     # Negative index should be rejected (not pop last item)
     result = DropAction(-1).perform(MockEngine(gm, p), p)
-    assert result is False
+    assert result == 0
     assert len(p.inventory) == 2
 
 

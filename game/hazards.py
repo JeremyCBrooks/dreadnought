@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import random
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -72,15 +72,18 @@ def trigger_hazard(engine: Engine, hazard: dict, source_name: str) -> None:
                 pass  # HostileAI already chases when player in FOV; consider adding "alerted" later
 
     elif htype == "gas":
-        # Drain suit atmosphere: reduce O2 pool
+        # Drain suit atmosphere: gas contaminates the O2 (vacuum) pool
+        drained = False
         if engine.suit and "vacuum" in engine.suit.current_pools:
             drain = 5
             engine.suit.current_pools["vacuum"] = max(
                 0, engine.suit.current_pools["vacuum"] - drain
             )
+            drained = True
         player.fighter.hp = max(0, player.fighter.hp - damage)
+        suffix = " Suit O2 contaminated!" if drained else ""
         engine.message_log.add_message(
-            f"Toxic gas from {source_name}! You take {damage} damage and lose O2.",
+            f"Toxic gas from {source_name}! You take {damage} damage.{suffix}",
             (100, 255, 100),
         )
 
