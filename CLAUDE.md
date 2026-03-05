@@ -1,7 +1,7 @@
 # Dreadnought - Project Guide
 
 Follow TDD, DRY and Pythonic conventions.
-When fixing bugs or implementing new features, always write and execute tests first, then write the implementation and/or fix.
+When fixing bugs or implementing new features, always first write and execute tests that accurately assert how the feature should and should NOT work. Only after the correct test cases are in place should you write the implementation and/or fix.
 Use uv and .venv for python commands.
 Be data driven and prefer abstractions.
 

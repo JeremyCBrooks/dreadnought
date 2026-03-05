@@ -1,12 +1,15 @@
 """Procedural dungeon generation: room-and-corridor algorithm."""
 from __future__ import annotations
 
+import collections
+import heapq
 import random
 from typing import List, Optional, Tuple
 
 from world.game_map import GameMap
 from world import tile_types
 from world.loc_profiles import get_profile, LocationProfile, RoomSpec
+from world.palettes import pick_biome, make_ground_tile, make_wall_tile, make_path_tile, apply_ground_noise, scatter_flora
 from game.entity import Entity, Fighter
 from game.ai import HostileAI
 from data import db
@@ -1193,17 +1196,20 @@ def _carve_external_door(
     rng: random.Random,
     wing_rooms: List[RectRoom],
     floor_tile: np.ndarray,
-) -> None:
+) -> Optional[Tuple[int, int]]:
     """Carve a 1-tile door on a building's outer wall.
 
     Iterates over all wing perimeter tiles and picks ones that face outward
     (adjacent to a ground tile), so the door connects the building to the
     outside.  Prefers positions where the inside tile is already walkable.
+
+    Returns the (x, y) of the ground tile just outside the door, or None.
     """
     ground_tid = int(tile_types.ground["tile_id"])
 
     # Collect all wall tiles across all wings with their inward direction
-    door_candidates: List[Tuple[Tuple[int, int], Tuple[int, int]]] = []
+    # Each entry: (wall_pos, inside_pos, outside_pos)
+    door_candidates: List[Tuple[Tuple[int, int], Tuple[int, int], Tuple[int, int]]] = []
     for wing in wing_rooms:
         # North wall
         for x in range(wing.x1 + 1, wing.x2):
@@ -1212,7 +1218,7 @@ def _carve_external_door(
             outside = (x, wing.y1 - 1)
             if (game_map.in_bounds(*outside)
                     and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid):
-                door_candidates.append((wall, inside))
+                door_candidates.append((wall, inside, outside))
         # South wall
         for x in range(wing.x1 + 1, wing.x2):
             wall = (x, wing.y2)
@@ -1220,7 +1226,7 @@ def _carve_external_door(
             outside = (x, wing.y2 + 1)
             if (game_map.in_bounds(*outside)
                     and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid):
-                door_candidates.append((wall, inside))
+                door_candidates.append((wall, inside, outside))
         # West wall
         for y in range(wing.y1 + 1, wing.y2):
             wall = (wing.x1, y)
@@ -1228,7 +1234,7 @@ def _carve_external_door(
             outside = (wing.x1 - 1, y)
             if (game_map.in_bounds(*outside)
                     and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid):
-                door_candidates.append((wall, inside))
+                door_candidates.append((wall, inside, outside))
         # East wall
         for y in range(wing.y1 + 1, wing.y2):
             wall = (wing.x2, y)
@@ -1236,24 +1242,27 @@ def _carve_external_door(
             outside = (wing.x2 + 1, y)
             if (game_map.in_bounds(*outside)
                     and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid):
-                door_candidates.append((wall, inside))
+                door_candidates.append((wall, inside, outside))
 
     # Prefer positions where the inside tile is already walkable floor
     good = [
-        (wall, inside) for wall, inside in door_candidates
+        (wall, inside, outside) for wall, inside, outside in door_candidates
         if (game_map.in_bounds(*wall) and game_map.in_bounds(*inside)
             and game_map.tiles["walkable"][inside[0], inside[1]])
     ]
     if good:
-        wall_pos, _ = rng.choice(good)
+        wall_pos, _, outside_pos = rng.choice(good)
         game_map.tiles[wall_pos[0], wall_pos[1]] = floor_tile
+        return outside_pos
     elif door_candidates:
         # Fallback: pick any position, force-clear the inside tile too
-        wall_pos, inside_pos = rng.choice(door_candidates)
+        wall_pos, inside_pos, outside_pos = rng.choice(door_candidates)
         if game_map.in_bounds(*wall_pos):
             game_map.tiles[wall_pos[0], wall_pos[1]] = floor_tile
         if game_map.in_bounds(*inside_pos):
             game_map.tiles[inside_pos[0], inside_pos[1]] = floor_tile
+        return outside_pos
+    return None
 
 
 def _place_exterior_windows(
@@ -1606,6 +1615,279 @@ def _place_centered_windows(
         game_map.tiles[x, y] = tile_types.structure_window
 
 
+# -------------------------------------------------------------------
+# Village path generation
+# -------------------------------------------------------------------
+
+def _wall_adjacent_set(game_map: GameMap, ground_tid: int) -> set:
+    """Return set of ground tiles with at least one cardinal wall neighbor."""
+    w, h = game_map.width, game_map.height
+    wall_tid = int(tile_types.structure_wall["tile_id"])
+    result: set = set()
+    for x in range(w):
+        for y in range(h):
+            if int(game_map.tiles["tile_id"][x, y]) != ground_tid:
+                continue
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h and int(game_map.tiles["tile_id"][nx, ny]) == wall_tid:
+                    result.add((x, y))
+                    break
+    return result
+
+
+def _bfs_path(
+    game_map: GameMap,
+    start: Tuple[int, int],
+    end: Tuple[int, int],
+    ground_tid: int,
+    extra_walkable: Optional[set] = None,
+    wall_cost: int = 3,
+) -> List[Tuple[int, int]]:
+    """Dijkstra shortest path from *start* to *end* through ground tiles.
+
+    Tiles adjacent to walls cost *wall_cost* instead of 1, creating a soft
+    preference for paths with a gap from walls.  Returns ordered (x, y) list,
+    or [] if unreachable.  Uses 4-cardinal neighbors.
+    """
+    if start == end:
+        return [start]
+    w, h = game_map.width, game_map.height
+    sx, sy = start
+    ex, ey = end
+    if not (0 <= sx < w and 0 <= sy < h and 0 <= ex < w and 0 <= ey < h):
+        return []
+    extra = extra_walkable or set()
+    wall_adj = _wall_adjacent_set(game_map, ground_tid)
+    # Dijkstra: (cost, x, y)
+    heap: List[Tuple[int, int, int]] = [(0, sx, sy)]
+    best_cost: dict[Tuple[int, int], int] = {start: 0}
+    came_from: dict[Tuple[int, int], Tuple[int, int] | None] = {start: None}
+    while heap:
+        cost, cx, cy = heapq.heappop(heap)
+        if (cx, cy) == end:
+            path: List[Tuple[int, int]] = []
+            cur: Tuple[int, int] | None = (cx, cy)
+            while cur is not None:
+                path.append(cur)
+                cur = came_from[cur]
+            path.reverse()
+            return path
+        if cost > best_cost.get((cx, cy), float("inf")):
+            continue
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = cx + dx, cy + dy
+            if not (0 <= nx < w and 0 <= ny < h):
+                continue
+            if (nx, ny) != end and (nx, ny) not in extra and int(game_map.tiles["tile_id"][nx, ny]) != ground_tid:
+                continue
+            step = wall_cost if (nx, ny) in wall_adj else 1
+            new_cost = cost + step
+            if new_cost < best_cost.get((nx, ny), float("inf")):
+                best_cost[(nx, ny)] = new_cost
+                came_from[(nx, ny)] = (cx, cy)
+                heapq.heappush(heap, (new_cost, nx, ny))
+    return []
+
+
+def _bfs_to_set(
+    game_map: GameMap,
+    start: Tuple[int, int],
+    targets: set,
+    ground_tid: int,
+    wall_cost: int = 3,
+) -> List[Tuple[int, int]]:
+    """Dijkstra from *start* to the nearest coordinate in *targets*.
+
+    Wall-adjacent tiles cost *wall_cost* to traverse.  Returns ordered path,
+    or [] if unreachable.
+    """
+    if start in targets:
+        return [start]
+    w, h = game_map.width, game_map.height
+    sx, sy = start
+    if not (0 <= sx < w and 0 <= sy < h):
+        return []
+    wall_adj = _wall_adjacent_set(game_map, ground_tid)
+    heap: List[Tuple[int, int, int]] = [(0, sx, sy)]
+    best_cost: dict[Tuple[int, int], int] = {start: 0}
+    came_from: dict[Tuple[int, int], Tuple[int, int] | None] = {start: None}
+    while heap:
+        cost, cx, cy = heapq.heappop(heap)
+        if (cx, cy) in targets:
+            path: List[Tuple[int, int]] = []
+            cur: Tuple[int, int] | None = (cx, cy)
+            while cur is not None:
+                path.append(cur)
+                cur = came_from[cur]
+            path.reverse()
+            return path
+        if cost > best_cost.get((cx, cy), float("inf")):
+            continue
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = cx + dx, cy + dy
+            if not (0 <= nx < w and 0 <= ny < h):
+                continue
+            if (nx, ny) not in targets and int(game_map.tiles["tile_id"][nx, ny]) != ground_tid:
+                continue
+            step = wall_cost if (nx, ny) in wall_adj else 1
+            new_cost = cost + step
+            if new_cost < best_cost.get((nx, ny), float("inf")):
+                best_cost[(nx, ny)] = new_cost
+                came_from[(nx, ny)] = (cx, cy)
+                heapq.heappush(heap, (new_cost, nx, ny))
+    return []
+
+
+def _meander(
+    rng: random.Random,
+    path: List[Tuple[int, int]],
+    game_map: GameMap,
+    ground_tid: int,
+    freq: int = 6,
+) -> List[Tuple[int, int]]:
+    """Add gentle lateral wobble to a path for organic feel.
+
+    Every *freq* tiles, attempt a 1-tile lateral jog: step sideways from
+    the previous tile, then forward to the current tile.  Both inserted tiles
+    must be ground, in bounds, and not adjacent to any wall.  In tight spaces
+    (corridors, wall-adjacent areas) the offset is simply skipped.
+    """
+    if len(path) < 3:
+        return list(path)
+    w, h = game_map.width, game_map.height
+    wall_tid = int(tile_types.structure_wall["tile_id"])
+
+    def _is_wall_adjacent(x: int, y: int) -> bool:
+        for ddx, ddy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = x + ddx, y + ddy
+            if 0 <= nx < w and 0 <= ny < h:
+                if int(game_map.tiles["tile_id"][nx, ny]) == wall_tid:
+                    return True
+        return False
+
+    def _is_valid_offset(x: int, y: int) -> bool:
+        if not (0 < x < w - 1 and 0 < y < h - 1):
+            return False
+        if int(game_map.tiles["tile_id"][x, y]) != ground_tid:
+            return False
+        if _is_wall_adjacent(x, y):
+            return False
+        return True
+
+    result: List[Tuple[int, int]] = [path[0]]
+    for i in range(1, len(path)):
+        if i % freq == 0 and i < len(path) - 1:
+            px, py = path[i - 1]
+            cx, cy = path[i]
+            dx, dy = cx - px, cy - py
+            # Lateral direction (perpendicular to travel)
+            if dx != 0:
+                offsets = [(0, -1), (0, 1)]
+            elif dy != 0:
+                offsets = [(-1, 0), (1, 0)]
+            else:
+                offsets = []
+            rng.shuffle(offsets)
+            for ox, oy in offsets:
+                # Two-tile jog: prev+lateral, then current+lateral (=prev+lateral+forward)
+                # Step 1: from prev, go lateral
+                s1x, s1y = px + ox, py + oy
+                # Step 2: from step1, go forward (same direction as travel)
+                s2x, s2y = s1x + dx, s1y + dy
+                # s2 must be adjacent to current tile
+                if abs(s2x - cx) + abs(s2y - cy) != 1:
+                    continue
+                if _is_valid_offset(s1x, s1y) and _is_valid_offset(s2x, s2y):
+                    result.append((s1x, s1y))
+                    result.append((s2x, s2y))
+                    break
+        result.append(path[i])
+    return result
+
+
+def _generate_village_paths(
+    game_map: GameMap,
+    rng: random.Random,
+    door_positions: List[Tuple[int, int]],
+    path_tile: np.ndarray,
+    ground_tid: int,
+) -> None:
+    """Paint paths: a main spine road + branches from each door to the spine.
+
+    Uses BFS pathfinding so paths route around buildings rather than through them.
+    """
+    w, h = game_map.width, game_map.height
+    if door_positions:
+        cx = sum(p[0] for p in door_positions) // len(door_positions)
+        cy = sum(p[1] for p in door_positions) // len(door_positions)
+    else:
+        cx, cy = w // 2, h // 2
+
+    # Pick spine orientation and randomized endpoints
+    if rng.random() < 0.5:
+        # Horizontal: left edge -> right edge with random y
+        sy_start = rng.randint(3, h - 4)
+        sy_end = rng.randint(3, h - 4)
+        start = (1, sy_start)
+        end = (w - 2, sy_end)
+        horizontal = True
+    else:
+        # Vertical: top edge -> bottom edge with random x
+        sx_start = rng.randint(3, w - 4)
+        sx_end = rng.randint(3, w - 4)
+        start = (sx_start, 1)
+        end = (sx_end, h - 2)
+        horizontal = False
+
+    # Dijkstra spine through ground tiles
+    spine_path = _bfs_path(game_map, start, end, ground_tid)
+    if not spine_path:
+        # Fallback: try the other orientation with centroid
+        if horizontal:
+            start = (cx, 1)
+            end = (cx, h - 2)
+            horizontal = False
+        else:
+            start = (1, cy)
+            end = (w - 2, cy)
+            horizontal = True
+        spine_path = _bfs_path(game_map, start, end, ground_tid)
+
+    # Apply meander to spine for organic feel
+    if spine_path:
+        spine_path = _meander(rng, spine_path, game_map, ground_tid)
+
+    # Widen spine to 2 tiles
+    spine_tiles: List[Tuple[int, int]] = []
+    for x, y in spine_path:
+        spine_tiles.append((x, y))
+        if horizontal:
+            if 0 < y + 1 < h - 1:
+                spine_tiles.append((x, y + 1))
+        else:
+            if 0 < x + 1 < w - 1:
+                spine_tiles.append((x + 1, y))
+
+    # Paint spine — only overwrite ground tiles
+    for x, y in spine_tiles:
+        if game_map.in_bounds(x, y) and int(game_map.tiles["tile_id"][x, y]) == ground_tid:
+            game_map.tiles[x, y] = path_tile
+
+    # Branch paths from each door to nearest spine tile via BFS
+    spine_set = {(x, y) for x, y in spine_tiles
+                 if game_map.in_bounds(x, y) and int(game_map.tiles["tile_id"][x, y]) == int(path_tile["tile_id"])}
+    path_tid = int(path_tile["tile_id"])
+    for door_x, door_y in door_positions:
+        if not spine_set:
+            break
+        # Multi-target BFS: find shortest path from door to any spine tile
+        branch = _bfs_to_set(game_map, (door_x, door_y), spine_set, ground_tid)
+        for x, y in branch:
+            if game_map.in_bounds(x, y) and int(game_map.tiles["tile_id"][x, y]) == ground_tid:
+                game_map.tiles[x, y] = path_tile
+
+
 def _generate_village(
     game_map: GameMap,
     rng: random.Random,
@@ -1620,8 +1902,18 @@ def _generate_village(
     # Track all placed wing rectangles for collision checks
     placed_wings: List[RectRoom] = []
 
-    # Fill entire map with walkable ground
-    game_map.tiles[:] = tile_types.ground
+    # Pick a biome palette for this colony
+    palette = pick_biome(rng)
+    biome_ground = make_ground_tile(palette)
+    path_tile = make_path_tile(palette, rng)
+
+    game_map.biome = palette.name
+
+    # Fill entire map with biome ground (shares ground tile_id)
+    game_map.tiles[:] = biome_ground
+
+    # Track door approach positions for path generation
+    door_positions: List[Tuple[int, int]] = []
 
     # Border wall around map edges
     game_map.tiles[0, :] = wall_tile
@@ -1695,12 +1987,15 @@ def _generate_village(
         if wing_rects is None:
             continue
 
+        # Pick a per-building wall color from the biome palette
+        bldg_wall_tile = make_wall_tile(rng.choice(palette.wall_colors))
+
         # Place all wings: fill with wall
         for wing in wing_rects:
             for bx in range(wing.x1, wing.x2 + 1):
                 for by in range(wing.y1, wing.y2 + 1):
                     if game_map.in_bounds(bx, by):
-                        game_map.tiles[bx, by] = wall_tile
+                        game_map.tiles[bx, by] = bldg_wall_tile
 
         # Subdivide each wing into sub-rooms or carve as single room.
         # Larger wings (inner ≥ 7 in both dims) get 2-3 sub-rooms.
@@ -1718,7 +2013,7 @@ def _generate_village(
             sub_rooms = _subdivide_building(
                 game_map, rng,
                 wing.x1, wing.y1, wing.x2, wing.y2,
-                num_sub, floor_tile, wall_tile, label=spec.label,
+                num_sub, floor_tile, bldg_wall_tile, label=spec.label,
             )
             all_sub_rooms.extend(sub_rooms)
 
@@ -1728,10 +2023,12 @@ def _generate_village(
                 _carve_wing_doorway(game_map, wing_rects[i], wing_rects[j], floor_tile)
 
         # Carve external door on the building's outer perimeter
-        _carve_external_door(game_map, rng, wing_rects, floor_tile)
+        door_pos = _carve_external_door(game_map, rng, wing_rects, floor_tile)
+        if door_pos is not None:
+            door_positions.append(door_pos)
 
         # Place windows on exterior walls
-        _place_building_windows(game_map, rng, wing_rects, wall_tile, floor_tile)
+        _place_building_windows(game_map, rng, wing_rects, bldg_wall_tile, floor_tile)
 
         building_sq_ft = sum(
             (wr.x2 - wr.x1) * (wr.y2 - wr.y1) for wr in wing_rects
@@ -1740,6 +2037,22 @@ def _generate_village(
         placed_wings.extend(wing_rects)
         rooms.extend(all_sub_rooms)
         label_counts[spec.label] = label_counts.get(spec.label, 0) + 1
+
+    # Generate paths connecting building doors to a main road
+    ground_tid = int(tile_types.ground["tile_id"])
+    _generate_village_paths(game_map, rng, door_positions, path_tile, ground_tid)
+
+    # Scatter flora on ground tiles (before noise so flora gets the same bg noise)
+    scatter_flora(game_map, rng, palette, ground_tid)
+
+    # Apply per-tile ground noise for visual variety (ground + flora share bg)
+    flora_tids = [
+        int(tile_types.flora_low["tile_id"]),
+        int(tile_types.flora_tall["tile_id"]),
+        int(tile_types.flora_scrub["tile_id"]),
+        int(tile_types.flora_sprout["tile_id"]),
+    ]
+    apply_ground_noise(game_map, rng, ground_tid, palette.noise_range, extra_tids=flora_tids)
 
     return rooms
 

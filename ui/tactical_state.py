@@ -659,7 +659,7 @@ class TacticalState(State):
 
         tid = int(gm.tiles["tile_id"][p.x, p.y])
         from world.tile_types import describe_tile
-        _, flavor = describe_tile(tid)
+        _, flavor = describe_tile(tid, biome=gm.biome)
 
         lines: List[Tuple[str, Color]] = [(flavor, (140, 140, 160))]
         for item in gm.get_items_at(p.x, p.y):

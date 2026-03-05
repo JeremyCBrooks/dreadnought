@@ -1,7 +1,8 @@
 """Tests for tile flavor text and map position descriptions."""
 from world.tile_types import (
     describe_tile, TILE_FLAVORS, floor, wall, exit_tile,
-    rock_floor, rock_wall, dirt_floor, structure_wall, ground,
+    rock_floor, rock_wall, dirt_floor, structure_wall, ground, path,
+    flora_low, flora_tall,
 )
 from world.game_map import GameMap
 from world import tile_types
@@ -56,6 +57,65 @@ def test_describe_ground():
     tid = int(ground["tile_id"])
     name, _ = describe_tile(tid)
     assert name == "Open Ground"
+
+
+def test_describe_ground_with_biome():
+    """Biome-specific flavor text is used when biome is provided."""
+    from world.palettes import BIOME_FLAVORS
+    tid = int(ground["tile_id"])
+    for biome_name in ("desert", "grassland", "frozen", "alien"):
+        name, flavor = describe_tile(tid, biome=biome_name)
+        assert name != "Open Ground", f"biome {biome_name} should have custom ground name"
+        expected_flavors = BIOME_FLAVORS[biome_name][tid][1]
+        assert flavor in expected_flavors, f"biome {biome_name} flavor not from biome list"
+
+
+def test_describe_ground_without_biome_uses_default():
+    """Without a biome, default flavors are returned."""
+    tid = int(ground["tile_id"])
+    name, flavor = describe_tile(tid)
+    assert name == "Open Ground"
+    assert flavor in TILE_FLAVORS[tid][1]
+
+
+def test_describe_path_with_biome():
+    """Path tiles also get biome-specific flavor text."""
+    from world.palettes import BIOME_FLAVORS
+    tid = int(path["tile_id"])
+    for biome_name in ("desert", "frozen", "alien"):
+        name, flavor = describe_tile(tid, biome=biome_name)
+        assert name != "Path", f"biome {biome_name} should have custom path name"
+        expected_flavors = BIOME_FLAVORS[biome_name][tid][1]
+        assert flavor in expected_flavors
+
+
+def test_describe_flora_with_biome():
+    """Flora tiles get biome-specific flavor text."""
+    from world.palettes import BIOME_FLAVORS
+    for biome_name in ("grassland", "alien", "frozen"):
+        for flora_tile in (flora_low, flora_tall):
+            tid = int(flora_tile["tile_id"])
+            if tid in BIOME_FLAVORS.get(biome_name, {}):
+                name, flavor = describe_tile(tid, biome=biome_name)
+                expected_flavors = BIOME_FLAVORS[biome_name][tid][1]
+                assert flavor in expected_flavors
+
+
+def test_flora_has_default_flavor():
+    """Flora tiles have default flavor text even without biome."""
+    for flora_tile in (flora_low, flora_tall):
+        tid = int(flora_tile["tile_id"])
+        name, flavor = describe_tile(tid)
+        assert name != "Unknown"
+        assert flavor != "You can't make out what this is."
+
+
+def test_biome_on_game_map():
+    """GameMap should store biome name and pass it to underfoot."""
+    gm = GameMap(10, 10)
+    assert gm.biome is None
+    gm.biome = "frozen"
+    assert gm.biome == "frozen"
 
 
 def test_describe_unknown_tile():

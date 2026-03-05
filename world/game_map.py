@@ -32,6 +32,7 @@ class GameMap:
         self._pending_decompression: dict | None = None
         self._pull_directions: dict[tuple[int, int], tuple[int, int]] | None = None
         self._vacuum_baseline_set: bool = False
+        self.biome: str | None = None
 
     def in_bounds(self, x: int, y: int) -> bool:
         return 0 <= x < self.width and 0 <= y < self.height
@@ -134,7 +135,7 @@ class GameMap:
             return [("You recall this area dimly.", (90, 90, 110))]
 
         tid = int(self.tiles["tile_id"][x, y])
-        name, flavor = tile_types.describe_tile(tid)
+        name, flavor = tile_types.describe_tile(tid, biome=self.biome)
         lines: List[Tuple[str, Tuple[int, int, int]]] = [
             (f"{name} \u2014 {flavor}", (170, 170, 190)),
         ]

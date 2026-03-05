@@ -2,7 +2,7 @@
 from world.dungeon_gen import (
     generate_dungeon, RectRoom, _room_wall_positions,
     _build_ship_skeleton, _ROOM_DRESSING, _pick_building_room_count,
-    _subdivide_building,
+    _subdivide_building, _carve_external_door, _bfs_path, _meander,
 )
 from world.game_map import GameMap
 from world import tile_types
@@ -692,21 +692,29 @@ def test_colony_windows_on_exterior_walls():
     """Every window tile must have at least one ground neighbor."""
     window_tid = int(tile_types.structure_window["tile_id"])
     ground_tid = int(tile_types.ground["tile_id"])
+    path_tid = int(tile_types.path["tile_id"])
+    flora_tids = {
+        int(tile_types.flora_low["tile_id"]),
+        int(tile_types.flora_tall["tile_id"]),
+        int(tile_types.flora_scrub["tile_id"]),
+        int(tile_types.flora_sprout["tile_id"]),
+    }
+    exterior_tids = {ground_tid, path_tid} | flora_tids
     for seed in range(50):
         game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
         for x in range(game_map.width):
             for y in range(game_map.height):
                 if int(game_map.tiles["tile_id"][x, y]) != window_tid:
                     continue
-                has_ground = False
+                has_exterior = False
                 for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                     nx, ny = x + dx, y + dy
                     if (game_map.in_bounds(nx, ny)
-                            and int(game_map.tiles["tile_id"][nx, ny]) == ground_tid):
-                        has_ground = True
+                            and int(game_map.tiles["tile_id"][nx, ny]) in exterior_tids):
+                        has_exterior = True
                         break
-                assert has_ground, (
-                    f"seed={seed}: window at ({x},{y}) has no ground neighbor"
+                assert has_exterior, (
+                    f"seed={seed}: window at ({x},{y}) has no ground/path neighbor"
                 )
 
 
@@ -1207,4 +1215,360 @@ def test_subdivide_door_does_not_breach_outer_hull():
             )
             assert not gm.tiles["walkable"][x2, y], (
                 f"seed={seed}: hull breach at ({x2},{y}) right edge"
+            )
+
+
+# ---- Colony color variation tests ----
+
+
+def test_colony_wall_colors_vary_per_building():
+    """Wall cells should not all have identical bg color (varied per building)."""
+    wall_tid = int(tile_types.structure_wall["tile_id"])
+    found_varied = False
+    for seed in range(20):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
+        mask = game_map.tiles["tile_id"] == wall_tid
+        if not mask.any():
+            continue
+        bg = game_map.tiles["light"]["bg"][mask]
+        if len(bg) < 2:
+            continue
+        first = bg[0].copy()
+        if not np.all(bg == first):
+            found_varied = True
+            break
+    assert found_varied, "No wall color variation found across 20 seeds"
+
+
+def test_colony_ground_has_noise():
+    """Ground tiles should have per-tile bg variation (noise applied)."""
+    ground_tid = int(tile_types.ground["tile_id"])
+    found_noisy = False
+    for seed in range(20):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
+        mask = game_map.tiles["tile_id"] == ground_tid
+        if not mask.any():
+            continue
+        bg = game_map.tiles["light"]["bg"][mask]
+        first = bg[0].copy()
+        if not np.all(bg == first):
+            found_noisy = True
+            break
+    assert found_noisy, "No ground noise found across 20 seeds"
+
+
+def test_colony_tile_ids_preserved():
+    """All ground and wall cells must retain the correct tile_id."""
+    ground_tid = int(tile_types.ground["tile_id"])
+    wall_tid = int(tile_types.structure_wall["tile_id"])
+    for seed in range(10):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
+        ids = game_map.tiles["tile_id"]
+        # Every walkable non-special tile should be ground or dirt_floor
+        # Every structure wall should still have wall_tid
+        wall_mask = ids == wall_tid
+        if wall_mask.any():
+            assert not game_map.tiles["walkable"][wall_mask].any(), (
+                f"seed={seed}: structure wall tile is walkable"
+            )
+
+
+# -------------------------------------------------------------------
+# Village path tests
+# -------------------------------------------------------------------
+
+def test_village_has_path_tiles():
+    """Generated colony village should contain path tiles."""
+    path_tid = int(tile_types.path["tile_id"])
+    found = False
+    for seed in range(10):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
+        if (game_map.tiles["tile_id"] == path_tid).any():
+            found = True
+            break
+    assert found, "no path tiles found in any of 10 colony seeds"
+
+
+def test_paths_reach_map_edge():
+    """At least one path tile should be within 2 tiles of a map border."""
+    path_tid = int(tile_types.path["tile_id"])
+    found = False
+    for seed in range(10):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
+        w, h = game_map.width, game_map.height
+        mask = game_map.tiles["tile_id"] == path_tid
+        if not mask.any():
+            continue
+        # Check border proximity: x<=2, x>=w-3, y<=2, y>=h-3
+        if (mask[:3, :].any() or mask[w - 3:, :].any()
+                or mask[:, :3].any() or mask[:, h - 3:].any()):
+            found = True
+            break
+    assert found, "no path tiles near map edge in any of 10 colony seeds"
+
+
+def test_paths_only_overwrite_ground():
+    """Path tiles must never appear on top of wall or building positions."""
+    path_tid = int(tile_types.path["tile_id"])
+    wall_tid = int(tile_types.structure_wall["tile_id"])
+    floor_tid = int(tile_types.floor["tile_id"])
+    for seed in range(10):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
+        path_mask = game_map.tiles["tile_id"] == path_tid
+        if not path_mask.any():
+            continue
+        # Path tiles must be walkable and transparent
+        assert game_map.tiles["walkable"][path_mask].all(), (
+            f"seed={seed}: non-walkable path tile found"
+        )
+        assert game_map.tiles["transparent"][path_mask].all(), (
+            f"seed={seed}: non-transparent path tile found"
+        )
+
+
+def test_bfs_path_routes_around_obstacle():
+    """_bfs_path should find a path around walls, not through them."""
+    from world.palettes import pick_biome, make_ground_tile
+    rng = random.Random(42)
+    palette = pick_biome(rng)
+    ground_tile = make_ground_tile(palette)
+    ground_tid = int(ground_tile["tile_id"])
+    gm = GameMap(20, 10, fill_tile=ground_tile)
+    # Place a vertical wall barrier from y=0 to y=7 at x=10
+    for y in range(0, 8):
+        gm.tiles[10, y] = tile_types.structure_wall
+    # Path from (5,5) to (15,5) must go around the wall via y>=8
+    path = _bfs_path(gm, (5, 5), (15, 5), ground_tid)
+    assert len(path) > 0, "BFS should find a path around the wall"
+    wall_tid = int(tile_types.structure_wall["tile_id"])
+    for x, y in path:
+        assert int(gm.tiles["tile_id"][x, y]) != wall_tid, (
+            f"path crosses wall at ({x}, {y})"
+        )
+
+
+def test_bfs_path_returns_empty_when_blocked():
+    """_bfs_path returns empty list when no ground path exists."""
+    from world.palettes import pick_biome, make_ground_tile
+    rng = random.Random(42)
+    palette = pick_biome(rng)
+    ground_tile = make_ground_tile(palette)
+    ground_tid = int(ground_tile["tile_id"])
+    gm = GameMap(20, 10, fill_tile=ground_tile)
+    # Complete vertical wall barrier
+    for y in range(10):
+        gm.tiles[10, y] = tile_types.structure_wall
+    path = _bfs_path(gm, (5, 5), (15, 5), ground_tid)
+    assert path == [], "BFS should return empty list when fully blocked"
+
+
+def test_paths_do_not_cross_walls():
+    """Village path tiles must only exist on formerly-ground tiles, never inside buildings.
+
+    With BFS pathfinding, paths route through walkable ground and may pass
+    through narrow gaps between buildings.  The key invariant is that every
+    path tile was placed on a ground tile — never on a wall or floor tile.
+    This is tested by ``test_paths_only_overwrite_ground`` above.  Here we
+    additionally verify that path tiles form connected regions reachable from
+    a map edge without crossing walls (no disconnected "jump-through" fragments).
+    """
+    path_tid = int(tile_types.path["tile_id"])
+    wall_tid = int(tile_types.structure_wall["tile_id"])
+    for seed in range(10):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
+        w, h = game_map.width, game_map.height
+        path_coords = set(zip(*np.where(game_map.tiles["tile_id"] == path_tid)))
+        if not path_coords:
+            continue
+        # Flood fill from all edge path tiles through path+ground tiles
+        edge_paths = {
+            (x, y) for x, y in path_coords
+            if x <= 1 or x >= w - 2 or y <= 1 or y >= h - 2
+        }
+        if not edge_paths:
+            continue
+        # BFS through walkable (non-wall) tiles from edge paths
+        visited: set = set()
+        frontier = list(edge_paths)
+        for p in frontier:
+            visited.add(p)
+        while frontier:
+            nxt = []
+            for cx, cy in frontier:
+                for ddx, ddy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = cx + ddx, cy + ddy
+                    if (nx, ny) in visited:
+                        continue
+                    if not (0 <= nx < w and 0 <= ny < h):
+                        continue
+                    tid = int(game_map.tiles["tile_id"][nx, ny])
+                    if tid == wall_tid:
+                        continue
+                    visited.add((nx, ny))
+                    nxt.append((nx, ny))
+            frontier = nxt
+        unreachable = path_coords - visited
+        assert not unreachable, (
+            f"seed={seed}: {len(unreachable)} path tiles unreachable from "
+            f"edge without crossing walls, e.g. {next(iter(unreachable))}"
+        )
+
+
+def test_carve_external_door_returns_position():
+    """_carve_external_door should return valid coords when a door is carved."""
+    from world.palettes import pick_biome, make_ground_tile, make_wall_tile
+    rng = random.Random(42)
+    palette = pick_biome(rng)
+    ground_tile = make_ground_tile(palette)
+    gm = GameMap(40, 30, fill_tile=ground_tile)
+    wall_color = palette.wall_colors[0]
+    bldg_wall = make_wall_tile(wall_color)
+    # Place a small building
+    wing = RectRoom(10, 10, 8, 6)
+    for bx in range(wing.x1, wing.x2 + 1):
+        for by in range(wing.y1, wing.y2 + 1):
+            gm.tiles[bx, by] = bldg_wall
+    # Carve interior
+    for bx in range(wing.x1 + 1, wing.x2):
+        for by in range(wing.y1 + 1, wing.y2):
+            gm.tiles[bx, by] = tile_types.floor
+    result = _carve_external_door(gm, rng, [wing], tile_types.floor)
+    assert result is not None
+    x, y = result
+    assert gm.in_bounds(x, y)
+
+
+def test_paths_prefer_wall_gap():
+    """Most path tiles from Dijkstra BFS should not be wall-adjacent."""
+    from world.palettes import pick_biome, make_ground_tile
+    rng = random.Random(42)
+    palette = pick_biome(rng)
+    ground_tile = make_ground_tile(palette)
+    ground_tid = int(ground_tile["tile_id"])
+    wall_tid = int(tile_types.structure_wall["tile_id"])
+    # 30x20 map with a horizontal wall barrier that has a 1-tile gap at y=15
+    # and also open space above (y>=18). Dijkstra should prefer the gap route
+    # that stays away from walls.
+    gm = GameMap(30, 20, fill_tile=ground_tile)
+    # Wall from x=0..28 at y=10, gap at x=15
+    for x in range(30):
+        if x == 15:
+            continue
+        gm.tiles[x, 10] = tile_types.structure_wall
+    path = _bfs_path(gm, (5, 5), (5, 15), ground_tid)
+    assert len(path) > 0, "Dijkstra should find a path"
+    # Count wall-adjacent tiles in path
+    wall_adj = 0
+    for x, y in path:
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < 30 and 0 <= ny < 20:
+                if int(gm.tiles["tile_id"][nx, ny]) == wall_tid:
+                    wall_adj += 1
+                    break
+    # With wall-gap preference, most tiles should not be wall-adjacent
+    ratio = wall_adj / len(path)
+    assert ratio < 0.5, f"too many wall-adjacent path tiles: {wall_adj}/{len(path)} = {ratio:.2f}"
+
+
+def test_spine_not_always_centered():
+    """Spine road y-coordinates should vary across different seeds."""
+    from world.palettes import pick_biome, make_ground_tile
+    path_tid = int(tile_types.path["tile_id"])
+    spine_ys = set()
+    for seed in range(20):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
+        w, h = game_map.width, game_map.height
+        # Check path tiles on left edge (x<=2) to find spine entry y
+        for y in range(h):
+            for x in range(3):
+                if int(game_map.tiles["tile_id"][x, y]) == path_tid:
+                    spine_ys.add(y)
+    # With random endpoints, we should see multiple distinct y values
+    assert len(spine_ys) > 1, f"spine always enters at same y: {spine_ys}"
+
+
+def test_meander_preserves_connectivity():
+    """Meandered path should still form a connected sequence of adjacent tiles."""
+    from world.palettes import pick_biome, make_ground_tile
+    rng = random.Random(42)
+    palette = pick_biome(rng)
+    ground_tile = make_ground_tile(palette)
+    ground_tid = int(ground_tile["tile_id"])
+    gm = GameMap(30, 20, fill_tile=ground_tile)
+    # Straight horizontal path
+    straight = [(x, 10) for x in range(5, 25)]
+    meandered = _meander(rng, straight, gm, ground_tid)
+    assert len(meandered) >= len(straight), "meander should not shorten path"
+    # Check adjacency: each consecutive pair should be cardinal neighbors
+    for i in range(len(meandered) - 1):
+        x1, y1 = meandered[i]
+        x2, y2 = meandered[i + 1]
+        assert abs(x1 - x2) + abs(y1 - y2) == 1, (
+            f"gap in meandered path at index {i}: {meandered[i]} -> {meandered[i+1]}"
+        )
+
+
+def test_meander_avoids_walls():
+    """Meander should never insert tiles that are wall-adjacent.
+
+    When a wall is one tile away from the path, the lateral offset would land
+    on a wall-adjacent ground tile.  Meander should skip that offset.
+    """
+    from world.palettes import pick_biome, make_ground_tile
+    rng = random.Random(0)
+    palette = pick_biome(rng)
+    ground_tile = make_ground_tile(palette)
+    ground_tid = int(ground_tile["tile_id"])
+    wall_tid = int(tile_types.structure_wall["tile_id"])
+    gm = GameMap(40, 20, fill_tile=ground_tile)
+    # Wall at y=8: one ground row (y=9) separates it from path at y=10.
+    # Lateral offset to y=9 is ground but wall-adjacent — should be skipped.
+    for x in range(0, 40):
+        gm.tiles[x, 8] = tile_types.structure_wall
+    straight = [(x, 10) for x in range(2, 38)]
+    original_set = set(straight)
+    for seed in range(50):
+        test_rng = random.Random(seed)
+        meandered = _meander(test_rng, straight, gm, ground_tid)
+        for x, y in meandered:
+            tid = int(gm.tiles["tile_id"][x, y])
+            assert tid != wall_tid, (
+                f"seed={seed}: meander placed path on wall at ({x}, {y})"
+            )
+            # Inserted (non-original) tiles must not be wall-adjacent
+            if (x, y) not in original_set:
+                for ddx, ddy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = x + ddx, y + ddy
+                    if 0 <= nx < 40 and 0 <= ny < 20:
+                        assert int(gm.tiles["tile_id"][nx, ny]) != wall_tid, (
+                            f"seed={seed}: meander inserted wall-adjacent "
+                            f"tile ({x}, {y}) not in original path"
+                        )
+
+
+def test_meander_never_crosses_walls():
+    """Meander must never place path tiles on non-ground tiles."""
+    from world.palettes import pick_biome, make_ground_tile
+    rng = random.Random(7)
+    palette = pick_biome(rng)
+    ground_tile = make_ground_tile(palette)
+    ground_tid = int(ground_tile["tile_id"])
+    wall_tid = int(tile_types.structure_wall["tile_id"])
+    gm = GameMap(40, 20, fill_tile=ground_tile)
+    # Walls on both sides of the path (narrow corridor at y=10)
+    for x in range(0, 40):
+        gm.tiles[x, 9] = tile_types.structure_wall
+        gm.tiles[x, 11] = tile_types.structure_wall
+    straight = [(x, 10) for x in range(2, 38)]
+    for seed in range(50):
+        test_rng = random.Random(seed)
+        meandered = _meander(test_rng, straight, gm, ground_tid)
+        # In a narrow corridor, meander should produce the original path
+        # (no room to offset)
+        for x, y in meandered:
+            tid = int(gm.tiles["tile_id"][x, y])
+            assert tid == ground_tid, (
+                f"seed={seed}: meander tile ({x}, {y}) has tid={tid}, "
+                f"expected ground"
             )

@@ -29,10 +29,20 @@ def _blend_graphic(dark: tuple, light: tuple, factor: float = 0.7) -> tuple:
     return (ch, fg, bg)
 
 
-def new_tile(*, walkable: bool, transparent: bool, dark: tuple, light: tuple) -> np.ndarray:
+def new_tile(
+    *,
+    walkable: bool,
+    transparent: bool,
+    dark: tuple,
+    light: tuple,
+    base_tile_id: int | None = None,
+) -> np.ndarray:
     global _next_tile_id
-    tid = _next_tile_id
-    _next_tile_id += 1
+    if base_tile_id is not None:
+        tid = base_tile_id
+    else:
+        tid = _next_tile_id
+        _next_tile_id += 1
     lit = _blend_graphic(dark, light)
     return np.array((walkable, transparent, dark, light, lit, tid), dtype=tile_dt)
 
@@ -89,6 +99,36 @@ ground = new_tile(
     walkable=True, transparent=True,
     dark=(ord(","), (65, 60, 45), (6, 5, 4)),
     light=(ord(","), (130, 120, 90), (12, 10, 7)),
+)
+
+flora_low = new_tile(
+    walkable=True, transparent=True,
+    dark=(ord("*"), (50, 65, 35), (6, 5, 4)),
+    light=(ord("*"), (100, 130, 70), (12, 10, 7)),
+)
+
+flora_tall = new_tile(
+    walkable=True, transparent=True,
+    dark=(ord("|"), (40, 60, 30), (6, 5, 4)),
+    light=(ord("|"), (80, 120, 60), (12, 10, 7)),
+)
+
+flora_scrub = new_tile(
+    walkable=True, transparent=True,
+    dark=(ord(";"), (45, 55, 30), (6, 5, 4)),
+    light=(ord(";"), (90, 110, 60), (12, 10, 7)),
+)
+
+flora_sprout = new_tile(
+    walkable=True, transparent=True,
+    dark=(ord(":"), (40, 50, 28), (6, 5, 4)),
+    light=(ord(":"), (80, 100, 55), (12, 10, 7)),
+)
+
+path = new_tile(
+    walkable=True, transparent=True,
+    dark=(0xB7, (100, 100, 100), (15, 15, 15)),
+    light=(0xB7, (180, 180, 180), (30, 30, 30)),
 )
 
 space = new_tile(
@@ -202,6 +242,32 @@ TILE_FLAVORS: dict[int, tuple[str, list[str]]] = {
         "A narrow window letting in pale light.",
         "Scratched viewport, you can just see through.",
     ]),
+    int(path["tile_id"]): ("Path", [
+        "A worn trail between buildings.",
+        "Packed gravel crunches underfoot.",
+        "A well-trodden path through the settlement.",
+        "Compacted stone paving, smooth from use.",
+    ]),
+    int(flora_low["tile_id"]): ("Low Growth", [
+        "A cluster of hardy plants, low to the ground.",
+        "Scrubby vegetation clings to the soil.",
+        "Small plants dot the ground here.",
+    ]),
+    int(flora_tall["tile_id"]): ("Tall Growth", [
+        "Stalky plants sway gently.",
+        "Tall shoots rise from the ground.",
+        "Upright stems lean in the still air.",
+    ]),
+    int(flora_scrub["tile_id"]): ("Scrub", [
+        "Low, tangled brush catches at your ankles.",
+        "Wiry scrub clings to the soil.",
+        "Sparse brush, dry and scratchy.",
+    ]),
+    int(flora_sprout["tile_id"]): ("Sprouts", [
+        "Tiny shoots poke through the dirt.",
+        "Small, pale sprouts dot the ground.",
+        "Young growth, barely ankle-high.",
+    ]),
     int(ground["tile_id"]): ("Open Ground", [
         "Dry, dusty terrain stretches around you.",
         "Loose soil crunches beneath your feet.",
@@ -262,8 +328,18 @@ TILE_FLAVORS: dict[int, tuple[str, list[str]]] = {
 }
 
 
-def describe_tile(tile_id: int) -> tuple[str, str]:
-    """Return (tile_name, random_flavor_text) for a tile_id."""
+def describe_tile(tile_id: int, *, biome: str | None = None) -> tuple[str, str]:
+    """Return (tile_name, random_flavor_text) for a tile_id.
+
+    If *biome* is provided, biome-specific flavor text is used for
+    ground and path tiles (falling back to defaults for other tiles).
+    """
+    if biome:
+        from world.palettes import BIOME_FLAVORS
+        biome_overrides = BIOME_FLAVORS.get(biome)
+        if biome_overrides and tile_id in biome_overrides:
+            name, flavors = biome_overrides[tile_id]
+            return name, _random.choice(flavors)
     name, flavors = TILE_FLAVORS.get(
         tile_id, ("Unknown", ["You can't make out what this is."])
     )
