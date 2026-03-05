@@ -11,7 +11,7 @@ from world import tile_types
 from world.loc_profiles import get_profile, LocationProfile, RoomSpec
 from world.palettes import pick_biome, make_ground_tile, make_wall_tile, make_path_tile, apply_ground_noise, scatter_flora
 from game.entity import Entity, Fighter
-from game.ai import HostileAI
+from game.ai import CreatureAI
 from data import db
 
 import numpy as np
@@ -187,16 +187,24 @@ def _spawn_enemies(
         if _near_exit(x, y, exit_pos):
             continue
         defn = rng.choice(db.enemies())
-        game_map.entities.append(
-            Entity(
-                x=x, y=y, char=defn["char"], color=defn["color"], name=defn["name"],
-                blocks_movement=True,
-                fighter=Fighter(hp=defn["hp"], max_hp=defn["hp"],
-                                defense=defn["defense"], power=defn["power"]),
-                ai=HostileAI(),
-                organic=defn.get("organic", True),
-            )
+        ai_config = {
+            k: defn[k] for k in (
+                "ai_initial_state", "aggro_distance", "sleep_aggro_distance",
+                "can_open_doors", "flee_threshold", "memory_turns", "vision_radius",
+                "move_speed",
+            ) if k in defn
+        }
+        entity = Entity(
+            x=x, y=y, char=defn["char"], color=defn["color"], name=defn["name"],
+            blocks_movement=True,
+            fighter=Fighter(hp=defn["hp"], max_hp=defn["hp"],
+                            defense=defn["defense"], power=defn["power"]),
+            ai=CreatureAI(),
+            organic=defn.get("organic", True),
         )
+        entity.ai_config = ai_config
+        entity.ai_state = ai_config.get("ai_initial_state", "wandering")
+        game_map.entities.append(entity)
 
 
 def _spawn_items(

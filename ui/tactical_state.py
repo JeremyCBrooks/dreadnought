@@ -878,6 +878,32 @@ class TacticalState(State):
                 fg=color,
             )
 
+        # NEARBY creatures (below UNDERFOOT)
+        gm = engine.game_map
+        nearby = [
+            e for e in gm.entities
+            if e.fighter and e.ai and e is not p
+            and gm.in_bounds(e.x, e.y) and gm.visible[e.x, e.y]
+        ]
+        if nearby:
+            nearby_y = ground_header_y + 1 + min(len(wrapped), ground_max_lines) + 1
+            nearby.sort(key=lambda e: max(abs(e.x - p.x), abs(e.y - p.y)))
+            console.print(x=x, y=nearby_y, string="NEARBY:", fg=(180, 180, 200))
+            nearby_y += 1
+            _state_indicators = {
+                "sleeping": ("Zzz", (80, 80, 180)),
+                "wandering": ("...", (140, 140, 140)),
+                "hunting": ("!!!", (255, 80, 80)),
+                "fleeing": ("~~~", (255, 255, 80)),
+            }
+            for e in nearby[:5]:
+                st = getattr(e, "ai_state", "wandering")
+                indicator, color = _state_indicators.get(st, ("...", (140, 140, 140)))
+                hp_str = f"{e.fighter.hp}/{e.fighter.max_hp}"
+                label = f"{e.char} {e.name[:8]:<8} {hp_str:<5} {indicator}"
+                console.print(x=x, y=nearby_y, string=label[:layout.stats_w - 2], fg=color)
+                nearby_y += 1
+
         # --- Controls ---
         if self._ranged_cursor is not None:
             cx, cy = self._ranged_cursor

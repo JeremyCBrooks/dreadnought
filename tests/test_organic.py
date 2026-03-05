@@ -194,23 +194,28 @@ class TestLowGravityOrganicEnemy:
     """Organic enemies get a 2-tick movement penalty in low gravity."""
 
     def test_move_skip_move_pattern(self):
-        """Organic enemy: move, skip, move, skip — 50% movement rate."""
-        gm = make_arena()
+        """Organic enemy in low gravity moves ~50% of turns (energy-based)."""
+        from world import tile_types
+        gm = make_arena(20, 20)
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        rat = Entity(x=5, y=5, name="Rat", fighter=Fighter(1, 1, 0, 1),
+        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1),
                      ai=HostileAI(), organic=True)
         gm.entities.extend([player, rat])
-        gm.visible[:] = True
+        # Block LOS so creature wanders
+        for y in range(0, 20):
+            gm.tiles[10, y] = tile_types.wall
         engine = MockEngine(gm, player, environment={"low_gravity": 1})
 
-        moved = []
+        moves = 0
         for _ in range(6):
             old_x, old_y = rat.x, rat.y
             rat.ai.perform(rat, engine)
-            moved.append((rat.x, rat.y) != (old_x, old_y))
+            if (rat.x, rat.y) != (old_x, old_y):
+                moves += 1
 
-        # Pattern should be: True, False, True, False, True, False
-        assert moved == [True, False, True, False, True, False]
+        # Default speed 4, halved to 2 in low gravity, ACTION_COST=4
+        # Move every other turn: 3 moves in 6 turns
+        assert moves == 3
 
     def test_melee_attack_unaffected_by_cooldown(self):
         """Adjacent organic enemy attacks every turn in low gravity."""
@@ -255,22 +260,27 @@ class TestLowGravityOrganicEnemy:
         assert hits == 4, "Should fire every turn regardless of cooldown"
 
     def test_wander_slowed_in_low_gravity(self):
-        """Organic enemy wandering (not visible) is also slowed."""
-        gm = make_arena()
+        """Organic enemy wandering is slowed by low gravity."""
+        from world import tile_types
+        gm = make_arena(20, 20)
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        rat = Entity(x=5, y=5, name="Rat", fighter=Fighter(1, 1, 0, 1),
+        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1),
                      ai=HostileAI(), organic=True)
         gm.entities.extend([player, rat])
-        gm.visible[:] = False  # enemy not visible -> wanders
+        # Block LOS so creature wanders
+        for y in range(0, 20):
+            gm.tiles[10, y] = tile_types.wall
         engine = MockEngine(gm, player, environment={"low_gravity": 1})
 
-        moved = []
+        moves = 0
         for _ in range(4):
             old_x, old_y = rat.x, rat.y
             rat.ai.perform(rat, engine)
-            moved.append((rat.x, rat.y) != (old_x, old_y))
+            if (rat.x, rat.y) != (old_x, old_y):
+                moves += 1
 
-        assert moved == [True, False, True, False]
+        # Speed 4 halved to 2 → moves every other turn = 2 moves in 4 turns
+        assert moves == 2
 
 
 class TestLowGravityMachineEnemy:
@@ -295,12 +305,15 @@ class TestLowGravityMachineEnemy:
 
     def test_wander_every_turn(self):
         """Machine wanders every turn even in low gravity."""
-        gm = make_arena()
+        from world import tile_types
+        gm = make_arena(20, 20)
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        bot = Entity(x=5, y=5, name="Bot", fighter=Fighter(3, 3, 0, 2),
+        bot = Entity(x=15, y=15, name="Bot", fighter=Fighter(3, 3, 0, 2),
                      ai=HostileAI(), organic=False)
         gm.entities.extend([player, bot])
-        gm.visible[:] = False
+        # Wall between player and bot so creature can't see player
+        for y in range(0, 20):
+            gm.tiles[10, y] = tile_types.wall
         engine = MockEngine(gm, player, environment={"low_gravity": 1})
 
         moves = 0
@@ -312,17 +325,19 @@ class TestLowGravityMachineEnemy:
         assert moves == 4
 
 
-class TestLowGravityCooldownEdgeCases:
-    """Edge cases for the low gravity movement cooldown system."""
+class TestLowGravityEnergyEdgeCases:
+    """Edge cases for the energy-based movement speed system in low gravity."""
 
-    def test_no_cooldown_without_low_gravity(self):
+    def test_no_slowdown_without_low_gravity(self):
         """Organic enemies move every turn when there's no low gravity."""
-        gm = make_arena()
+        from world import tile_types
+        gm = make_arena(20, 20)
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        rat = Entity(x=7, y=7, name="Rat", fighter=Fighter(1, 1, 0, 1),
+        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1),
                      ai=HostileAI(), organic=True)
         gm.entities.extend([player, rat])
-        gm.visible[:] = True
+        for y in range(0, 20):
+            gm.tiles[10, y] = tile_types.wall
         engine = MockEngine(gm, player, environment={})
 
         moves = 0
@@ -333,55 +348,66 @@ class TestLowGravityCooldownEdgeCases:
                 moves += 1
         assert moves == 4
 
-    def test_cooldown_resets_when_low_gravity_removed(self):
-        """Removing low gravity mid-game should clear cooldown immediately."""
-        gm = make_arena()
+    def test_speed_recovers_when_low_gravity_removed(self):
+        """Removing low gravity mid-game restores full movement speed."""
+        from world import tile_types
+        gm = make_arena(20, 20)
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        rat = Entity(x=5, y=5, name="Rat", fighter=Fighter(1, 1, 0, 1),
+        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1),
                      ai=HostileAI(), organic=True)
         gm.entities.extend([player, rat])
-        gm.visible[:] = True
+        for y in range(0, 20):
+            gm.tiles[10, y] = tile_types.wall
         engine = MockEngine(gm, player, environment={"low_gravity": 1})
 
-        # Move once (sets cooldown)
+        # Two turns in low gravity: move, skip
+        rat.ai.perform(rat, engine)  # gains 2 energy, spends 4? No: gains 2, total 2 < 4
+        # Actually: turn 1 gains 2, energy=2, can't move. Turn 2 gains 2, energy=4, moves.
         rat.ai.perform(rat, engine)
-        assert rat.move_cooldown == 1
 
-        # Remove low gravity
+        # Remove low gravity — energy should accumulate at full speed now
         engine.environment = {}
-
-        # Should move immediately (cooldown cleared)
         old_x, old_y = rat.x, rat.y
-        rat.ai.perform(rat, engine)
+        rat.ai.perform(rat, engine)  # gains 4, can move
         assert (rat.x, rat.y) != (old_x, old_y)
-        assert rat.move_cooldown == 0
 
-    def test_cooldown_set_after_move(self):
-        """After moving in low gravity, move_cooldown should be 1."""
-        gm = make_arena()
+    def test_low_gravity_move_pattern(self):
+        """Organic creature in low gravity: skip, move, skip, move (speed halved)."""
+        from world import tile_types
+        gm = make_arena(20, 20)
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        rat = Entity(x=5, y=5, name="Rat", fighter=Fighter(1, 1, 0, 1),
+        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1),
                      ai=HostileAI(), organic=True)
         gm.entities.extend([player, rat])
-        gm.visible[:] = True
+        for y in range(0, 20):
+            gm.tiles[10, y] = tile_types.wall
         engine = MockEngine(gm, player, environment={"low_gravity": 1})
 
-        assert rat.move_cooldown == 0
-        rat.ai.perform(rat, engine)  # moves
-        assert rat.move_cooldown == 1
-        rat.ai.perform(rat, engine)  # skips (cooldown consumed)
-        assert rat.move_cooldown == 0
+        moved = []
+        for _ in range(4):
+            old_x, old_y = rat.x, rat.y
+            rat.ai.perform(rat, engine)
+            moved.append((rat.x, rat.y) != (old_x, old_y))
+        # Speed 4 // 2 = 2 energy/turn. Need 4 to move.
+        # T1: 0+2=2, no. T2: 2+2=4, yes. T3: 0+2=2, no. T4: 2+2=4, yes.
+        assert moved == [False, True, False, True]
 
-    def test_machine_cooldown_stays_zero(self):
-        """Machine move_cooldown should always remain 0."""
-        gm = make_arena()
+    def test_machine_unaffected_by_low_gravity(self):
+        """Non-organic machine moves every turn in low gravity."""
+        from world import tile_types
+        gm = make_arena(20, 20)
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        bot = Entity(x=5, y=5, name="Bot", fighter=Fighter(3, 3, 0, 2),
+        bot = Entity(x=15, y=15, name="Bot", fighter=Fighter(3, 3, 0, 2),
                      ai=HostileAI(), organic=False)
         gm.entities.extend([player, bot])
-        gm.visible[:] = True
+        for y in range(0, 20):
+            gm.tiles[10, y] = tile_types.wall
         engine = MockEngine(gm, player, environment={"low_gravity": 1})
 
+        moves = 0
         for _ in range(4):
+            old_x, old_y = bot.x, bot.y
             bot.ai.perform(bot, engine)
-            assert bot.move_cooldown == 0
+            if (bot.x, bot.y) != (old_x, old_y):
+                moves += 1
+        assert moves == 4

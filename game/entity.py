@@ -55,3 +55,8 @@ class Entity:
         self.decompression_moves: int = 0
         self.decompression_direction: Tuple[int, int] = (0, 0)
         self.move_cooldown: int = 0
+        self.ai_config: dict = {}
+        self.ai_state: str = "wandering"
+        self.ai_target: Optional[Tuple[int, int]] = None
+        self.ai_turns_since_seen: int = 0
+        self.ai_energy: int = 0
