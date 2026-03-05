@@ -377,7 +377,11 @@ def apply_environment_tick(engine: Engine) -> None:
         if max_turns > 0 and current > 0:
             import debug
             if not debug.DISABLE_OXYGEN:
-                suit.current_pools[hazard_type] = current - 1
+                ticks = suit._drain_ticks.get(hazard_type, 0) + 1
+                if ticks >= suit.DRAIN_INTERVAL:
+                    suit.current_pools[hazard_type] = current - 1
+                    ticks = 0
+                suit._drain_ticks[hazard_type] = ticks
             continue
         # No resistance or pool depleted: deal 1 HP per turn
         import debug

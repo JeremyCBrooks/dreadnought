@@ -7,6 +7,8 @@ from typing import Dict
 class Suit:
     """Suit stats: resistances (max turns per hazard) and current pools."""
 
+    DRAIN_INTERVAL: int = 4  # drain 1 unit every N turns
+
     def __init__(
         self,
         name: str,
@@ -17,10 +19,12 @@ class Suit:
         self.resistances = dict(resistances)
         self.defense_bonus = defense_bonus
         self.current_pools = dict(resistances)
+        self._drain_ticks: Dict[str, int] = {}
 
     def refill_pools(self) -> None:
         """Reset all pools to max (e.g. when starting a tactical session)."""
         self.current_pools = dict(self.resistances)
+        self._drain_ticks.clear()
 
 
 # Predefined suits for the vertical slice

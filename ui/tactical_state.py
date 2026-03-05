@@ -101,7 +101,7 @@ class TacticalState(State):
 
         # Environment and suit (Phase 3): from location or default vacuum
         env = getattr(self.location, "environment", None)
-        engine.environment = env if env is not None else {"vacuum": 1}
+        engine.environment = dict(env) if env else {"vacuum": 1}
         engine.suit = getattr(engine, "suit", None) or EVA_SUIT
         engine.suit.refill_pools()
 
@@ -155,6 +155,10 @@ class TacticalState(State):
 
         engine.game_map = game_map
         engine.player = player
+
+        # Sync environment with map: hull breaches/airlocks imply vacuum
+        if game_map.hull_breaches or game_map.airlocks:
+            engine.environment.setdefault("vacuum", 1)
 
         # Apply pending loadout from LoadoutState
         pending = getattr(engine, '_pending_loadout', None)

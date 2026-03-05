@@ -64,12 +64,14 @@ class TestDisableOxygen:
         assert engine.suit.current_pools["vacuum"] == pool_before
 
     def test_oxygen_drains_normally_when_disabled_flag_off(self):
-        """Without the flag, O2 pool should drain by 1."""
+        """Without the flag, O2 pool should drain by 1 after DRAIN_INTERVAL ticks."""
         engine = _make_suited_engine()
         pool_before = engine.suit.current_pools["vacuum"]
 
         from game.environment import apply_environment_tick
-        apply_environment_tick(engine)
+        from game.suit import Suit
+        for _ in range(Suit.DRAIN_INTERVAL):
+            apply_environment_tick(engine)
 
         assert engine.suit.current_pools["vacuum"] == pool_before - 1
 

@@ -457,7 +457,8 @@ class TestSuitPoolDrain:
         suit = Suit("EVA", {"vacuum": 10})
         engine = _make_engine(gm, 1, 1, env={"vacuum": 1}, suit=suit)
         gm.recalculate_hazards()
-        apply_environment_tick(engine)
+        for _ in range(Suit.DRAIN_INTERVAL):
+            apply_environment_tick(engine)
         assert suit.current_pools["vacuum"] == 9
         assert engine.player.fighter.hp == 10  # still protected
 

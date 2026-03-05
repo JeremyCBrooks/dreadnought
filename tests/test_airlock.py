@@ -312,7 +312,7 @@ def test_airlock_ext_door_flavor_text():
 
 
 def test_vacuum_drains_during_drift():
-    """Vacuum pool should drain each tick while drifting (via environment tick)."""
+    """Vacuum pool should drain while drifting (via environment tick)."""
     from game.suit import Suit
     from game.environment import apply_environment_tick
 
@@ -327,5 +327,6 @@ def test_vacuum_drains_during_drift():
     eng = MockEngine(gm, p, suit=suit, environment={"vacuum": 1})
 
     initial_o2 = suit.current_pools["vacuum"]
-    apply_environment_tick(eng)
+    for _ in range(Suit.DRAIN_INTERVAL):
+        apply_environment_tick(eng)
     assert suit.current_pools["vacuum"] == initial_o2 - 1

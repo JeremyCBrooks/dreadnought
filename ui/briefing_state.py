@@ -72,13 +72,19 @@ class BriefingState(State):
         y += 1
         console.print(x=bx + 2, y=y, string=f"Type: {self.location.loc_type}", fg=(180, 180, 200))
 
+        # Compute effective environment: location data + implied hazards
+        env = dict(self.location.environment or {})
+        from world.loc_profiles import get_profile
+        profile = get_profile(self.location.loc_type)
+        if profile.generator in ("ship", "standard"):
+            env.setdefault("vacuum", 1)
+
         y += 2
-        threat = _threat_level(self.location.environment, self.depth)
+        threat = _threat_level(env, self.depth)
         threat_color = {"LOW": (100, 255, 100), "MODERATE": (255, 255, 100), "HIGH": (255, 100, 100)}
         console.print(x=bx + 2, y=y, string=f"Threat Level: {threat}", fg=threat_color.get(threat, (200, 200, 200)))
 
         y += 2
-        env = self.location.environment or {}
         console.print(x=bx + 2, y=y, string="Environmental Hazards:", fg=(180, 180, 200))
         y += 1
         if env:

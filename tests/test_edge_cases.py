@@ -180,20 +180,23 @@ def test_multiple_environment_hazards():
     suit = Suit("Test", {"vacuum": 2, "radiation": 1}, defense_bonus=0)
     engine = make_engine(env={"vacuum": 1, "radiation": 1}, suit=suit)
 
-    apply_environment_tick(engine)
+    DI = Suit.DRAIN_INTERVAL
+    for _ in range(DI):
+        apply_environment_tick(engine)
     # Vacuum pool: 2 -> 1 (protected), radiation pool: 1 -> 0 (protected)
     assert suit.current_pools["vacuum"] == 1
     assert suit.current_pools["radiation"] == 0
     assert engine.player.fighter.hp == 10
 
-    apply_environment_tick(engine)
-    # Vacuum pool: 1 -> 0 (protected), radiation pool: 0 (damage!)
+    for _ in range(DI):
+        apply_environment_tick(engine)
+    # Vacuum pool: 1 -> 0 (protected), radiation pool: 0 (damage each tick!)
     assert suit.current_pools["vacuum"] == 0
-    assert engine.player.fighter.hp == 9
+    assert engine.player.fighter.hp == 10 - DI
 
     apply_environment_tick(engine)
-    # Both pools at 0: both deal damage
-    assert engine.player.fighter.hp == 7  # -2 damage
+    # Both pools at 0: both deal damage per tick
+    assert engine.player.fighter.hp == 10 - DI - 2
 
 
 # --- Dungeon gen per loc_type doesn't crash ---

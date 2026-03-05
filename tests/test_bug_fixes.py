@@ -271,17 +271,17 @@ def test_on_exit_no_crash_when_player_not_in_entities():
 
 
 def test_env_pool_gives_full_turns_protection():
-    """Pool of N should give exactly N turns of protection."""
+    """Pool of N should give exactly N drain-cycles of protection."""
     suit = Suit("Test", {"vacuum": 3}, defense_bonus=0)
     engine = make_engine(env={"vacuum": 1}, suit=suit)
 
-    # 3 turns: no damage
-    for _ in range(3):
+    # 3 drain cycles: no damage
+    for _ in range(3 * Suit.DRAIN_INTERVAL):
         apply_environment_tick(engine)
     assert engine.player.fighter.hp == 10
     assert suit.current_pools["vacuum"] == 0
 
-    # 4th turn: damage
+    # Next tick: damage
     apply_environment_tick(engine)
     assert engine.player.fighter.hp == 9
 
