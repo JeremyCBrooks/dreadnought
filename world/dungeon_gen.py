@@ -312,7 +312,6 @@ _ROOM_DRESSING = {
         "interactables": [
             ("&", (80, 200, 255), "Nav Terminal"),
             ("&", (100, 180, 220), "Comms Terminal"),
-            ("&", (100, 200, 255), "Console"),
         ],
     },
     "engine_room": {
@@ -326,7 +325,6 @@ _ROOM_DRESSING = {
             ("#", (100, 100, 120), "Machinery"),
         ],
         "interactables": [
-            ("*", (0, 255, 100), "Reactor Core"),
             ("&", (100, 200, 255), "Engine Terminal"),
             ("v", (80, 180, 220), "Coolant Valve"),
         ],
@@ -362,6 +360,31 @@ _ROOM_DRESSING = {
 }
 
 
+def _place_ship_corridor_lights(
+    game_map: GameMap,
+    keel_x1: int, keel_x2: int, keel_y: int, keel_y2: int,
+    ribs: List[Tuple[int, int, int]],
+    rng: random.Random,
+) -> None:
+    """Place warm white lights along keel and rib corridors."""
+    color = (200, 190, 170)
+    radius = 4
+    intensity = 0.5
+    spacing = rng.randint(6, 8)
+
+    # Along the keel
+    for x in range(keel_x1, keel_x2 + 1, spacing):
+        y = keel_y
+        if game_map.in_bounds(x, y):
+            game_map.add_light_source(x, y, radius=radius, color=color, intensity=intensity)
+
+    # Along each rib
+    for rib_x, rib_y_start, rib_y_end in ribs:
+        for y in range(rib_y_start, rib_y_end + 1, spacing):
+            if game_map.in_bounds(rib_x, y):
+                game_map.add_light_source(rib_x, y, radius=radius, color=color, intensity=intensity)
+
+
 def _dress_ship_room(
     room: RectRoom,
     game_map: GameMap,
@@ -376,6 +399,35 @@ def _dress_ship_room(
     occupied: set[Tuple[int, int]] = {
         (e.x, e.y) for e in game_map.entities
     }
+
+    # Room fixture tiles — non-walkable light sources (placed first to block entity placement)
+    cx, cy = room.center
+    fixture_tile = None
+    fixture_light = None
+    if room.label == "engine_room":
+        fixture_tile = tile_types.reactor_core
+        fixture_light = {"radius": 7, "color": (120, 60, 220), "intensity": 0.9}
+    elif room.label == "bridge":
+        fixture_tile = tile_types.control_console
+        fixture_light = {"radius": 5, "color": (80, 160, 255), "intensity": 0.7}
+
+    if fixture_tile is not None:
+        # Try center first, then offsets to avoid overwriting exit tile
+        candidates = [(cx, cy)]
+        for dist in range(1, 4):
+            for dx in range(-dist, dist + 1):
+                for dy in range(-dist, dist + 1):
+                    if abs(dx) == dist or abs(dy) == dist:
+                        candidates.append((cx + dx, cy + dy))
+        for fx, fy in candidates:
+            if (game_map.in_bounds(fx, fy)
+                    and game_map.tiles["walkable"][fx, fy]
+                    and (fx, fy) not in occupied
+                    and not _near_exit(fx, fy, exit_pos)):
+                game_map.tiles[fx, fy] = fixture_tile
+                occupied.add((fx, fy))
+                game_map.add_light_source(fx, fy, **fixture_light)
+                break
 
     def _pick_floor_pos() -> Optional[Tuple[int, int]]:
         x_lo = max(room.x1 + 1, 0)
@@ -424,6 +476,7 @@ def _dress_ship_room(
                    blocks_movement=False,
                    interactable={"kind": name.lower(), "hazard": hazard, "loot": loot})
         )
+
 
 
 # -------------------------------------------------------------------
@@ -693,6 +746,9 @@ def _generate_ship(
     for room in rooms:
         _dress_ship_room(room, game_map, rng, exit_pos=exit_pos)
 
+    # Step 9: Corridor lights along skeleton
+    _place_ship_corridor_lights(game_map, *skel, rng)
+
     return rooms
 
 
@@ -748,6 +804,14 @@ def _generate_organic(
 
         rooms.append(room)
         label_counts[spec.label] = label_counts.get(spec.label, 0) + 1
+
+    # Sparse bioluminescent / mineral glow in caverns
+    for room in rooms:
+        cx, cy = room.center
+        if room.label == "cavern":
+            game_map.add_light_source(cx, cy, radius=5, color=(40, 80, 60), intensity=0.4)
+        elif room.label == "shaft":
+            game_map.add_light_source(cx, cy, radius=3, color=(60, 50, 30), intensity=0.3)
 
     return rooms
 
@@ -826,6 +890,18 @@ def _generate_standard(
 
     # Place windows on walls facing the hull (uncarved wall fill)
     _place_exterior_windows(game_map, rng, wall_tile, floor_tile)
+
+    # Room lights for starbase
+    for room in rooms:
+        cx, cy = room.center
+        if room.label == "control_room":
+            game_map.add_light_source(cx, cy, radius=5, color=(80, 160, 255), intensity=0.6)
+        elif room.label == "trade_area":
+            game_map.add_light_source(cx, cy, radius=6, color=(200, 190, 150), intensity=0.6)
+        elif room.label == "dock":
+            game_map.add_light_source(cx, cy, radius=5, color=(160, 140, 100), intensity=0.4)
+        elif room.label == "cargo":
+            game_map.add_light_source(cx, cy, radius=4, color=(160, 140, 100), intensity=0.3)
 
     return rooms
 
@@ -1814,6 +1890,114 @@ def _meander(
     return result
 
 
+def _place_building_lights(
+    game_map: GameMap,
+    rng: random.Random,
+    sub_rooms: List[RectRoom],
+) -> None:
+    """Place warm indoor lights in some rooms of a colony building.
+
+    Per-building: roll whether this building is lit at all (~60% chance).
+    Then per-room: ~50% chance each room has a light.
+    Light is either overhead (center) or a wall sconce.
+    """
+    if rng.random() > 0.60:
+        return  # building is dark
+
+    color = (200, 180, 130)  # warm indoor light
+    radius = 4
+    intensity = 0.45
+
+    door_tids = {
+        int(tile_types.door_closed["tile_id"]),
+        int(tile_types.door_open["tile_id"]),
+    }
+    window_tid = int(tile_types.structure_window["tile_id"])
+    wall_tid_set: set[int] = set()
+    # structure_wall is the main colony wall type
+    wall_tid_set.add(int(tile_types.structure_wall["tile_id"]))
+
+    for room in sub_rooms:
+        if rng.random() > 0.50:
+            continue  # this room stays dark
+
+        cx, cy = room.center
+        # Decide: overhead (center) or wall sconce
+        if rng.random() < 0.5:
+            # Overhead — place at center if walkable
+            if (game_map.in_bounds(cx, cy)
+                    and game_map.tiles["walkable"][cx, cy]):
+                game_map.add_light_source(cx, cy, radius=radius, color=color, intensity=intensity)
+                continue
+
+        # Wall sconce — find a wall tile inside the room that isn't a door/window
+        # and has an adjacent floor tile inside the room
+        xs, ys = room.inner
+        sconce_candidates: List[Tuple[int, int]] = []
+        for x in range(room.x1, room.x2 + 1):
+            for y in range(room.y1, room.y2 + 1):
+                if not game_map.in_bounds(x, y):
+                    continue
+                tid = int(game_map.tiles["tile_id"][x, y])
+                if tid in door_tids or tid == window_tid:
+                    continue
+                if game_map.tiles["walkable"][x, y]:
+                    continue  # not a wall
+                if not game_map.tiles["transparent"][x, y]:
+                    # Opaque wall — check it has an adjacent floor inside room
+                    for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                        nx, ny = x + dx, y + dy
+                        if (game_map.in_bounds(nx, ny)
+                                and xs.start <= nx < xs.stop
+                                and ys.start <= ny < ys.stop
+                                and game_map.tiles["walkable"][nx, ny]):
+                            sconce_candidates.append((x, y))
+                            break
+
+        if sconce_candidates:
+            sx, sy = rng.choice(sconce_candidates)
+            game_map.add_light_source(sx, sy, radius=radius, color=color, intensity=intensity)
+        else:
+            # Fallback to overhead
+            if (game_map.in_bounds(cx, cy)
+                    and game_map.tiles["walkable"][cx, cy]):
+                game_map.add_light_source(cx, cy, radius=radius, color=color, intensity=intensity)
+
+
+def _place_street_lights(
+    game_map: GameMap,
+    spine_tiles: List[Tuple[int, int]],
+    rng: random.Random,
+) -> None:
+    """Place street lamp tiles and light sources along the village spine road."""
+    spacing = rng.randint(12, 15)
+    color = (180, 160, 110)
+    radius = 5
+    intensity = 0.5
+    ground_tid = int(tile_types.ground["tile_id"])
+
+    for i in range(0, len(spine_tiles), spacing):
+        sx, sy = spine_tiles[i]
+        # Try to place lamp on an adjacent non-walkable ground tile
+        placed = False
+        for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
+            lx, ly = sx + dx, sy + dy
+            if not game_map.in_bounds(lx, ly):
+                continue
+            tid = int(game_map.tiles["tile_id"][lx, ly])
+            if tid == ground_tid and not game_map.tiles["walkable"][lx, ly]:
+                # Non-walkable ground — skip, ground is walkable
+                continue
+            if tid == ground_tid:
+                game_map.tiles[lx, ly] = tile_types.street_lamp
+                game_map.add_light_source(lx, ly, radius=radius, color=color, intensity=intensity)
+                placed = True
+                break
+        if not placed:
+            # Fall back: place light at the spine tile itself
+            game_map.add_light_source(sx, sy, radius=radius, color=color, intensity=intensity)
+
+
 def _generate_village_paths(
     game_map: GameMap,
     rng: random.Random,
@@ -1894,6 +2078,9 @@ def _generate_village_paths(
         for x, y in branch:
             if game_map.in_bounds(x, y) and int(game_map.tiles["tile_id"][x, y]) == ground_tid:
                 game_map.tiles[x, y] = path_tile
+
+    # Place street lights along the spine (use single-lane path, not widened tiles)
+    _place_street_lights(game_map, list(spine_path), rng)
 
 
 def _generate_village(
@@ -2037,6 +2224,9 @@ def _generate_village(
 
         # Place windows on exterior walls
         _place_building_windows(game_map, rng, wing_rects, bldg_wall_tile, floor_tile)
+
+        # Interior lights (after walls/doors/windows are finalized)
+        _place_building_lights(game_map, rng, all_sub_rooms)
 
         building_sq_ft = sum(
             (wr.x2 - wr.x1) * (wr.y2 - wr.y1) for wr in wing_rects

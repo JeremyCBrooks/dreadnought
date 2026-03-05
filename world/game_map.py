@@ -19,6 +19,7 @@ class GameMap:
         fv = fill_tile if fill_tile is not None else tile_types.wall
         self.tiles = np.full((width, height), fill_value=fv, order="F")
         self.visible = np.full((width, height), fill_value=False, order="F")
+        self.lit = np.full((width, height), fill_value=False, order="F")
         self.explored = np.full((width, height), fill_value=False, order="F")
         self.fully_lit = False
         self.fov_radius = 8
@@ -33,6 +34,10 @@ class GameMap:
         self._pull_directions: dict[tuple[int, int], tuple[int, int]] | None = None
         self._vacuum_baseline_set: bool = False
         self.biome: str | None = None
+        # Lighting
+        self.light_sources: list = []
+        self._light_map: np.ndarray | None = None
+        self._light_dirty: bool = True
 
     def in_bounds(self, x: int, y: int) -> bool:
         return 0 <= x < self.width and 0 <= y < self.height
@@ -123,6 +128,24 @@ class GameMap:
                 result.add(name)
         return result
 
+    def add_light_source(
+        self, x: int, y: int, radius: int, color: Tuple[int, int, int], intensity: float = 1.0,
+    ) -> None:
+        from world.lighting import LightSource
+        self.light_sources.append(LightSource(x=x, y=y, radius=radius, color=color, intensity=intensity))
+        self._light_dirty = True
+
+    def invalidate_lights(self) -> None:
+        self._light_dirty = True
+        self._light_map = None
+
+    def get_light_map(self) -> np.ndarray:
+        if self._light_map is None or self._light_dirty:
+            from world.lighting import compute_light_map
+            self._light_map = compute_light_map(self.width, self.height, self.tiles, self.light_sources)
+            self._light_dirty = False
+        return self._light_map
+
     def describe_at(
         self, x: int, y: int, *, visible_only: bool = False,
     ) -> List[Tuple[str, Tuple[int, int, int]]]:
@@ -172,27 +195,19 @@ class GameMap:
 
         if radius is None:
             radius = self.fov_radius
+
+        # Infinite-range LOS for visibility (radius=0 means unlimited)
         self.visible[:] = tcod.map.compute_fov(
             self.tiles["transparent"],
             (x, y),
-            radius=radius,
+            radius=0,
         )
-        # tcod uses Chebyshev distance (square); mask to Euclidean (circle)
+
+        # Lit mask: only tiles within fov_radius get bright appearance
         ix = np.arange(self.width)[:, np.newaxis]
         iy = np.arange(self.height)[np.newaxis, :]
-        self.visible &= (ix - x) ** 2 + (iy - y) ** 2 <= radius * radius
-
-        # Infinite-range FOV for space tiles (visible through windows, no distance cap)
-        if self.has_space:
-            space_tid = int(tile_types.space["tile_id"])
-            space_mask = self.tiles["tile_id"] == space_tid
-            if space_mask.any():
-                infinite_fov = tcod.map.compute_fov(
-                    self.tiles["transparent"],
-                    (x, y),
-                    radius=0,
-                )
-                self.visible |= (infinite_fov & space_mask)
+        dist_sq = (ix - x) ** 2 + (iy - y) ** 2
+        self.lit[:] = self.visible & (dist_sq <= radius * radius)
 
         self.explored |= self.visible
 
@@ -233,17 +248,20 @@ class GameMap:
                 iy = np.arange(cam_y, cam_y + rh)[np.newaxis, :]
                 glow_mask = (ix - cx) ** 2 + (iy - cy) ** 2 <= radius * radius
 
-        # Use normal visibility (scan glow visibility is applied via apply_scan_glow)
+        # Tile appearance: lit=bright, visible-but-not-lit=dark, explored=dark/lit, else=shroud
+        lit_slice = self.lit[ms]
+        vis_slice = self.visible[ms]
+        exp_slice = self.explored[ms]
         if self.fully_lit:
             console.tiles_rgb[cs] = np.select(
-                condlist=[self.visible[ms], self.explored[ms]],
-                choicelist=[self.tiles["light"][ms], self.tiles["lit"][ms]],
+                condlist=[lit_slice, vis_slice, exp_slice],
+                choicelist=[self.tiles["light"][ms], self.tiles["dark"][ms], self.tiles["lit"][ms]],
                 default=tile_types.SHROUD,
             )
         else:
             console.tiles_rgb[cs] = np.select(
-                condlist=[self.visible[ms], self.explored[ms]],
-                choicelist=[self.tiles["light"][ms], self.tiles["dark"][ms]],
+                condlist=[lit_slice, vis_slice, exp_slice],
+                choicelist=[self.tiles["light"][ms], self.tiles["dark"][ms], self.tiles["dark"][ms]],
                 default=tile_types.SHROUD,
             )
 
@@ -265,6 +283,29 @@ class GameMap:
             ).astype(np.uint8)
             bg[glow_mask, 2] = (bg[glow_mask, 2] * dim).astype(np.uint8)
 
+        # Apply colored light source tinting
+        if self.light_sources:
+            light_map = self.get_light_map()
+            light_slice = light_map[ms]  # (rw, rh, 3)
+            fg = console.tiles_rgb["fg"][cs]
+            bg = console.tiles_rgb["bg"][cs]
+            vis = self.visible[ms]
+            exp = self.explored[ms]
+            lit_mask = vis | exp
+            # Don't tint space tiles
+            if self.has_space:
+                space_tid = int(tile_types.space["tile_id"])
+                lit_mask = lit_mask & (self.tiles["tile_id"][ms] != space_tid)
+            # Reduce intensity for explored-but-not-visible tiles
+            strength = np.where(vis[..., np.newaxis], 1.0, 0.5)
+            tint = (light_slice * strength * 255).astype(np.int16)
+            fg[lit_mask] = np.clip(
+                fg[lit_mask].astype(np.int16) + tint[lit_mask], 0, 255
+            ).astype(np.uint8)
+            bg[lit_mask] = np.clip(
+                bg[lit_mask].astype(np.int16) + (tint[lit_mask] // 3), 0, 255
+            ).astype(np.uint8)
+
         # Two-pass: non-blocking (items) first, then blocking entities on top
         for entity in self.entities:
             if entity.blocks_movement:
@@ -278,6 +319,7 @@ class GameMap:
             if vp_x <= sx < vp_x + rw and vp_y <= sy < vp_y + rh:
                 color = self._glow_tint_color(entity.color, entity.x, entity.y,
                                               glow_mask, glow_alpha, cam_x, cam_y)
+                color = self._light_tint_color(color, entity.x, entity.y)
                 console.print(x=sx, y=sy, string=entity.char, fg=color)
         for entity in self.entities:
             if not entity.blocks_movement:
@@ -291,6 +333,7 @@ class GameMap:
             if vp_x <= sx < vp_x + rw and vp_y <= sy < vp_y + rh:
                 color = self._glow_tint_color(entity.color, entity.x, entity.y,
                                               glow_mask, glow_alpha, cam_x, cam_y)
+                color = self._light_tint_color(color, entity.x, entity.y)
                 console.print(x=sx, y=sy, string=entity.char, fg=color)
 
     @staticmethod
@@ -308,6 +351,21 @@ class GameMap:
             b = int(color[2] * dim)
             return (r, g, b)
         return color
+
+    def _light_tint_color(
+        self, color: Tuple[int, int, int], ex: int, ey: int,
+    ) -> Tuple[int, int, int]:
+        """Apply light source tint to an entity's foreground color."""
+        if not self.light_sources:
+            return color
+        lm = self.get_light_map()
+        tint = lm[ex, ey]
+        if tint[0] == 0 and tint[1] == 0 and tint[2] == 0:
+            return color
+        r = min(int(color[0] + tint[0] * 255), 255)
+        g = min(int(color[1] + tint[1] * 255), 255)
+        b = min(int(color[2] + tint[2] * 255), 255)
+        return (r, g, b)
 
     def animate_space(
         self,

@@ -28,8 +28,12 @@ def test_exit_tile_placed():
 
 
 def test_room_centers_walkable():
+    # Fixture tiles (reactor_core, control_console) may be non-walkable at center
+    fixture_labels = {"engine_room", "bridge"}
     game_map, rooms, _ = generate_dungeon(seed=42, max_rooms=5)
     for room in rooms:
+        if room.label in fixture_labels:
+            continue
         cx, cy = room.center
         assert game_map.is_walkable(cx, cy)
 
@@ -114,15 +118,22 @@ def test_room_wall_positions():
 def test_derelict_uses_metal_tiles():
     game_map, rooms, _ = generate_dungeon(seed=42, loc_type="derelict")
     assert len(rooms) >= 2
-    cx, cy = rooms[0].center
-    assert game_map.is_walkable(cx, cy)
-    # Floor tiles should be metal floor (tile_id matches)
-    tid = int(game_map.tiles["tile_id"][cx, cy])
-    # Exit tile overrides center of first room, check second room
-    if len(rooms) > 1:
-        cx2, cy2 = rooms[1].center
-        tid2 = int(game_map.tiles["tile_id"][cx2, cy2])
-        assert tid2 == int(tile_types.floor["tile_id"])
+    # Fixture tiles may replace floor at room centers; find a non-fixture room
+    fixture_labels = {"engine_room", "bridge"}
+    fixture_tids = {
+        int(tile_types.reactor_core["tile_id"]),
+        int(tile_types.control_console["tile_id"]),
+    }
+    floor_tid = int(tile_types.floor["tile_id"])
+    exit_tid = int(tile_types.exit_tile["tile_id"])
+    for room in rooms:
+        cx, cy = room.center
+        tid = int(game_map.tiles["tile_id"][cx, cy])
+        if room.label in fixture_labels:
+            # Center may have fixture tile or floor (if fixture placed at offset)
+            assert tid in {floor_tid, exit_tid} | fixture_tids
+        elif tid != exit_tid:
+            assert tid == floor_tid
 
 
 def test_derelict_has_labeled_rooms():
@@ -699,7 +710,8 @@ def test_colony_windows_on_exterior_walls():
         int(tile_types.flora_scrub["tile_id"]),
         int(tile_types.flora_sprout["tile_id"]),
     }
-    exterior_tids = {ground_tid, path_tid} | flora_tids
+    lamp_tid = int(tile_types.street_lamp["tile_id"])
+    exterior_tids = {ground_tid, path_tid, lamp_tid} | flora_tids
     for seed in range(50):
         game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
         for x in range(game_map.width):

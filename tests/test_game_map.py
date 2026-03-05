@@ -65,16 +65,19 @@ def test_fully_lit_still_requires_exploration():
     for x in range(1, 19):
         for y in range(1, 19):
             gm.tiles[x, y] = tile_types.floor
+    # Wall partition blocking LOS to far corner
+    for y in range(0, 20):
+        gm.tiles[15, y] = tile_types.wall
     gm.fully_lit = True
 
     gm.update_fov(10, 10, radius=8)
 
     # Visible follows actual LOS
     assert gm.visible[10, 10]
-    assert not gm.visible[0, 0]  # corner wall, not transparent
+    assert not gm.visible[18, 10]  # behind wall, not visible
     # Explored earned by visiting, not granted for free
     assert gm.explored[10, 10]
-    assert not gm.explored[0, 0]
+    assert not gm.explored[18, 10]
 
 
 def test_tile_lit_graphic_between_dark_and_light():
@@ -87,19 +90,46 @@ def test_tile_lit_graphic_between_dark_and_light():
         assert d <= li <= l
 
 
-def test_fov_uses_map_radius():
-    """update_fov defaults to self.fov_radius, giving a larger FOV in lit areas."""
+def test_fov_infinite_los():
+    """Player can see distant tiles in line of sight regardless of fov_radius."""
     gm = GameMap(40, 40)
     for x in range(1, 39):
         for y in range(1, 39):
             gm.tiles[x, y] = tile_types.floor
 
-    # Default radius=8: tile 17 cells away should NOT be visible
     gm.fov_radius = 8
     gm.update_fov(20, 20)
-    assert not gm.visible[20, 3]
+    # Distant tile in clear LOS is visible even beyond fov_radius
+    assert gm.visible[20, 3]
 
-    # Larger radius: same tile now visible
+
+def test_fov_lit_mask_uses_radius():
+    """Only tiles within fov_radius are marked as 'lit' (bright appearance)."""
+    gm = GameMap(40, 40)
+    for x in range(1, 39):
+        for y in range(1, 39):
+            gm.tiles[x, y] = tile_types.floor
+
+    gm.fov_radius = 8
+    gm.update_fov(20, 20)
+    # Nearby tile is lit
+    assert gm.lit[20, 19]
+    # Distant visible tile is NOT lit
+    assert gm.visible[20, 3]
+    assert not gm.lit[20, 3]
+
+
+def test_fov_radius_change_affects_lit():
+    """Changing fov_radius changes which tiles are lit."""
+    gm = GameMap(40, 40)
+    for x in range(1, 39):
+        for y in range(1, 39):
+            gm.tiles[x, y] = tile_types.floor
+
+    gm.fov_radius = 8
+    gm.update_fov(20, 20)
+    assert not gm.lit[20, 3]
+
     gm.fov_radius = 20
     gm.update_fov(20, 20)
-    assert gm.visible[20, 3]
+    assert gm.lit[20, 3]

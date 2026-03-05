@@ -322,6 +322,7 @@ class ToggleDoorAction(Action):
         elif tile_id == closed_id:
             engine.game_map.tiles[tx, ty] = tile_types.door_open
             engine.game_map._hazards_dirty = True
+            engine.game_map.invalidate_lights()
             engine.message_log.add_message("You open the door.", (200, 200, 200))
             return 1
         elif tile_id == open_id:
@@ -334,6 +335,7 @@ class ToggleDoorAction(Action):
                 return 0
             engine.game_map.tiles[tx, ty] = tile_types.door_closed
             engine.game_map._hazards_dirty = True
+            engine.game_map.invalidate_lights()
             engine.message_log.add_message("You close the door.", (200, 200, 200))
             return 1
         else:
@@ -427,6 +429,7 @@ class ToggleSwitchAction(Action):
             engine.game_map.tiles[sx, sy] = tile_types.airlock_switch_on
             engine.game_map.tiles[ex, ey] = tile_types.airlock_ext_open
             engine.game_map._hazards_dirty = True
+            engine.game_map.invalidate_lights()
             engine.message_log.add_message(
                 "You flip the switch. The exterior door grinds open.", (255, 200, 100)
             )
@@ -438,6 +441,7 @@ class ToggleSwitchAction(Action):
             engine.game_map.tiles[sx, sy] = tile_types.airlock_switch_off
             engine.game_map.tiles[ex, ey] = tile_types.airlock_ext_closed
             engine.game_map._hazards_dirty = True
+            engine.game_map.invalidate_lights()
             engine.message_log.add_message(
                 "You flip the switch. The exterior door seals shut.", (200, 200, 200)
             )

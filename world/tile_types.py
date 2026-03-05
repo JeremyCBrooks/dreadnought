@@ -186,6 +186,24 @@ airlock_switch_on = new_tile(
     light=(ord("\\"), (180, 210, 180), (30, 60, 30)),
 )
 
+reactor_core = new_tile(
+    walkable=False, transparent=True,
+    dark=(ord("\xea"), (30, 10, 50), (10, 0, 20)),
+    light=(ord("\xea"), (180, 80, 255), (40, 15, 70)),
+)
+
+control_console = new_tile(
+    walkable=False, transparent=True,
+    dark=(ord("\xf0"), (20, 40, 60), (5, 10, 20)),
+    light=(ord("\xf0"), (80, 200, 255), (15, 40, 60)),
+)
+
+street_lamp = new_tile(
+    walkable=False, transparent=True,
+    dark=(ord("\xee"), (100, 90, 50), (10, 10, 5)),
+    light=(ord("\xee"), (220, 200, 140), (30, 25, 15)),
+)
+
 # ---------------------------------------------------------------------------
 # Tile flavor text -- keyed by tile_id
 # ---------------------------------------------------------------------------
@@ -319,6 +337,23 @@ TILE_FLAVORS: dict[int, tuple[str, list[str]]] = {
         "A heavy lever set into the wall. Currently off.",
         "An airlock control switch in the off position.",
         "A wall-mounted switch. The indicator light is dark.",
+    ]),
+    int(reactor_core["tile_id"]): ("Reactor Core", [
+        "A pulsing reactor core, radiating heat and light.",
+        "The ship's power plant thrums with contained energy.",
+        "A glowing reactor housing, dangerously exposed.",
+        "The core hums with barely-contained fusion.",
+    ]),
+    int(control_console["tile_id"]): ("Control Console", [
+        "A bank of flickering displays and controls.",
+        "The ship's main console, screens still glowing.",
+        "A curved control station bristling with readouts.",
+        "Navigation instruments glow faintly in the dark.",
+    ]),
+    int(street_lamp["tile_id"]): ("Street Lamp", [
+        "A weathered lamp post, casting a warm glow.",
+        "A colony light standard, humming faintly.",
+        "A battered street light, still functional.",
     ]),
     int(airlock_switch_on["tile_id"]): ("Airlock Switch (On)", [
         "A heavy lever set into the wall. Currently on.",
