@@ -2001,6 +2001,91 @@ def _place_airlocks(
         placed += 1
 
 
+def _place_hull_breaches(
+    game_map: GameMap, rng: random.Random, wall_tile: np.ndarray,
+) -> None:
+    """Place 1-3 hull breaches on a derelict/ship map.
+
+    Finds wall tiles adjacent to both a space tile and a walkable tile
+    (hull boundary) and replaces them with hull_breach.
+    """
+    space_tid = int(tile_types.space["tile_id"])
+    wall_tid = int(wall_tile["tile_id"])
+    candidates: list[tuple[int, int]] = []
+
+    for x in range(1, game_map.width - 1):
+        for y in range(1, game_map.height - 1):
+            if int(game_map.tiles["tile_id"][x, y]) != wall_tid:
+                continue
+            has_space = False
+            has_walkable = False
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if not game_map.in_bounds(nx, ny):
+                    continue
+                tid = int(game_map.tiles["tile_id"][nx, ny])
+                if tid == space_tid:
+                    has_space = True
+                if bool(game_map.tiles["walkable"][nx, ny]):
+                    has_walkable = True
+            if has_space and has_walkable:
+                candidates.append((x, y))
+
+    if not candidates:
+        return
+
+    count = min(rng.randint(1, 3), len(candidates))
+    chosen = rng.sample(candidates, count)
+    for bx, by in chosen:
+        game_map.tiles[bx, by] = tile_types.hull_breach
+        game_map.hull_breaches.append((bx, by))
+
+
+def _place_asteroid_breaches(
+    game_map: GameMap, rng: random.Random,
+) -> None:
+    """Place 1-2 hull breaches on an asteroid/cave map.
+
+    Finds rock_wall tiles at the map perimeter adjacent to interior walkable
+    tiles, replaces them with hull_breach, and converts the tile beyond the
+    breach to space.
+    """
+    rock_wall_tid = int(tile_types.rock_wall["tile_id"])
+    candidates: list[tuple[int, int, int, int]] = []  # (x, y, beyond_x, beyond_y)
+
+    for x in range(game_map.width):
+        for y in range(game_map.height):
+            if int(game_map.tiles["tile_id"][x, y]) != rock_wall_tid:
+                continue
+            # Must be at map perimeter or adjacent to map edge
+            at_edge = (x <= 1 or x >= game_map.width - 2
+                       or y <= 1 or y >= game_map.height - 2)
+            if not at_edge:
+                continue
+            # Check for adjacent interior walkable tile and a direction for space
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                bx, by = x - dx, y - dy  # beyond = opposite direction
+                if not game_map.in_bounds(nx, ny):
+                    continue
+                if not game_map.in_bounds(bx, by):
+                    continue
+                if bool(game_map.tiles["walkable"][nx, ny]):
+                    candidates.append((x, y, bx, by))
+                    break
+
+    if not candidates:
+        return
+
+    count = min(rng.randint(1, 2), len(candidates))
+    chosen = rng.sample(candidates, count)
+    for bx, by, sx, sy in chosen:
+        game_map.tiles[bx, by] = tile_types.hull_breach
+        game_map.hull_breaches.append((bx, by))
+        game_map.tiles[sx, sy] = tile_types.space
+    game_map.has_space = True
+
+
 def _convert_hull_to_space(game_map: GameMap, wall_tile: np.ndarray) -> None:
     """Replace wall tiles not adjacent to any walkable or window tile with space.
 
@@ -2145,7 +2230,14 @@ def generate_dungeon(
             bx, by = ex + dx, ey + dy
             if game_map.in_bounds(bx, by):
                 game_map.tiles[bx, by] = tile_types.space
+        # Hull breaches for derelict/ship maps
+        _place_hull_breaches(game_map, rng, wall_tile)
 
+    # Hull breaches for asteroid/organic maps
+    if profile.generator == "organic":
+        _place_asteroid_breaches(game_map, rng)
+
+    game_map._hazards_dirty = True
     return game_map, rooms, exit_pos
 
 

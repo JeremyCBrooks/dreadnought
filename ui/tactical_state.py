@@ -322,7 +322,10 @@ class TacticalState(State):
 
     def _after_player_turn(self, engine: Engine) -> None:
         """Environment tick, radiation, drift, enemy turns. Switch to game over if dead."""
-        from game.environment import apply_environment_tick
+        from game.environment import (
+            apply_environment_tick, apply_environment_tick_entity,
+            trigger_decompression, process_decompression_step,
+        )
         from game.hazards import apply_dot_effects
         from ui.game_over_state import GameOverState
 
@@ -330,6 +333,30 @@ class TacticalState(State):
         apply_dot_effects(engine)
         if engine.player.fighter.hp <= 0:
             engine.switch_state(GameOverState(victory=False, cause="Succumbed to the environment."))
+            return
+
+        # Trigger new decompression events
+        pending = engine.game_map._pending_decompression
+        if pending:
+            pull_dirs = trigger_decompression(
+                engine, pending["breach_sources"], pending["newly_exposed"],
+            )
+            engine.game_map._pull_directions = pull_dirs
+            engine.game_map._pending_decompression = None
+
+        # Process ongoing decompression (up to 3 tiles/turn per entity)
+        pull_dirs = engine.game_map._pull_directions
+        if pull_dirs:
+            for entity in list(engine.game_map.entities):
+                if entity.decompression_moves > 0:
+                    process_decompression_step(engine.game_map, entity, pull_dirs)
+            # Clear pull directions when no entities are still being pulled
+            if not any(e.decompression_moves > 0 for e in engine.game_map.entities):
+                engine.game_map._pull_directions = None
+
+        # Check for player death from decompression impact
+        if engine.player.fighter.hp <= 0:
+            engine.switch_state(GameOverState(victory=False, cause="Crushed by explosive decompression."))
             return
 
         # Player drift
@@ -387,6 +414,13 @@ class TacticalState(State):
                     continue
                 if entity.ai and entity.fighter and entity.fighter.hp > 0:
                     entity.ai.perform(entity, engine)
+
+        # Per-tile hazard damage for enemies
+        for entity in list(engine.game_map.entities):
+            if entity is engine.player:
+                continue
+            if entity.fighter and entity.fighter.hp > 0:
+                apply_environment_tick_entity(engine, entity)
 
         if engine.player.fighter.hp <= 0:
             engine.message_log.add_message("You died.", (255, 0, 0))
@@ -754,6 +788,35 @@ class TacticalState(State):
                     console.print(x=x, y=row, string=f"{label}: --", fg=(100, 100, 100))
                 row += 1
             row += 1
+
+        # Active hazards at player position
+        from game.environment import GLOBAL_HAZARDS, NON_DAMAGING_HAZARDS
+        engine.game_map.recalculate_hazards()
+        active = engine.game_map.get_hazards_at(p.x, p.y)
+        # Include global hazards from environment
+        if engine.environment:
+            for h in engine.environment:
+                if h in GLOBAL_HAZARDS and engine.environment[h] > 0:
+                    active.add(h)
+        damaging_active = {h for h in active if h not in NON_DAMAGING_HAZARDS}
+        if active:
+            console.print(x=x, y=row, string="HAZARDS:", fg=(255, 100, 100))
+            row += 1
+            for h in sorted(active):
+                label = h.replace("_", " ").upper()
+                if h in NON_DAMAGING_HAZARDS:
+                    color = (200, 200, 100)
+                else:
+                    color = (255, 80, 80)
+                console.print(x=x, y=row, string=f"! {label}", fg=color)
+                row += 1
+            row += 1
+        elif engine.environment and any(
+            v > 0 and k not in NON_DAMAGING_HAZARDS
+            for k, v in engine.environment.items()
+        ):
+            console.print(x=x, y=row, string="NO HAZARDS", fg=(0, 200, 100))
+            row += 2
 
         # LOADOUT display (4 slots)
         loadout_section_start = row + 1

@@ -987,13 +987,25 @@ def test_starbase_has_space_tiles():
     assert found, "No space tiles found in any starbase map across 50 seeds"
 
 
-def test_asteroid_has_no_space_tiles():
-    """Asteroid maps (organic generator) should not have space tiles."""
+def test_asteroid_space_tiles_only_at_breaches():
+    """Asteroid maps may have space tiles, but only adjacent to hull breaches."""
     space_tid = int(tile_types.space["tile_id"])
+    hull_breach_tid = int(tile_types.hull_breach["tile_id"])
     for seed in range(50):
         game_map, _, _ = generate_dungeon(seed=seed, loc_type="asteroid")
-        assert not (game_map.tiles["tile_id"] == space_tid).any(), (
-            f"seed={seed}: asteroid map should not have space tiles"
+        is_space = game_map.tiles["tile_id"] == space_tid
+        if not is_space.any():
+            continue
+        # Every space tile should be adjacent to a hull breach
+        is_breach = game_map.tiles["tile_id"] == hull_breach_tid
+        adj_breach = np.zeros_like(is_space)
+        adj_breach[1:, :] |= is_breach[:-1, :]
+        adj_breach[:-1, :] |= is_breach[1:, :]
+        adj_breach[:, 1:] |= is_breach[:, :-1]
+        adj_breach[:, :-1] |= is_breach[:, 1:]
+        bad = is_space & ~adj_breach
+        assert not bad.any(), (
+            f"seed={seed}: space tile not adjacent to hull breach"
         )
 
 
@@ -1008,12 +1020,16 @@ def test_colony_has_no_space_tiles():
 
 
 def test_space_tiles_not_adjacent_to_walkable():
-    """Space tiles should never be orthogonally adjacent to walkable tiles."""
+    """Space tiles should not be adjacent to walkable tiles (except hull breaches)."""
     space_tid = int(tile_types.space["tile_id"])
+    hull_breach_tid = int(tile_types.hull_breach["tile_id"])
     for seed in range(50):
         game_map, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
         is_space = game_map.tiles["tile_id"] == space_tid
-        is_walkable = game_map.tiles["walkable"]
+        is_walkable = game_map.tiles["walkable"].copy()
+        # Hull breaches are walkable but intentionally adjacent to space
+        is_breach = game_map.tiles["tile_id"] == hull_breach_tid
+        is_walkable &= ~is_breach
         # Check all 4 cardinal neighbors
         adj_walkable = np.zeros_like(is_space)
         adj_walkable[1:, :] |= is_walkable[:-1, :]
@@ -1022,7 +1038,7 @@ def test_space_tiles_not_adjacent_to_walkable():
         adj_walkable[:, :-1] |= is_walkable[:, 1:]
         bad = is_space & adj_walkable
         assert not bad.any(), (
-            f"seed={seed}: space tile adjacent to walkable tile"
+            f"seed={seed}: space tile adjacent to walkable tile (non-breach)"
         )
 
 
@@ -1072,10 +1088,17 @@ def test_derelict_has_space_flag():
     assert game_map.has_space
 
 
-def test_asteroid_has_no_space_flag():
-    """Asteroid game_map should have has_space=False."""
-    game_map, _, _ = generate_dungeon(seed=42, loc_type="asteroid")
-    assert not game_map.has_space
+def test_asteroid_has_space_when_breaches():
+    """Asteroid with hull breaches should have has_space=True."""
+    # Hull breaches add space tiles to asteroids
+    hull_breach_tid = int(tile_types.hull_breach["tile_id"])
+    for seed in range(50):
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="asteroid")
+        has_breach = (game_map.tiles["tile_id"] == hull_breach_tid).any()
+        if has_breach:
+            assert game_map.has_space
+            return
+    # If no breaches found in 50 seeds, that's fine — no assertion needed
 
 
 def test_door_placement():

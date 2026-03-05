@@ -50,3 +50,5 @@ class Entity:
         self.loadout: Optional[Loadout] = None
         self.drifting: bool = False
         self.drift_direction: Tuple[int, int] = (0, 0)
+        self.decompression_moves: int = 0
+        self.decompression_direction: Tuple[int, int] = (0, 0)

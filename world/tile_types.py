@@ -97,6 +97,12 @@ space = new_tile(
     light=(ord(" "), (10, 10, 20), (0, 0, 4)),
 )
 
+hull_breach = new_tile(
+    walkable=True, transparent=True,
+    dark=(ord("X"), (150, 40, 40), (20, 0, 0)),
+    light=(ord("X"), (255, 80, 60), (40, 5, 5)),
+)
+
 door_closed = new_tile(
     walkable=False, transparent=False,
     dark=(ord("+"), (80, 60, 30), (10, 8, 5)),
@@ -230,6 +236,12 @@ TILE_FLAVORS: dict[int, tuple[str, list[str]]] = {
         "Warning stripes line the airlock floor.",
         "The airlock hums with pressure equalization systems.",
         "A cramped chamber between you and the vacuum.",
+    ]),
+    int(hull_breach["tile_id"]): ("Hull Breach", [
+        "A jagged tear in the hull. Vacuum howls through.",
+        "Twisted metal frames a gaping hole to space.",
+        "The hull is ripped open here. Stars glint beyond.",
+        "A catastrophic breach. The void seeps in.",
     ]),
     int(space["tile_id"]): ("Space", [
         "The cold void stretches endlessly.",

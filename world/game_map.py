@@ -25,6 +25,13 @@ class GameMap:
         self.has_space = False
         self.airlocks: list = []
         self.entities: List[Entity] = []
+        # Per-tile hazard propagation
+        self.hazard_overlays: dict[str, np.ndarray] = {}
+        self._hazards_dirty: bool = True
+        self.hull_breaches: list[tuple[int, int]] = []
+        self._pending_decompression: dict | None = None
+        self._pull_directions: dict[tuple[int, int], tuple[int, int]] | None = None
+        self._vacuum_baseline_set: bool = False
 
     def in_bounds(self, x: int, y: int) -> bool:
         return 0 <= x < self.width and 0 <= y < self.height
@@ -58,6 +65,53 @@ class GameMap:
             if not e.blocks_movement and e.x == x and e.y == y:
                 return e
         return None
+
+    def recalculate_hazards(self) -> None:
+        """Recompute per-tile hazard overlays if dirty."""
+        if not self._hazards_dirty:
+            return
+        self._hazards_dirty = False
+
+        # Snapshot old vacuum overlay for decompression detection
+        old_vacuum = self.hazard_overlays.get("vacuum")
+
+        # Collect vacuum sources: open exterior airlock doors + hull breaches
+        vacuum_sources: list[tuple[int, int]] = list(self.hull_breaches)
+        ext_open_tid = int(tile_types.airlock_ext_open["tile_id"])
+        xs, ys = np.where(self.tiles["tile_id"] == ext_open_tid)
+        for i in range(len(xs)):
+            vacuum_sources.append((int(xs[i]), int(ys[i])))
+
+        if vacuum_sources:
+            from game.environment import _flood_fill_hazard
+            new_vacuum = _flood_fill_hazard(self, vacuum_sources)
+            self.hazard_overlays["vacuum"] = new_vacuum
+
+            # Detect newly-exposed tiles for explosive decompression
+            if self._vacuum_baseline_set:
+                if old_vacuum is None:
+                    old_vacuum = np.full(
+                        (self.width, self.height), fill_value=False, order="F"
+                    )
+                newly_exposed = new_vacuum & ~old_vacuum
+                if np.any(newly_exposed):
+                    self._pending_decompression = {
+                        "newly_exposed": newly_exposed,
+                        "breach_sources": vacuum_sources,
+                    }
+            self._vacuum_baseline_set = True
+        else:
+            # No sources — remove overlay so vacuum falls back to global behavior
+            self.hazard_overlays.pop("vacuum", None)
+            self._vacuum_baseline_set = True
+
+    def get_hazards_at(self, x: int, y: int) -> set[str]:
+        """Return set of active hazard names at (x, y)."""
+        result: set[str] = set()
+        for name, overlay in self.hazard_overlays.items():
+            if overlay[x, y]:
+                result.add(name)
+        return result
 
     def describe_at(
         self, x: int, y: int, *, visible_only: bool = False,

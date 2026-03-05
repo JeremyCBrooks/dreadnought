@@ -112,10 +112,11 @@ class BumpAction(Action):
             space_tid = int(tile_types.space["tile_id"])
             airlock_tid = int(tile_types.airlock_floor["tile_id"])
             ext_open_tid = int(tile_types.airlock_ext_open["tile_id"])
+            hull_breach_tid = int(tile_types.hull_breach["tile_id"])
             cur_tid = int(engine.game_map.tiles["tile_id"][entity.x, entity.y])
-            # Allow stepping into space from airlock floor or from an open
-            # exterior airlock door
-            on_airlock = cur_tid in (airlock_tid, ext_open_tid)
+            # Allow stepping into space from airlock floor, open exterior
+            # airlock door, or hull breach
+            on_airlock = cur_tid in (airlock_tid, ext_open_tid, hull_breach_tid)
             if dest_tid == space_tid and on_airlock:
                 # Step into the void
                 entity.x = dest_x
@@ -348,6 +349,7 @@ class ToggleDoorAction(Action):
             return 0
         elif tile_id == closed_id:
             engine.game_map.tiles[tx, ty] = tile_types.door_open
+            engine.game_map._hazards_dirty = True
             engine.message_log.add_message("You open the door.", (200, 200, 200))
             return 1
         elif tile_id == open_id:
@@ -359,6 +361,7 @@ class ToggleDoorAction(Action):
                 engine.message_log.add_message("Something is in the way.", (255, 200, 100))
                 return 0
             engine.game_map.tiles[tx, ty] = tile_types.door_closed
+            engine.game_map._hazards_dirty = True
             engine.message_log.add_message("You close the door.", (200, 200, 200))
             return 1
         else:
@@ -451,6 +454,7 @@ class ToggleSwitchAction(Action):
             # Turn on: open exterior door
             engine.game_map.tiles[sx, sy] = tile_types.airlock_switch_on
             engine.game_map.tiles[ex, ey] = tile_types.airlock_ext_open
+            engine.game_map._hazards_dirty = True
             engine.message_log.add_message(
                 "You flip the switch. The exterior door grinds open.", (255, 200, 100)
             )
@@ -461,7 +465,16 @@ class ToggleSwitchAction(Action):
                 return 0
             engine.game_map.tiles[sx, sy] = tile_types.airlock_switch_off
             engine.game_map.tiles[ex, ey] = tile_types.airlock_ext_closed
+            engine.game_map._hazards_dirty = True
             engine.message_log.add_message(
                 "You flip the switch. The exterior door seals shut.", (200, 200, 200)
             )
+            # Warn if vacuum persists due to other sources (hull breaches)
+            engine.game_map.recalculate_hazards()
+            overlay = engine.game_map.hazard_overlays.get("vacuum")
+            if overlay is not None and entity is engine.player and overlay[entity.x, entity.y]:
+                engine.message_log.add_message(
+                    "Atmosphere not restored. Hull breaches detected nearby.",
+                    (255, 200, 100),
+                )
         return 1
