@@ -79,7 +79,8 @@ class StrategicState(State):
         max_conns = max(0, available_lines - max_locs)
 
         console.print(x=2, y=1, string=f"STAR SYSTEM: {system.name}", fg=(255, 255, 100))
-        console.print(x=2, y=2, string="=" * max(1, cw - 4), fg=(60, 60, 80))
+        from ui.colors import HEADER_SEP
+        console.print(x=2, y=2, string="=" * max(1, cw - 4), fg=HEADER_SEP)
 
         console.print(x=2, y=4, string="LOCATIONS:", fg=(180, 180, 200))
         # Scroll so selected location is visible

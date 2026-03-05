@@ -712,11 +712,11 @@ def test_scan_glow_is_circular():
 
     shroud_ch = int(tile_types.SHROUD["ch"])
     # (5, 2) is dist 3 along cardinal — should be visible
-    assert console.tiles_rgb["ch"][5, 2] != shroud_ch
+    assert console.rgb["ch"][5, 2] != shroud_ch
     # (2, 2) is dist sqrt(18) ~= 4.24 — outside radius 3, should be shroud
-    assert console.tiles_rgb["ch"][2, 2] == shroud_ch
+    assert console.rgb["ch"][2, 2] == shroud_ch
     # (3, 3) is dist sqrt(8) ~= 2.83 — inside radius 3, should be visible
-    assert console.tiles_rgb["ch"][3, 3] != shroud_ch
+    assert console.rgb["ch"][3, 3] != shroud_ch
 
 
 def test_scan_glow_expands_visibility_during_render():
@@ -736,11 +736,11 @@ def test_scan_glow_expands_visibility_during_render():
 
     shroud_ch = int(tile_types.SHROUD["ch"])
     # Center should be rendered
-    assert console.tiles_rgb["ch"][5, 5] != shroud_ch
+    assert console.rgb["ch"][5, 5] != shroud_ch
     # Cardinal direction at range should be rendered
-    assert console.tiles_rgb["ch"][8, 5] != shroud_ch
+    assert console.rgb["ch"][8, 5] != shroud_ch
     # Far corner outside Euclidean radius should be shroud
-    assert console.tiles_rgb["ch"][1, 1] == shroud_ch
+    assert console.rgb["ch"][1, 1] == shroud_ch
 
 
 def test_scan_glow_tints_green_at_full_intensity(monkeypatch):
@@ -756,7 +756,7 @@ def test_scan_glow_tints_green_at_full_intensity(monkeypatch):
     console_base = tcod.console.Console(10, 10, order="F")
     gm.visible[5, 5] = True
     gm.render(console_base, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10)
-    base_fg = console_base.tiles_rgb["fg"][5, 5].copy()
+    base_fg = console_base.rgb["fg"][5, 5].copy()
     gm.visible[5, 5] = False
 
     # Render with glow at t=0 (full intensity)
@@ -767,7 +767,7 @@ def test_scan_glow_tints_green_at_full_intensity(monkeypatch):
     console_glow = tcod.console.Console(10, 10, order="F")
     gm.render(console_glow, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10,
               scan_glow=scan_glow)
-    glow_fg = console_glow.tiles_rgb["fg"][5, 5]
+    glow_fg = console_glow.rgb["fg"][5, 5]
 
     # The green channel should be boosted
     assert glow_fg[1] >= base_fg[1]
@@ -789,14 +789,14 @@ def test_scan_glow_fades_over_time(monkeypatch):
     c1 = tcod.console.Console(10, 10, order="F")
     gm.render(c1, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10,
               scan_glow=scan_glow)
-    green_full = int(c1.tiles_rgb["fg"][5, 5][1])
+    green_full = int(c1.rgb["fg"][5, 5][1])
 
     # Half faded (t = duration/2)
     monkeypatch.setattr(time, "time", lambda: start + SCAN_GLOW_DURATION / 2)
     c2 = tcod.console.Console(10, 10, order="F")
     gm.render(c2, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10,
               scan_glow=scan_glow)
-    green_half = int(c2.tiles_rgb["fg"][5, 5][1])
+    green_half = int(c2.rgb["fg"][5, 5][1])
 
     # Half intensity should have less green tint than full
     assert green_half <= green_full
@@ -808,7 +808,7 @@ def test_scan_glow_fades_over_time(monkeypatch):
               scan_glow=scan_glow)
     # After expiry, tiles not in visible/explored should be shroud
     shroud_ch = int(tile_types.SHROUD["ch"])
-    assert c3.tiles_rgb["ch"][5, 5] == shroud_ch
+    assert c3.rgb["ch"][5, 5] == shroud_ch
 
 
 def test_scan_glow_reveals_entities():
@@ -829,7 +829,7 @@ def test_scan_glow_reveals_entities():
               scan_glow=scan_glow)
 
     # Entity at (7, 5) dist=2, should be rendered
-    assert chr(console.tiles_rgb["ch"][7, 5]) == "r"
+    assert chr(console.rgb["ch"][7, 5]) == "r"
 
 
 def test_scan_glow_marks_explored():

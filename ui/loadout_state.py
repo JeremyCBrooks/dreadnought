@@ -188,15 +188,17 @@ class LoadoutState(State):
         bh = min(35, ch - 6)
         bx = (cw - bw) // 2
         by = (ch - bh) // 2
-        console.draw_rect(bx, by, bw, bh, ch=32, bg=(15, 15, 30))
+        from ui.colors import DIALOG_BG, HEADER_TITLE
+        console.draw_rect(bx, by, bw, bh, ch=32, bg=DIALOG_BG)
 
-        console.print(x=bx + 2, y=by + 1, string="=== LOADOUT ===", fg=(255, 255, 200))
+        console.print(x=bx + 2, y=by + 1, string="=== LOADOUT ===", fg=HEADER_TITLE)
 
         # Panel tabs
         tab_y = by + 2
         tx = bx + 2
         for i, name in enumerate(_PANEL_NAMES):
-            color = (255, 255, 100) if i == self._panel else (100, 100, 120)
+            from ui.colors import TAB_SELECTED, TAB_UNSELECTED
+            color = TAB_SELECTED if i == self._panel else TAB_UNSELECTED
             console.print(x=tx, y=tab_y, string=name, fg=color)
             tx += len(name) + 2
 

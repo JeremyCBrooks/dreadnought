@@ -52,11 +52,10 @@ class CreatureAI:
 
     def _can_see_player(self, owner: Entity, engine: Engine) -> bool:
         import tcod.map
+        from game.helpers import chebyshev
         target = engine.player
-        dx = abs(owner.x - target.x)
-        dy = abs(owner.y - target.y)
         vision_radius = self._cfg(owner, "vision_radius")
-        if max(dx, dy) > vision_radius:
+        if chebyshev(owner.x, owner.y, target.x, target.y) > vision_radius:
             return False
         fov = tcod.map.compute_fov(
             engine.game_map.tiles["transparent"],
@@ -94,9 +93,9 @@ class CreatureAI:
         gm = engine.game_map
 
         # Check for closed door
+        from game.helpers import is_door_closed
         from world import tile_types
-        closed_id = int(tile_types.door_closed["tile_id"])
-        if int(gm.tiles["tile_id"][nx, ny]) == closed_id:
+        if is_door_closed(gm, nx, ny):
             if self._cfg(owner, "can_open_doors"):
                 gm.tiles[nx, ny] = tile_types.door_open
                 gm._hazards_dirty = True
@@ -119,8 +118,8 @@ class CreatureAI:
         gm = engine.game_map
         cost = np.array(gm.tiles["walkable"], dtype=np.int8)
         if self._cfg(owner, "can_open_doors"):
-            from world import tile_types
-            closed_id = int(tile_types.door_closed["tile_id"])
+            from game.helpers import get_door_tile_ids
+            closed_id, _ = get_door_tile_ids()
             door_mask = gm.tiles["tile_id"] == closed_id
             cost[door_mask] = 2
         for e in gm.entities:
@@ -203,10 +202,9 @@ class CreatureAI:
     # ---- attack ----
 
     def _attack(self, owner: Entity, engine: Engine) -> None:
+        from game.helpers import chebyshev
         target = engine.player
-        dx = target.x - owner.x
-        dy = target.y - owner.y
-        distance = max(abs(dx), abs(dy))
+        distance = chebyshev(owner.x, owner.y, target.x, target.y)
 
         if distance <= 1:
             from game.actions import MeleeAction
@@ -239,8 +237,8 @@ class CreatureAI:
 
     def _do_sleeping(self, owner: Entity, engine: Engine) -> None:
         if self._can_see_player(owner, engine):
-            dist = max(abs(owner.x - engine.player.x),
-                       abs(owner.y - engine.player.y))
+            from game.helpers import chebyshev
+            dist = chebyshev(owner.x, owner.y, engine.player.x, engine.player.y)
             if dist <= self._cfg(owner, "sleep_aggro_distance"):
                 owner.ai_state = "hunting"
                 owner.ai_target = (engine.player.x, engine.player.y)
@@ -252,8 +250,8 @@ class CreatureAI:
 
     def _do_wandering(self, owner: Entity, engine: Engine) -> None:
         if self._can_see_player(owner, engine):
-            dist = max(abs(owner.x - engine.player.x),
-                       abs(owner.y - engine.player.y))
+            from game.helpers import chebyshev
+            dist = chebyshev(owner.x, owner.y, engine.player.x, engine.player.y)
             if dist <= self._cfg(owner, "aggro_distance"):
                 owner.ai_state = "hunting"
                 owner.ai_target = (engine.player.x, engine.player.y)
@@ -263,6 +261,7 @@ class CreatureAI:
         self._wander(owner, engine)
 
     def _do_hunting(self, owner: Entity, engine: Engine) -> None:
+        from game.helpers import chebyshev
         target = engine.player
 
         # Check flee threshold
@@ -292,15 +291,13 @@ class CreatureAI:
 
         # Use real player pos only when we have current LOS
         if can_see:
-            dx = target.x - owner.x
-            dy = target.y - owner.y
+            goal_x, goal_y = target.x, target.y
         else:
-            dx = owner.ai_target[0] - owner.x
-            dy = owner.ai_target[1] - owner.y
-        distance = max(abs(dx), abs(dy))
+            goal_x, goal_y = owner.ai_target
+        distance = chebyshev(owner.x, owner.y, goal_x, goal_y)
 
         # Adjacent to real player: melee attack (not gated by energy)
-        real_dist = max(abs(target.x - owner.x), abs(target.y - owner.y))
+        real_dist = chebyshev(owner.x, owner.y, target.x, target.y)
         if real_dist <= 1:
             self._attack(owner, engine)
             return
@@ -327,7 +324,7 @@ class CreatureAI:
                 self._simple_chase(owner, engine, owner.ai_target)
                 break
             # After moving, check if now adjacent → attack and stop
-            real_dist = max(abs(target.x - owner.x), abs(target.y - owner.y))
+            real_dist = chebyshev(owner.x, owner.y, target.x, target.y)
             if real_dist <= 1:
                 self._attack(owner, engine)
                 break
@@ -350,8 +347,9 @@ class CreatureAI:
                 return
 
     def _do_fleeing(self, owner: Entity, engine: Engine) -> None:
+        from game.helpers import chebyshev
         target = engine.player
-        dist = max(abs(owner.x - target.x), abs(owner.y - target.y))
+        dist = chebyshev(owner.x, owner.y, target.x, target.y)
         aggro = self._cfg(owner, "aggro_distance")
 
         if dist > 2 * aggro:

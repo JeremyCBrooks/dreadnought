@@ -44,9 +44,7 @@ class NearbyEntry:
 
 _CAT_ORDER = {"creature": 0, "hazard": 1, "container": 2, "item": 3}
 
-
-def _chebyshev(x1: int, y1: int, x2: int, y2: int) -> int:
-    return max(abs(x1 - x2), abs(y1 - y2))
+from game.helpers import chebyshev as _chebyshev
 
 
 # ---- Scan-tier formatting (used by perform_area_scan) ----
@@ -223,7 +221,7 @@ def _collect_visible_hazard_sources(engine: Engine, px: int, py: int) -> List[Ne
             if int(gm.tiles["tile_id"][dx, dy]) == ext_open_tid:
                 dist = _chebyshev(px, py, dx, dy)
                 results.append(NearbyEntry(dx, dy, dist, "hazard",
-                                           "D", (255, 200, 100), "Airlock (open)"))
+                                           "+", (255, 200, 100), "Airlock (open)"))
 
     return results
 

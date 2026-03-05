@@ -162,11 +162,12 @@ class InventoryState(State):
         bh = min(30, ch - 10)
         bx = (cw - bw) // 2
         by = (ch - bh) // 2
-        console.draw_rect(bx, by, bw, bh, ch=32, bg=(15, 15, 30))
+        from ui.colors import DIALOG_BG, TAB_SELECTED, TAB_UNSELECTED
+        console.draw_rect(bx, by, bw, bh, ch=32, bg=DIALOG_BG)
 
         # Section tabs
-        loadout_color = (255, 255, 100) if self._section == _LOADOUT else (100, 100, 120)
-        tank_color = (255, 255, 100) if self._section == _COLLECTION else (100, 100, 120)
+        loadout_color = TAB_SELECTED if self._section == _LOADOUT else TAB_UNSELECTED
+        tank_color = TAB_SELECTED if self._section == _COLLECTION else TAB_UNSELECTED
         console.print(x=bx + 2, y=by + 1, string="LOADOUT", fg=loadout_color)
         console.print(x=bx + 12, y=by + 1, string="COLLECTION TANK", fg=tank_color)
 

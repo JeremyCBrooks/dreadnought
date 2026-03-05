@@ -253,13 +253,13 @@ class GameMap:
         vis_slice = self.visible[ms]
         exp_slice = self.explored[ms]
         if self.fully_lit:
-            console.tiles_rgb[cs] = np.select(
+            console.rgb[cs] = np.select(
                 condlist=[lit_slice, vis_slice, exp_slice],
                 choicelist=[self.tiles["light"][ms], self.tiles["dark"][ms], self.tiles["lit"][ms]],
                 default=tile_types.SHROUD,
             )
         else:
-            console.tiles_rgb[cs] = np.select(
+            console.rgb[cs] = np.select(
                 condlist=[lit_slice, vis_slice, exp_slice],
                 choicelist=[self.tiles["light"][ms], self.tiles["dark"][ms], self.tiles["dark"][ms]],
                 default=tile_types.SHROUD,
@@ -267,8 +267,8 @@ class GameMap:
 
         # Apply fading green tint to tiles within scan glow radius
         if glow_mask is not None and glow_alpha > 0:
-            fg = console.tiles_rgb["fg"][cs]
-            bg = console.tiles_rgb["bg"][cs]
+            fg = console.rgb["fg"][cs]
+            bg = console.rgb["bg"][cs]
             dim = 1.0 - 0.5 * glow_alpha
             fg_boost = int(60 * glow_alpha)
             bg_boost = int(25 * glow_alpha)
@@ -287,8 +287,8 @@ class GameMap:
         if self.light_sources:
             light_map = self.get_light_map()
             light_slice = light_map[ms]  # (rw, rh, 3)
-            fg = console.tiles_rgb["fg"][cs]
-            bg = console.tiles_rgb["bg"][cs]
+            fg = console.rgb["fg"][cs]
+            bg = console.rgb["bg"][cs]
             vis = self.visible[ms]
             exp = self.explored[ms]
             lit_mask = vis | exp
@@ -456,4 +456,4 @@ class GameMap:
                     bg = (3, 8, 15)
                 else:
                     bg = (12, 4, 8)
-                console.tiles_rgb[sx, sy]["bg"] = bg
+                console.rgb[sx, sy]["bg"] = bg

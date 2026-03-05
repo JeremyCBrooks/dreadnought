@@ -359,9 +359,8 @@ class RangedAction(Action):
             return 0
 
         # Check range
-        dx = abs(entity.x - self.target.x)
-        dy = abs(entity.y - self.target.y)
-        distance = max(dx, dy)
+        from game.helpers import chebyshev
+        distance = chebyshev(entity.x, entity.y, self.target.x, self.target.y)
         max_range = weapon.item.get("range", 5)
         if distance > max_range:
             engine.message_log.add_message("Target out of range.", (255, 100, 100))

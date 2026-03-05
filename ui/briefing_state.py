@@ -63,9 +63,10 @@ class BriefingState(State):
         bh = min(25, ch - 10)
         bx = (cw - bw) // 2
         by = (ch - bh) // 2
-        console.draw_rect(bx, by, bw, bh, ch=32, bg=(15, 15, 30))
+        from ui.colors import DIALOG_BG, HEADER_TITLE
+        console.draw_rect(bx, by, bw, bh, ch=32, bg=DIALOG_BG)
 
-        console.print(x=bx + 2, y=by + 1, string="=== MISSION BRIEFING ===", fg=(255, 255, 200))
+        console.print(x=bx + 2, y=by + 1, string="=== MISSION BRIEFING ===", fg=HEADER_TITLE)
 
         y = by + 3
         console.print(x=bx + 2, y=y, string=f"Location: {self.location.name}", fg=(200, 200, 255))
@@ -78,7 +79,8 @@ class BriefingState(State):
 
         y += 2
         threat = _threat_level(env, self.depth)
-        threat_color = {"LOW": (100, 255, 100), "MODERATE": (255, 255, 100), "HIGH": (255, 100, 100)}
+        from ui.colors import THREAT_LOW, THREAT_MODERATE, THREAT_HIGH
+        threat_color = {"LOW": THREAT_LOW, "MODERATE": THREAT_MODERATE, "HIGH": THREAT_HIGH}
         console.print(x=bx + 2, y=y, string=f"Threat Level: {threat}", fg=threat_color.get(threat, (200, 200, 200)))
 
         y += 2

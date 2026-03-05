@@ -229,6 +229,15 @@ class TacticalState(State):
         engine.scan_glow = None
 
     # ------------------------------------------------------------------
+    # Player death
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _handle_player_death(engine: Engine, cause: str) -> None:
+        from ui.game_over_state import GameOverState
+        engine.switch_state(GameOverState(victory=False, cause=cause))
+
+    # ------------------------------------------------------------------
     # Input
     # ------------------------------------------------------------------
 
@@ -319,8 +328,7 @@ class TacticalState(State):
             return True
 
         if engine.player.fighter.hp <= 0:
-            from ui.game_over_state import GameOverState
-            engine.switch_state(GameOverState(victory=False, cause="Killed in action."))
+            self._handle_player_death(engine, "Killed in action.")
             return True
 
         for _ in range(consumed):
@@ -340,12 +348,11 @@ class TacticalState(State):
             trigger_decompression, process_decompression_step,
         )
         from game.hazards import apply_dot_effects
-        from ui.game_over_state import GameOverState
 
         apply_environment_tick(engine)
         apply_dot_effects(engine)
         if engine.player.fighter.hp <= 0:
-            engine.switch_state(GameOverState(victory=False, cause="Succumbed to the environment."))
+            self._handle_player_death(engine, "Succumbed to the environment.")
             return
 
         # Trigger new decompression events
@@ -380,7 +387,7 @@ class TacticalState(State):
 
         # Check for player death from decompression impact
         if engine.player.fighter.hp <= 0:
-            engine.switch_state(GameOverState(victory=False, cause="Crushed by explosive decompression."))
+            self._handle_player_death(engine, "Crushed by explosive decompression.")
             return
 
         # Player drift
@@ -392,7 +399,7 @@ class TacticalState(State):
                     "You drift beyond reach... lost to the void.", (255, 0, 0)
                 )
                 engine.player.fighter.hp = 0
-                engine.switch_state(GameOverState(victory=False, cause="Lost to the void."))
+                self._handle_player_death(engine, "Lost to the void.")
                 return
             # Death on hull collision
             if not engine.game_map.tiles["walkable"][nx, ny] and not engine.game_map.tiles["transparent"][nx, ny]:
@@ -400,7 +407,7 @@ class TacticalState(State):
                     "You slam into the hull. The impact is fatal.", (255, 0, 0)
                 )
                 engine.player.fighter.hp = 0
-                engine.switch_state(GameOverState(victory=False, cause="Slammed into the hull."))
+                self._handle_player_death(engine, "Slammed into the hull.")
                 return
             engine.player.x = nx
             engine.player.y = ny
@@ -448,7 +455,7 @@ class TacticalState(State):
 
         if engine.player.fighter.hp <= 0:
             engine.message_log.add_message("You died.", (255, 0, 0))
-            engine.switch_state(GameOverState(victory=False, cause="Overwhelmed by hostiles."))
+            self._handle_player_death(engine, "Overwhelmed by hostiles.")
 
     # ------------------------------------------------------------------
     # Look mode
@@ -541,8 +548,7 @@ class TacticalState(State):
                 self._ranged_cursor = None
                 if consumed:
                     if engine.player.fighter.hp <= 0:
-                        from ui.game_over_state import GameOverState
-                        engine.switch_state(GameOverState(victory=False, cause="Killed in a firefight."))
+                        self._handle_player_death(engine, "Killed in a firefight.")
                         return True
                     self._after_player_turn(engine)
                     if engine.current_state is not self:
@@ -606,33 +612,21 @@ class TacticalState(State):
             dx, dy = move
             self._interact_pending = False
 
-            # Determine what's at the chosen offset
-            from world import tile_types as tt
-            nx, ny = engine.player.x + dx, engine.player.y + dy
-            if engine.game_map.in_bounds(nx, ny):
-                tid = int(engine.game_map.tiles["tile_id"][nx, ny])
-                door_ids = {
-                    int(tt.door_closed["tile_id"]),
-                    int(tt.door_open["tile_id"]),
-                    int(tt.airlock_ext_closed["tile_id"]),
-                    int(tt.airlock_ext_open["tile_id"]),
-                }
-                switch_ids = {
-                    int(tt.airlock_switch_off["tile_id"]),
-                    int(tt.airlock_switch_on["tile_id"]),
-                }
-                if tid in door_ids:
-                    from game.actions import ToggleDoorAction
-                    consumed = ToggleDoorAction(dx, dy).perform(engine, engine.player)
-                elif tid in switch_ids:
-                    from game.actions import ToggleSwitchAction
-                    consumed = ToggleSwitchAction(dx, dy).perform(engine, engine.player)
-                elif engine.game_map.get_interactable_at(nx, ny):
-                    from game.actions import InteractAction
-                    consumed = InteractAction(dx, dy).perform(engine, engine.player)
-                else:
-                    engine.message_log.add_message("Nothing there.", (150, 150, 150))
-                    return True
+            # Determine what's at the chosen offset using the shared helper
+            kind = None
+            for adx, ady, akind in self._adjacent_interact_dirs(engine):
+                if adx == dx and ady == dy:
+                    kind = akind
+                    break
+            if kind == "door":
+                from game.actions import ToggleDoorAction
+                consumed = ToggleDoorAction(dx, dy).perform(engine, engine.player)
+            elif kind == "switch":
+                from game.actions import ToggleSwitchAction
+                consumed = ToggleSwitchAction(dx, dy).perform(engine, engine.player)
+            elif kind == "entity":
+                from game.actions import InteractAction
+                consumed = InteractAction(dx, dy).perform(engine, engine.player)
             else:
                 engine.message_log.add_message("Nothing there.", (150, 150, 150))
                 return True
@@ -795,15 +789,17 @@ class TacticalState(State):
         else:
             loc_label = "DREADNOUGHT"
         console.print(x=x, y=1, string=loc_label, fg=(180, 180, 255))
-        console.print(x=x, y=2, string="-" * (layout.stats_w - 2), fg=(60, 60, 80))
+        from ui.colors import HEADER_SEP
+        console.print(x=x, y=2, string="-" * (layout.stats_w - 2), fg=HEADER_SEP)
 
+        from ui.colors import HP_GREEN, HP_YELLOW, HP_RED
         hp_ratio = p.fighter.hp / max(1, p.fighter.max_hp)
         if hp_ratio > 0.5:
-            hp_color = (0, 255, 0)
+            hp_color = HP_GREEN
         elif hp_ratio > 0.25:
-            hp_color = (255, 255, 0)
+            hp_color = HP_YELLOW
         else:
-            hp_color = (255, 0, 0)
+            hp_color = HP_RED
         console.print(x=x, y=4, string=f"HP: {p.fighter.hp}/{p.fighter.max_hp}", fg=hp_color)
         eff_def = p.fighter.defense + (engine.suit.defense_bonus if engine.suit else 0)
         console.print(x=x, y=5, string=f"DEF: {eff_def}", fg=(200, 200, 200))
