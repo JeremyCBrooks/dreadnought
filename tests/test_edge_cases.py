@@ -16,7 +16,7 @@ from tests.conftest import make_engine, make_arena, MockEngine
 
 def test_scan_tier3_shows_details():
     engine = make_engine()
-    scanner = Entity(name="Military Scanner", item={"type": "scanner", "scanner_tier": 3})
+    scanner = Entity(name="Military Scanner", item={"type": "scanner", "scanner_tier": 3, "range": 8})
     engine.player.loadout = Loadout(tool=scanner)
     hazard = {"type": "electric", "damage": 3, "severity": "severe", "equipment_damage": True}
     inter = Entity(
@@ -25,20 +25,21 @@ def test_scan_tier3_shows_details():
     )
     engine.game_map.entities.append(inter)
     ScanAction().perform(engine, engine.player)
-    msgs = [m[0] for m in engine.message_log.messages]
-    # Tier 3 shows type and severity
-    assert any("Electric" in m and "severe" in m for m in msgs)
+    # Tier 3 shows hazard type in container label
+    containers = [e for e in engine.scan_results.entries if e.category == "container"]
+    assert any("electric" in c.label for c in containers)
     assert inter.interactable["scanned"] is True
 
 
 def test_scan_nothing_nearby():
+    """Area scan with nothing in range returns 1 (costs turn) and logs all clear."""
     engine = make_engine()
-    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1})
+    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8})
     engine.player.loadout = Loadout(tool=scanner)
     result = ScanAction().perform(engine, engine.player)
-    assert result == 0
+    assert result == 1
     msgs = [m[0] for m in engine.message_log.messages]
-    assert any("Nothing to scan" in m for m in msgs)
+    assert any("all clear" in m.lower() for m in msgs)
 
 
 # --- Melee with missing fighter ---

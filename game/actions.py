@@ -247,57 +247,29 @@ class InteractAction(Action):
 
 
 class ScanAction(Action):
-    """Use scanner tool on an adjacent interactable; tiered reveal of hazards. Costs 1 turn."""
-
-    def __init__(self, dx: int = 0, dy: int = 0) -> None:
-        self.dx = dx
-        self.dy = dy
+    """Area scan using equipped scanner. Populates engine.scan_results. Costs 1 turn."""
 
     def perform(self, engine: Engine, entity: Entity) -> int:
-        # Check loadout tool slot first (player), fallback to inventory (enemies)
-        scanner = None
-        if getattr(entity, "loadout", None):
-            scanner = entity.loadout.get_scanner()
-        if not scanner:
-            for e in entity.inventory:
-                if e.item and e.item.get("type") == "scanner":
-                    scanner = e
-                    break
-        if not scanner:
-            engine.message_log.add_message("You need a scanner to scan.", (150, 150, 150))
+        from game.scanner import perform_area_scan
+        results = perform_area_scan(engine, entity)
+        if results is None:
             return 0
-
-        if self.dx or self.dy:
-            target = engine.game_map.get_interactable_at(
-                entity.x + self.dx, entity.y + self.dy
+        import time
+        engine.scan_results = results
+        engine.scan_glow = {
+            "cx": entity.x, "cy": entity.y,
+            "radius": results.scanner_range,
+            "start_time": time.time(),
+        }
+        n = len(results.entries)
+        if n:
+            engine.message_log.add_message(
+                f"Scan complete: {n} contact{'s' if n != 1 else ''}.",
+                (100, 200, 255),
             )
         else:
-            target = _adjacent_interactable(engine, entity)
-        if not target or not target.interactable:
-            engine.message_log.add_message("Nothing to scan here.", (100, 100, 100))
-            return 0
-
-        tier = scanner.item.get("scanner_tier", 1)
-        hazard = target.interactable.get("hazard")
-        target.interactable["scanned"] = True
-
-        if not hazard:
-            engine.message_log.add_message("Scan clear. Safe to interact.", (0, 255, 100))
-            return 1
-
-        if tier == 1:
-            engine.message_log.add_message("WARNING: Hazard detected.", (255, 200, 0))
-        elif tier == 2:
-            htype = hazard.get("type", "unknown")
-            sev = hazard.get("severity", "moderate")
             engine.message_log.add_message(
-                f"WARNING: {htype.title()} hazard ({sev}).", (255, 220, 0)
-            )
-        else:
-            htype = hazard.get("type", "unknown")
-            sev = hazard.get("severity", "moderate")
-            engine.message_log.add_message(
-                f"{htype.title()} hazard ({sev}). Proceed with caution.", (255, 255, 150)
+                "Scan complete: all clear.", (100, 200, 255)
             )
         return 1
 

@@ -54,6 +54,8 @@ class Engine:
         self._saved_player: Optional[dict] = None
         # Persisted areas: (location_name, depth) -> {game_map, rooms, exit_pos, seed}
         self.area_cache: Dict[Tuple[str, int], dict] = {}
+        self.scan_results: Any = None
+        self.scan_glow: Optional[dict] = None
 
     @property
     def current_state(self) -> Optional[State]:
@@ -113,9 +115,10 @@ class Engine:
                 # re-render the new state instead of blocking for input.
                 if self.current_state is not state_before:
                     continue
-                # Short timeout when space tiles need animation; None (blocking) otherwise
+                # Short timeout when animation is needed; None (blocking) otherwise
                 _ANIM_TIMEOUT = 0.1
-                timeout = _ANIM_TIMEOUT if (self.game_map and getattr(self.game_map, 'has_space', False)) else None
+                needs_anim = (self.game_map and getattr(self.game_map, 'has_space', False)) or self.scan_glow
+                timeout = _ANIM_TIMEOUT if needs_anim else None
                 for event in tcod.event.wait(timeout=timeout):
                     if isinstance(event, tcod.event.Quit):
                         return

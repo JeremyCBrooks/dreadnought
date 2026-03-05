@@ -159,6 +159,14 @@ class GameMap:
                 )
         return lines
 
+    def apply_scan_glow(self, cx: int, cy: int, radius: int) -> None:
+        """Mark tiles within Euclidean radius as visible and explored."""
+        ix = np.arange(self.width)[:, np.newaxis]
+        iy = np.arange(self.height)[np.newaxis, :]
+        mask = (ix - cx) ** 2 + (iy - cy) ** 2 <= radius * radius
+        self.visible |= mask
+        self.explored |= mask
+
     def update_fov(self, x: int, y: int, radius: int | None = None) -> None:
         import tcod.map
 
@@ -188,6 +196,8 @@ class GameMap:
 
         self.explored |= self.visible
 
+    SCAN_GLOW_DURATION = 3.0
+
     def render(
         self,
         console,
@@ -197,6 +207,7 @@ class GameMap:
         vp_y: int,
         vp_w: int,
         vp_h: int,
+        scan_glow: Optional[dict] = None,
     ) -> None:
         cam_x = max(0, min(cam_x, max(0, self.width - vp_w)))
         cam_y = max(0, min(cam_y, max(0, self.height - vp_h)))
@@ -209,6 +220,20 @@ class GameMap:
         ms = (slice(cam_x, cam_x + rw), slice(cam_y, cam_y + rh))
         cs = (slice(vp_x, vp_x + rw), slice(vp_y, vp_y + rh))
 
+        # Compute scan glow fade alpha and Euclidean mask
+        glow_mask = None
+        glow_alpha = 0.0
+        if scan_glow:
+            elapsed = time.time() - scan_glow["start_time"]
+            if elapsed < self.SCAN_GLOW_DURATION:
+                glow_alpha = 1.0 - elapsed / self.SCAN_GLOW_DURATION
+                cx, cy = scan_glow["cx"], scan_glow["cy"]
+                radius = scan_glow["radius"]
+                ix = np.arange(cam_x, cam_x + rw)[:, np.newaxis]
+                iy = np.arange(cam_y, cam_y + rh)[np.newaxis, :]
+                glow_mask = (ix - cx) ** 2 + (iy - cy) ** 2 <= radius * radius
+
+        # Use normal visibility (scan glow visibility is applied via apply_scan_glow)
         if self.fully_lit:
             console.tiles_rgb[cs] = np.select(
                 condlist=[self.visible[ms], self.explored[ms]],
@@ -222,6 +247,24 @@ class GameMap:
                 default=tile_types.SHROUD,
             )
 
+        # Apply fading green tint to tiles within scan glow radius
+        if glow_mask is not None and glow_alpha > 0:
+            fg = console.tiles_rgb["fg"][cs]
+            bg = console.tiles_rgb["bg"][cs]
+            dim = 1.0 - 0.5 * glow_alpha
+            fg_boost = int(60 * glow_alpha)
+            bg_boost = int(25 * glow_alpha)
+            fg[glow_mask, 0] = (fg[glow_mask, 0] * dim).astype(np.uint8)
+            fg[glow_mask, 1] = np.minimum(
+                fg[glow_mask, 1].astype(np.int16) + fg_boost, 255
+            ).astype(np.uint8)
+            fg[glow_mask, 2] = (fg[glow_mask, 2] * dim).astype(np.uint8)
+            bg[glow_mask, 0] = (bg[glow_mask, 0] * dim).astype(np.uint8)
+            bg[glow_mask, 1] = np.minimum(
+                bg[glow_mask, 1].astype(np.int16) + bg_boost, 255
+            ).astype(np.uint8)
+            bg[glow_mask, 2] = (bg[glow_mask, 2] * dim).astype(np.uint8)
+
         # Two-pass: non-blocking (items) first, then blocking entities on top
         for entity in self.entities:
             if entity.blocks_movement:
@@ -233,7 +276,9 @@ class GameMap:
             sx = vp_x + entity.x - cam_x
             sy = vp_y + entity.y - cam_y
             if vp_x <= sx < vp_x + rw and vp_y <= sy < vp_y + rh:
-                console.print(x=sx, y=sy, string=entity.char, fg=entity.color)
+                color = self._glow_tint_color(entity.color, entity.x, entity.y,
+                                              glow_mask, glow_alpha, cam_x, cam_y)
+                console.print(x=sx, y=sy, string=entity.char, fg=color)
         for entity in self.entities:
             if not entity.blocks_movement:
                 continue
@@ -244,7 +289,25 @@ class GameMap:
             sx = vp_x + entity.x - cam_x
             sy = vp_y + entity.y - cam_y
             if vp_x <= sx < vp_x + rw and vp_y <= sy < vp_y + rh:
-                console.print(x=sx, y=sy, string=entity.char, fg=entity.color)
+                color = self._glow_tint_color(entity.color, entity.x, entity.y,
+                                              glow_mask, glow_alpha, cam_x, cam_y)
+                console.print(x=sx, y=sy, string=entity.char, fg=color)
+
+    @staticmethod
+    def _glow_tint_color(color: Tuple[int, int, int], ex: int, ey: int,
+                         glow_mask: Optional[np.ndarray], glow_alpha: float,
+                         cam_x: int, cam_y: int) -> Tuple[int, int, int]:
+        """If entity is within scan glow radius, apply fading green tint."""
+        if glow_mask is None or glow_alpha <= 0:
+            return color
+        lx, ly = ex - cam_x, ey - cam_y
+        if glow_mask[lx, ly]:
+            dim = 1.0 - 0.5 * glow_alpha
+            r = int(color[0] * dim)
+            g = min(int(color[1] + 60 * glow_alpha), 255)
+            b = int(color[2] * dim)
+            return (r, g, b)
+        return color
 
     def animate_space(
         self,

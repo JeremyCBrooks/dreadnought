@@ -19,9 +19,9 @@
     {"char": "O", "color": [100, 200, 255], "name": "O2 Canister", "type": "o2", "value": 20}
   ],
   "scanners": [
-    {"char": "]", "color": [100, 200, 255], "name": "Basic Scanner", "scanner_tier": 1},
-    {"char": "]", "color": [150, 230, 255], "name": "Advanced Scanner", "scanner_tier": 2},
-    {"char": "]", "color": [200, 255, 255], "name": "Military Scanner", "scanner_tier": 3}
+    {"char": "]", "color": [100, 200, 255], "name": "Basic Scanner", "scanner_tier": 1, "range": 8},
+    {"char": "]", "color": [150, 230, 255], "name": "Advanced Scanner", "scanner_tier": 2, "range": 14},
+    {"char": "]", "color": [200, 255, 255], "name": "Military Scanner", "scanner_tier": 3, "range": 20}
   ],
   "interactables": [
     {"char": "&", "color": [100, 200, 255], "name": "Console", "placement": "floor"},

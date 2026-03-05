@@ -171,6 +171,12 @@ class TacticalState(State):
             if w and w.item and w.item.get("weapon_class", "melee") == "melee":
                 player.fighter.power = player.fighter.base_power + w.item.get("value", 0)
 
+        # Debug: inject starting inventory on first entry (no saved player)
+        if not engine._saved_player:
+            import debug
+            for item in debug.build_debug_inventory():
+                player.inventory.append(item)
+
         game_map.update_fov(player.x, player.y)
 
         engine.message_log.add_message(
@@ -219,6 +225,8 @@ class TacticalState(State):
                 engine.area_cache[key]["exit_pos"] = self.exit_pos
         engine.game_map = None
         engine.player = None
+        engine.scan_results = None
+        engine.scan_glow = None
 
     # ------------------------------------------------------------------
     # Input
@@ -320,7 +328,7 @@ class TacticalState(State):
             if engine.current_state is not self:
                 return True
 
-        engine.game_map.update_fov(engine.player.x, engine.player.y)
+        self._update_fov_with_scan(engine)
         if moved:
             self._update_ground_underfoot(engine)
         return True
@@ -539,7 +547,7 @@ class TacticalState(State):
                     self._after_player_turn(engine)
                     if engine.current_state is not self:
                         return True
-                    engine.game_map.update_fov(engine.player.x, engine.player.y)
+                    self._update_fov_with_scan(engine)
                 self._update_ground_underfoot(engine)
             else:
                 engine.message_log.add_message("No target at cursor.", (150, 150, 150))
@@ -638,7 +646,7 @@ class TacticalState(State):
                     self._after_player_turn(engine)
                     if engine.current_state is not self:
                         return True
-                engine.game_map.update_fov(engine.player.x, engine.player.y)
+                self._update_fov_with_scan(engine)
             return True
 
         self._interact_pending = False
@@ -686,6 +694,39 @@ class TacticalState(State):
         return None
 
     # ------------------------------------------------------------------
+    # Scan glow lifecycle
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _update_fov_with_scan(engine: Engine) -> None:
+        """Recompute FOV and re-apply scan glow visibility if active."""
+        engine.game_map.update_fov(engine.player.x, engine.player.y)
+        if engine.scan_glow:
+            import time as _time
+            elapsed = _time.time() - engine.scan_glow["start_time"]
+            from world.game_map import GameMap
+            if elapsed < GameMap.SCAN_GLOW_DURATION:
+                sg = engine.scan_glow
+                engine.game_map.apply_scan_glow(sg["cx"], sg["cy"], sg["radius"])
+            else:
+                engine.scan_glow = None
+
+    @staticmethod
+    def _update_scan_glow(engine: Engine) -> None:
+        """Check scan glow expiry, re-apply visibility on each render frame."""
+        if not engine.scan_glow:
+            return
+        import time as _time
+        elapsed = _time.time() - engine.scan_glow["start_time"]
+        from world.game_map import GameMap
+        if elapsed >= GameMap.SCAN_GLOW_DURATION:
+            engine.scan_glow = None
+            engine.game_map.update_fov(engine.player.x, engine.player.y)
+        else:
+            sg = engine.scan_glow
+            engine.game_map.apply_scan_glow(sg["cx"], sg["cy"], sg["radius"])
+
+    # ------------------------------------------------------------------
     # Rendering
     # ------------------------------------------------------------------
 
@@ -705,7 +746,7 @@ class TacticalState(State):
                 self._after_player_turn(engine)
                 if engine.current_state is not self:
                     return
-                engine.game_map.update_fov(engine.player.x, engine.player.y)
+                self._update_fov_with_scan(engine)
 
         layout = self._layout
         cam_x = engine.player.x - layout.viewport_w // 2
@@ -713,9 +754,13 @@ class TacticalState(State):
         cam_x = max(0, min(cam_x, max(0, engine.game_map.width - layout.viewport_w)))
         cam_y = max(0, min(cam_y, max(0, engine.game_map.height - layout.viewport_h)))
 
+        # Manage scan glow lifecycle
+        self._update_scan_glow(engine)
+
         engine.game_map.render(
             console, cam_x, cam_y,
             vp_x=0, vp_y=0, vp_w=layout.viewport_w, vp_h=layout.viewport_h,
+            scan_glow=engine.scan_glow,
         )
 
         engine.game_map.animate_space(
@@ -878,30 +923,25 @@ class TacticalState(State):
                 fg=color,
             )
 
-        # NEARBY creatures (below UNDERFOOT)
-        gm = engine.game_map
-        nearby = [
-            e for e in gm.entities
-            if e.fighter and e.ai and e is not p
-            and gm.in_bounds(e.x, e.y) and gm.visible[e.x, e.y]
-        ]
-        if nearby:
-            nearby_y = ground_header_y + 1 + min(len(wrapped), ground_max_lines) + 1
-            nearby.sort(key=lambda e: max(abs(e.x - p.x), abs(e.y - p.y)))
-            console.print(x=x, y=nearby_y, string="NEARBY:", fg=(180, 180, 200))
-            nearby_y += 1
-            _state_indicators = {
-                "sleeping": ("Zzz", (80, 80, 180)),
-                "wandering": ("...", (140, 140, 140)),
-                "hunting": ("!!!", (255, 80, 80)),
-                "fleeing": ("~~~", (255, 255, 80)),
+        # NEARBY section (below UNDERFOOT) — unified visible + scan data
+        from game.scanner import build_nearby_entries
+        nearby_y = ground_header_y + 1 + min(len(wrapped), ground_max_lines) + 1
+        nearby_entries = build_nearby_entries(engine)
+        if nearby_entries:
+            _cat_colors = {
+                "creature": (255, 80, 80),
+                "hazard": (255, 255, 0),
+                "container": (80, 200, 80),
+                "item": (100, 200, 255),
             }
-            for e in nearby[:5]:
-                st = getattr(e, "ai_state", "wandering")
-                indicator, color = _state_indicators.get(st, ("...", (140, 140, 140)))
-                hp_str = f"{e.fighter.hp}/{e.fighter.max_hp}"
-                label = f"{e.char} {e.name[:8]:<8} {hp_str:<5} {indicator}"
-                console.print(x=x, y=nearby_y, string=label[:layout.stats_w - 2], fg=color)
+            header = "NEARBY:"
+            header_color = (180, 180, 200)
+            console.print(x=x, y=nearby_y, string=header, fg=header_color)
+            nearby_y += 1
+            for entry in nearby_entries[:8]:
+                color = _cat_colors.get(entry.category, (180, 180, 200))
+                line = f"{entry.display_char} {entry.label} {entry.distance}"
+                console.print(x=x, y=nearby_y, string=line[:layout.stats_w - 2], fg=color)
                 nearby_y += 1
 
         # --- Controls ---
