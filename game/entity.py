@@ -34,6 +34,7 @@ class Entity:
         ai: Any = None,
         item: Optional[dict] = None,
         interactable: Optional[dict] = None,
+        organic: bool = True,
     ) -> None:
         self.x = x
         self.y = y
@@ -45,6 +46,7 @@ class Entity:
         self.ai = ai
         self.item = item
         self.interactable = interactable  # {kind, hazard?: {type, severity, damage, equipment_damage}, loot?, scanned?}
+        self.organic = organic
         self.inventory: List[Entity] = []
         self.collection_tank: List[Entity] = []
         self.loadout: Optional[Loadout] = None
@@ -52,3 +54,4 @@ class Entity:
         self.drift_direction: Tuple[int, int] = (0, 0)
         self.decompression_moves: int = 0
         self.decompression_direction: Tuple[int, int] = (0, 0)
+        self.move_cooldown: int = 0

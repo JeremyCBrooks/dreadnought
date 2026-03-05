@@ -1,9 +1,9 @@
 {
   "enemies": [
-    {"char": "r", "color": [127, 127, 0], "name": "Rat", "hp": 1, "defense": 0, "power": 1},
-    {"char": "b", "color": [127, 0, 180], "name": "Bot", "hp": 3, "defense": 0, "power": 2},
-    {"char": "p", "color": [200, 50, 50], "name": "Pirate", "hp": 5, "defense": 1, "power": 3},
-    {"char": "d", "color": [150, 150, 200], "name": "Security Drone", "hp": 4, "defense": 0, "power": 3}
+    {"char": "r", "color": [127, 127, 0], "name": "Rat", "hp": 1, "defense": 0, "power": 1, "organic": true},
+    {"char": "b", "color": [127, 0, 180], "name": "Bot", "hp": 3, "defense": 0, "power": 2, "organic": false},
+    {"char": "p", "color": [200, 50, 50], "name": "Pirate", "hp": 5, "defense": 1, "power": 3, "organic": true},
+    {"char": "d", "color": [150, 150, 200], "name": "Security Drone", "hp": 4, "defense": 0, "power": 3, "organic": false}
   ],
   "items": [
     {"char": "!", "color": [0, 255, 100], "name": "Med-kit", "type": "heal", "value": 5},

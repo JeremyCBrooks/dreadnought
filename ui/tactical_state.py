@@ -99,9 +99,10 @@ class TacticalState(State):
         seed = _area_seed(loc_name, self.depth)
         max_enemies = max(1, 1 + self.depth)
 
-        # Environment and suit (Phase 3): from location or default vacuum
+        # Environment and suit: from location data (galaxy sets vacuum for
+        # derelicts/asteroids; starbases are pressurised unless breached).
         env = getattr(self.location, "environment", None)
-        engine.environment = dict(env) if env else {"vacuum": 1}
+        engine.environment = dict(env) if env else {}
         engine.suit = getattr(engine, "suit", None) or EVA_SUIT
         engine.suit.refill_pools()
 
@@ -357,6 +358,17 @@ class TacticalState(State):
             # Clear pull directions when no entities are still being pulled
             if not any(e.decompression_moves > 0 for e in engine.game_map.entities):
                 engine.game_map._pull_directions = None
+
+        # Clean up entities killed by decompression impact
+        for entity in list(engine.game_map.entities):
+            if entity is engine.player:
+                continue
+            if entity.fighter and entity.fighter.hp <= 0:
+                engine.message_log.add_message(
+                    f"The {entity.name} is crushed by the decompression!",
+                    (200, 200, 200),
+                )
+                engine.game_map.entities.remove(entity)
 
         # Check for player death from decompression impact
         if engine.player.fighter.hp <= 0:
@@ -752,17 +764,8 @@ class TacticalState(State):
         console.print(x=x, y=5, string=f"DEF: {eff_def}", fg=(200, 200, 200))
         console.print(x=x, y=6, string=f"POW: {p.fighter.power}", fg=(200, 200, 200))
 
-        from game.actions import _get_equipped_ranged_weapon
-        wpn = _get_equipped_ranged_weapon(p)
-        if wpn:
-            ammo = wpn.item.get("ammo", 0)
-            max_ammo = wpn.item.get("max_ammo", ammo)
-            console.print(x=x, y=7, string=f"WPN: {wpn.name} {ammo}/{max_ammo}", fg=(200, 180, 100))
-        else:
-            console.print(x=x, y=7, string="WPN: --", fg=(80, 80, 80))
-
         # Suit resource bars (Phase 3)
-        row = 9
+        row = 8
         if engine.suit and engine.environment:
             console.print(x=x, y=row, string="SUIT:", fg=(180, 180, 200))
             row += 1
@@ -833,11 +836,19 @@ class TacticalState(State):
         lo = p.loadout
         inv_width = layout.stats_w - 2
         if lo:
-            wpn_name = lo.weapon.name if lo.weapon else "--"
+            if lo.weapon:
+                ammo = lo.weapon.item.get("ammo")
+                max_ammo = lo.weapon.item.get("max_ammo")
+                if ammo is not None and max_ammo is not None:
+                    wpn_label = f"WPN: {lo.weapon.name} {ammo}/{max_ammo}"
+                else:
+                    wpn_label = f"WPN: {lo.weapon.name}"
+            else:
+                wpn_label = "WPN: --"
             tool_name = lo.tool.name if lo.tool else "--"
             c1_name = lo.consumable1.name if lo.consumable1 else "--"
             c2_name = lo.consumable2.name if lo.consumable2 else "--"
-            console.print(x=x, y=row, string=f"WPN: {wpn_name}"[:inv_width], fg=(150, 150, 255))
+            console.print(x=x, y=row, string=wpn_label[:inv_width], fg=(150, 150, 255))
             console.print(x=x, y=row + 1, string=f"TOOL: {tool_name}"[:inv_width], fg=(150, 150, 255))
             console.print(x=x, y=row + 2, string=f"C1: {c1_name}"[:inv_width], fg=(150, 150, 255))
             console.print(x=x, y=row + 3, string=f"C2: {c2_name}"[:inv_width], fg=(150, 150, 255))
@@ -873,6 +884,7 @@ class TacticalState(State):
             dx = abs(p.x - cx)
             dy = abs(p.y - cy)
             dist = max(dx, dy)
+            from game.actions import _get_equipped_ranged_weapon
             wpn_ctrl = _get_equipped_ranged_weapon(p)
             max_range = wpn_ctrl.item.get("range", 5) if wpn_ctrl else 0
             in_range = dist <= max_range

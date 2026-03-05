@@ -7,9 +7,17 @@ from game.suit import Suit
 
 def _make_suited_engine():
     """Engine with vacuum environment and a suit that has O2 pool."""
+    import numpy as np
     suit = Suit(name="Test Suit", resistances={"vacuum": 10}, defense_bonus=0)
     suit.refill_pools()
-    return make_engine(env={"vacuum": 1}, suit=suit)
+    engine = make_engine(env={"vacuum": 1}, suit=suit)
+    # Vacuum is spatial: add an overlay covering the whole map
+    gm = engine.game_map
+    gm.hazard_overlays["vacuum"] = np.full(
+        (gm.width, gm.height), fill_value=True, order="F"
+    )
+    gm._hazards_dirty = False
+    return engine
 
 
 class TestGodMode:

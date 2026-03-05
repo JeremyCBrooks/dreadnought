@@ -17,6 +17,11 @@ NON_DAMAGING_HAZARDS = {"low_gravity"}
 # Hazards that apply globally (not per-tile).
 GLOBAL_HAZARDS = {"low_gravity"}
 
+# Hazards that are purely spatial: they ONLY apply where an overlay marks
+# affected tiles.  If the overlay doesn't exist (no active sources) the
+# hazard has no effect — it never falls back to global application.
+SPATIAL_HAZARDS = {"vacuum"}
+
 
 def has_low_gravity(engine: Engine) -> bool:
     """Return True if the current environment has active low gravity."""
@@ -369,7 +374,9 @@ def apply_environment_tick(engine: Engine) -> None:
             overlay = engine.game_map.hazard_overlays.get(hazard_type)
             if overlay is not None and not overlay[px, py]:
                 continue
-            # No overlay means no spatial tracking — apply globally
+            # Spatial hazards require an overlay; no overlay = no effect.
+            if overlay is None and hazard_type in SPATIAL_HAZARDS:
+                continue
 
         max_turns = suit.resistances.get(hazard_type, 0)
         current = suit.current_pools.get(hazard_type, 0)
@@ -397,7 +404,10 @@ def apply_environment_tick(engine: Engine) -> None:
 
 
 def apply_environment_tick_entity(engine: Engine, entity: Entity) -> None:
-    """Apply per-tile hazard damage to a non-player entity (enemies have no suit)."""
+    """Apply per-tile hazard damage to a non-player entity (enemies have no suit).
+
+    Non-organic entities (bots, drones) are immune to vacuum.
+    """
     if not entity.fighter or entity.fighter.hp <= 0:
         return
     if entity is engine.player:
@@ -416,10 +426,16 @@ def apply_environment_tick_entity(engine: Engine, entity: Entity) -> None:
         if severity <= 0:
             continue
 
+        # Non-organic entities are immune to vacuum
+        if hazard_type == "vacuum" and not entity.organic:
+            continue
+
         # Per-tile check
         if hazard_type not in GLOBAL_HAZARDS:
             overlay = engine.game_map.hazard_overlays.get(hazard_type)
             if overlay is not None and not overlay[ex, ey]:
+                continue
+            if overlay is None and hazard_type in SPATIAL_HAZARDS:
                 continue
 
         entity.fighter.hp -= 1

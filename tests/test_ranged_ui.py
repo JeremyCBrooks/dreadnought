@@ -57,6 +57,7 @@ def test_stats_show_equipped_ranged_weapon():
 
 def test_stats_no_ranged_weapon():
     engine = make_engine()
+    engine.player.loadout = Loadout()
     state = TacticalState()
     console, calls = _mock_console()
     layout = _make_layout()

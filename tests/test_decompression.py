@@ -740,3 +740,75 @@ class TestDoorToVacuumRoom:
         assert entity.decompression_moves == 0, (
             "Entity too far from door should not be tagged"
         )
+
+
+class TestDecompressionCleanup:
+    """Entities killed by decompression impact must be removed from the map."""
+
+    def test_entity_killed_by_wall_impact_is_removed(self):
+        """Entity blown into a wall dies from impact and is cleaned up."""
+        # Layout: corridor with wall at end, breach behind
+        #  #.E.#X
+        layout = [
+            "########",
+            "#...#X #",
+            "########",
+        ]
+        gm = _make_map(layout)
+        gm.recalculate_hazards()
+
+        # Enemy with low HP between walls — will hit wall and take lethal impact
+        enemy = Entity(
+            x=3, y=1, name="Grunt", fighter=Fighter(1, 1, 0, 1), organic=True,
+        )
+        gm.entities.append(enemy)
+
+        engine = _make_engine(gm, 1, 1, env={"vacuum": 1}, suit=Suit("EVA", {"vacuum": 50}))
+
+        # Simulate decompression: enemy pulled toward breach at (5,1)
+        # but wall at (4,1) blocks them
+        enemy.decompression_moves = 5
+        enemy.decompression_direction = (1, 0)
+        pull, _ = _bfs_toward_breach(gm, [(5, 1)])
+        process_decompression_step(gm, enemy, pull)
+
+        # Enemy should be dead from wall impact
+        assert enemy.fighter.hp <= 0
+
+        # Now simulate the _after_player_turn cleanup
+        from ui.tactical_state import TacticalState
+        state = TacticalState.__new__(TacticalState)
+        state._after_player_turn(engine)
+
+        # Enemy must be removed — not left as a zombie
+        assert enemy not in gm.entities
+
+    def test_non_organic_killed_by_impact_also_removed(self):
+        """Non-organic entity killed by decompression impact is also cleaned up."""
+        layout = [
+            "########",
+            "#...#X #",
+            "########",
+        ]
+        gm = _make_map(layout)
+        gm.recalculate_hazards()
+
+        bot = Entity(
+            x=3, y=1, name="Bot", fighter=Fighter(1, 1, 0, 1), organic=False,
+        )
+        gm.entities.append(bot)
+
+        engine = _make_engine(gm, 1, 1, env={"vacuum": 1}, suit=Suit("EVA", {"vacuum": 50}))
+
+        bot.decompression_moves = 5
+        bot.decompression_direction = (1, 0)
+        pull, _ = _bfs_toward_breach(gm, [(5, 1)])
+        process_decompression_step(gm, bot, pull)
+
+        assert bot.fighter.hp <= 0
+
+        from ui.tactical_state import TacticalState
+        state = TacticalState.__new__(TacticalState)
+        state._after_player_turn(engine)
+
+        assert bot not in gm.entities

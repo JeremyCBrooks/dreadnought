@@ -191,6 +191,7 @@ def _spawn_enemies(
                 fighter=Fighter(hp=defn["hp"], max_hp=defn["hp"],
                                 defense=defn["defense"], power=defn["power"]),
                 ai=HostileAI(),
+                organic=defn.get("organic", True),
             )
         )
 
@@ -2230,8 +2231,9 @@ def generate_dungeon(
             bx, by = ex + dx, ey + dy
             if game_map.in_bounds(bx, by):
                 game_map.tiles[bx, by] = tile_types.space
-        # Hull breaches for derelict/ship maps
-        _place_hull_breaches(game_map, rng, wall_tile)
+        # Hull breaches — starbases only have a 20% chance
+        if profile.loc_type != "starbase" or rng.random() < 0.2:
+            _place_hull_breaches(game_map, rng, wall_tile)
 
     # Hull breaches for asteroid/organic maps
     if profile.generator == "organic":

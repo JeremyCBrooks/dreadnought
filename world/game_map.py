@@ -101,9 +101,18 @@ class GameMap:
                     }
             self._vacuum_baseline_set = True
         else:
-            # No sources — remove overlay so vacuum falls back to global behavior
-            self.hazard_overlays.pop("vacuum", None)
             self._vacuum_baseline_set = True
+
+        # Space tiles always have vacuum — mark them unconditionally
+        if self.has_space:
+            space_tid = int(tile_types.space["tile_id"])
+            space_mask = self.tiles["tile_id"] == space_tid
+            if space_mask.any():
+                if "vacuum" not in self.hazard_overlays:
+                    self.hazard_overlays["vacuum"] = np.full(
+                        (self.width, self.height), fill_value=False, order="F"
+                    )
+                self.hazard_overlays["vacuum"] |= space_mask
 
     def get_hazards_at(self, x: int, y: int) -> set[str]:
         """Return set of active hazard names at (x, y)."""

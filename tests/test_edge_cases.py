@@ -175,10 +175,17 @@ def test_rect_room_touching_edge():
 
 
 def test_multiple_environment_hazards():
+    import numpy as np
     from game.environment import apply_environment_tick
 
     suit = Suit("Test", {"vacuum": 2, "radiation": 1}, defense_bonus=0)
     engine = make_engine(env={"vacuum": 1, "radiation": 1}, suit=suit)
+    # Vacuum is spatial: add overlay covering the whole map
+    gm = engine.game_map
+    gm.hazard_overlays["vacuum"] = np.full(
+        (gm.width, gm.height), fill_value=True, order="F"
+    )
+    gm._hazards_dirty = False
 
     DI = Suit.DRAIN_INTERVAL
     for _ in range(DI):

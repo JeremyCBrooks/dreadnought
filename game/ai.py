@@ -12,6 +12,26 @@ if TYPE_CHECKING:
 class HostileAI:
     """Chase the player when visible, attack when adjacent, otherwise wander."""
 
+    def _has_move_cooldown(self, owner: Entity, engine: Engine) -> bool:
+        """Check low-gravity movement cooldown for organic entities.
+
+        Returns True if the entity must skip movement this turn.
+        """
+        from game.environment import has_low_gravity
+        if not owner.organic or not has_low_gravity(engine):
+            owner.move_cooldown = 0
+            return False
+        if owner.move_cooldown > 0:
+            owner.move_cooldown -= 1
+            return True
+        return False
+
+    def _apply_move_cooldown(self, owner: Entity, engine: Engine) -> None:
+        """Set movement cooldown after a successful move in low gravity."""
+        from game.environment import has_low_gravity
+        if owner.organic and has_low_gravity(engine):
+            owner.move_cooldown = 1
+
     def perform(self, owner: Entity, engine: Engine) -> None:
         game_map = engine.game_map
         target = engine.player
@@ -40,6 +60,10 @@ class HostileAI:
                 RangedAction(target).perform(engine, owner)
                 return
 
+        # Movement cooldown: organic entities in low gravity skip every other move
+        if self._has_move_cooldown(owner, engine):
+            return
+
         # Chase
         step_x = (1 if dx > 0 else -1) if dx != 0 else 0
         step_y = (1 if dy > 0 else -1) if dy != 0 else 0
@@ -51,10 +75,13 @@ class HostileAI:
             if game_map.is_walkable(nx, ny) and not game_map.get_blocking_entity(nx, ny):
                 owner.x = nx
                 owner.y = ny
+                self._apply_move_cooldown(owner, engine)
                 return
 
     def _wander(self, owner: Entity, engine: Engine) -> None:
         """Move to a random adjacent walkable tile."""
+        if self._has_move_cooldown(owner, engine):
+            return
         game_map = engine.game_map
         directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
         random.shuffle(directions)
@@ -63,4 +90,5 @@ class HostileAI:
             if game_map.is_walkable(nx, ny) and not game_map.get_blocking_entity(nx, ny):
                 owner.x = nx
                 owner.y = ny
+                self._apply_move_cooldown(owner, engine)
                 return

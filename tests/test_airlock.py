@@ -312,7 +312,11 @@ def test_airlock_ext_door_flavor_text():
 
 
 def test_vacuum_drains_during_drift():
-    """Vacuum pool should drain while drifting (via environment tick)."""
+    """Vacuum pool should drain while drifting (via environment tick).
+
+    Space tiles should automatically get vacuum overlay from
+    recalculate_hazards, so no manual overlay setup needed.
+    """
     from game.suit import Suit
     from game.environment import apply_environment_tick
 
@@ -326,7 +330,54 @@ def test_vacuum_drains_during_drift():
     suit.refill_pools()
     eng = MockEngine(gm, p, suit=suit, environment={"vacuum": 1})
 
+    # recalculate_hazards should auto-mark space tiles as vacuum
+    gm._hazards_dirty = True
+    gm.recalculate_hazards()
+    overlay = gm.hazard_overlays.get("vacuum")
+    assert overlay is not None
+    assert overlay[10, 5], "Space tile at player position should have vacuum"
+
     initial_o2 = suit.current_pools["vacuum"]
     for _ in range(Suit.DRAIN_INTERVAL):
         apply_environment_tick(eng)
     assert suit.current_pools["vacuum"] == initial_o2 - 1
+
+
+def test_space_tiles_always_have_vacuum_overlay():
+    """All space tiles should always have vacuum overlay, even without
+    hull breaches or open airlock doors.  And ONLY space tiles get vacuum
+    when no breach or exterior door is open."""
+    gm = _make_airlock_map()
+    # No open doors, no hull breaches — but space tiles should still be vacuum
+    gm._hazards_dirty = True
+    gm.recalculate_hazards()
+    overlay = gm.hazard_overlays.get("vacuum")
+    assert overlay is not None, "Vacuum overlay should exist when map has space tiles"
+    space_tid = int(tile_types.space["tile_id"])
+    space_mask = gm.tiles["tile_id"] == space_tid
+    # Every space tile has vacuum
+    xs, ys = np.where(space_mask)
+    for i in range(len(xs)):
+        assert overlay[xs[i], ys[i]], (
+            f"Space tile ({xs[i]}, {ys[i]}) should have vacuum overlay"
+        )
+    # No non-space tile has vacuum (no breach/open door)
+    non_space_vacuum = overlay & ~space_mask
+    assert not np.any(non_space_vacuum), (
+        "Only space tiles should have vacuum when no breach or airlock is open"
+    )
+
+
+def test_airlock_chamber_gets_vacuum_when_ext_open():
+    """Opening the exterior door should give the airlock chamber vacuum."""
+    gm = _make_airlock_map()
+    # Open exterior door
+    gm.tiles[8, 5] = tile_types.airlock_ext_open
+    gm._hazards_dirty = True
+    gm.recalculate_hazards()
+    overlay = gm.hazard_overlays.get("vacuum")
+    assert overlay is not None
+    # Airlock floor should have vacuum
+    assert overlay[7, 5], "Airlock floor should have vacuum when ext door is open"
+    # Interior (behind closed door) should NOT
+    assert not overlay[5, 5], "Interior floor should NOT have vacuum (interior door closed)"

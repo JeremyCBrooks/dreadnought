@@ -401,12 +401,21 @@ class TestAirlockVacuumSource:
         assert overlay[3, 1]  # airlock floor
         assert overlay[1, 1]  # interior floor (through open door)
 
-    def test_closed_airlock_no_vacuum(self):
-        """Closed exterior airlock door does not produce vacuum."""
+    def test_closed_airlock_no_interior_vacuum(self):
+        """Closed exterior airlock door does not produce vacuum on interior tiles.
+
+        Space tiles still have vacuum (they always do), but the interior
+        and airlock floor should be safe.
+        """
         gm = self._make_airlock_map(ext_open=False)
         gm.recalculate_hazards()
-        # No sources — overlay removed
-        assert "vacuum" not in gm.hazard_overlays
+        overlay = gm.hazard_overlays.get("vacuum")
+        # Space tiles have vacuum, so overlay exists
+        assert overlay is not None
+        assert overlay[5, 1]   # space tile has vacuum
+        # But interior and airlock tiles do NOT
+        assert not overlay[1, 1]  # interior floor
+        assert not overlay[3, 1]  # airlock floor
 
 
 # -------------------------------------------------------------------
