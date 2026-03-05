@@ -117,7 +117,11 @@ class Engine:
                     continue
                 # Short timeout when animation is needed; None (blocking) otherwise
                 _ANIM_TIMEOUT = 0.1
-                needs_anim = (self.game_map and getattr(self.game_map, 'has_space', False)) or self.scan_glow
+                needs_anim = (
+                    (self.game_map and getattr(self.game_map, 'has_space', False))
+                    or self.scan_glow
+                    or getattr(self.current_state, 'needs_animation', False)
+                )
                 timeout = _ANIM_TIMEOUT if needs_anim else None
                 for event in tcod.event.wait(timeout=timeout):
                     if isinstance(event, tcod.event.Quit):

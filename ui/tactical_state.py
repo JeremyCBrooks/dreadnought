@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import textwrap
+import time
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
@@ -69,6 +70,7 @@ def _hint(name: str) -> str:
 
 
 DRIFT_INTERVAL = 2.0  # seconds between automatic drift ticks
+DEATH_FADE_DURATION = 1.0  # seconds to fade out tactical on player death
 
 
 class TacticalState(State):
@@ -79,11 +81,15 @@ class TacticalState(State):
         self._look_cursor: Optional[tuple[int, int]] = None
         self._ranged_cursor: Optional[tuple[int, int]] = None
         self._interact_pending: bool = False
+        self._scan_pending: Optional[list] = None  # list of scanner entities when choosing
         self._visible_enemies: List = []
         self._enemy_cycle_index: int = 0
         self._ground_lines: List[Tuple[str, Color]] = []
         self._layout: Optional[SimpleNamespace] = None
         self._drift_timer: float = 0.0
+        # Death fade-out state
+        self._death_cause: Optional[str] = None
+        self._death_fade_start: float = 0.0
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -232,18 +238,29 @@ class TacticalState(State):
     # Player death
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _handle_player_death(engine: Engine, cause: str) -> None:
-        from ui.game_over_state import GameOverState
-        engine.switch_state(GameOverState(victory=False, cause=cause))
+    def _handle_player_death(self, engine: Engine, cause: str) -> None:
+        if self._death_cause is not None:
+            return  # already dying
+        self._death_cause = cause
+        self._death_fade_start = time.time()
+
+    @property
+    def needs_animation(self) -> bool:
+        return self._death_cause is not None
 
     # ------------------------------------------------------------------
     # Input
     # ------------------------------------------------------------------
 
     def ev_keydown(self, engine: Engine, event: Any) -> bool:
+        if self._death_cause is not None:
+            return True  # block all input during death fade
+
         import tcod.event
         key = event.sym
+
+        if self._scan_pending is not None:
+            return self._handle_scan_input(engine, key)
 
         if self._interact_pending:
             return self._handle_interact_input(engine, key)
@@ -308,8 +325,20 @@ class TacticalState(State):
                 return True
             moved = False
         elif is_action("scan", key):
-            from game.actions import ScanAction
-            consumed = ScanAction().perform(engine, engine.player)
+            from game.loadout import Loadout
+            loadout = getattr(engine.player, "loadout", None)
+            scanners = loadout.get_all_scanners() if loadout else []
+            if len(scanners) == 0:
+                engine.message_log.add_message("You need a scanner in your loadout.", (150, 150, 150))
+                consumed = 0
+            elif len(scanners) == 1:
+                from game.actions import ScanAction
+                consumed = ScanAction(scanner=scanners[0]).perform(engine, engine.player)
+            else:
+                labels = " ".join(f"({i+1}) {s.name}" for i, s in enumerate(scanners))
+                engine.message_log.add_message(f"Which scanner? {labels}", (200, 200, 100))
+                self._scan_pending = scanners
+                return True
             moved = False
         else:
             action = self._get_action(key)
@@ -646,6 +675,38 @@ class TacticalState(State):
         self._interact_pending = False
         return True
 
+    def _handle_scan_input(self, engine: Engine, key: Any) -> bool:
+        """Handle number key after multi-scanner prompt."""
+        import tcod.event
+        if key in cancel_keys():
+            self._scan_pending = None
+            return True
+
+        # Map number keys 1-9 to scanner index
+        num_keys = {
+            tcod.event.KeySym.N1: 0, tcod.event.KeySym.N2: 1,
+            tcod.event.KeySym.N3: 2, tcod.event.KeySym.N4: 3,
+        }
+        idx = num_keys.get(key)
+        if idx is not None and idx < len(self._scan_pending):
+            scanner = self._scan_pending[idx]
+            self._scan_pending = None
+            from game.actions import ScanAction
+            consumed = ScanAction(scanner=scanner).perform(engine, engine.player)
+            if consumed:
+                if engine.player.fighter.hp <= 0:
+                    self._handle_player_death(engine, "Killed in action.")
+                    return True
+                for _ in range(consumed):
+                    self._after_player_turn(engine)
+                    if engine.current_state is not self:
+                        return True
+                self._update_fov_with_scan(engine)
+            return True
+
+        self._scan_pending = None
+        return True
+
     def _update_ground_look_at_cursor(self, engine: Engine, cursor: tuple) -> None:
         cx, cy = cursor
         self._ground_lines = engine.game_map.describe_at(cx, cy, visible_only=True)
@@ -729,8 +790,7 @@ class TacticalState(State):
             return
 
         # Automatic drift: advance one tile every DRIFT_INTERVAL seconds
-        if engine.player.drifting and engine.player.fighter.hp > 0:
-            import time
+        if engine.player.drifting and engine.player.fighter.hp > 0 and self._death_cause is None:
             now = time.time()
             if self._drift_timer == 0.0:
                 # First frame of drift — initialize timer
@@ -777,6 +837,17 @@ class TacticalState(State):
 
         self._render_stats(console, engine, layout)
         engine.message_log.render(console, 0, layout.log_y, engine.CONSOLE_WIDTH, layout.log_h)
+
+        # Death fade-out overlay
+        if self._death_cause is not None:
+            elapsed = time.time() - self._death_fade_start
+            alpha = min(1.0, elapsed / DEATH_FADE_DURATION)
+            dim_factor = 1.0 - alpha
+            console.fg[:] = (console.fg * dim_factor).astype(console.fg.dtype)
+            console.bg[:] = (console.bg * dim_factor).astype(console.bg.dtype)
+            if alpha >= 1.0:
+                from ui.game_over_state import GameOverState
+                engine.switch_state(GameOverState(victory=False, cause=self._death_cause))
 
     def _render_stats(self, console: Any, engine: Engine, layout: SimpleNamespace) -> None:
         x = layout.stats_x + 1

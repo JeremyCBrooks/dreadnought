@@ -91,6 +91,13 @@ class Loadout:
             return t
         return None
 
+    def get_all_scanners(self) -> List[Entity]:
+        """Return all scanner items across all slots."""
+        return [
+            s for s in (self.weapon, self.tool, self.consumable1, self.consumable2)
+            if s is not None and s.item and s.item.get("type") == "scanner"
+        ]
+
     def items_with_durability(self) -> List[Entity]:
         """Return all loadout items that have a durability stat > 0."""
         result = []

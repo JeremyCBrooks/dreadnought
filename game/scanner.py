@@ -141,18 +141,13 @@ def _visible_container_entry(entity: Entity, dist: int) -> NearbyEntry:
 
 # ---- perform_area_scan ----
 
-def perform_area_scan(engine: Engine, entity: Entity) -> Optional[ScanResults]:
+def perform_area_scan(engine: Engine, entity: Entity, *, scanner: Optional[Entity] = None) -> Optional[ScanResults]:
     """Scan an area around entity using equipped scanner. Returns None if no scanner."""
-    scanner = None
-    if getattr(entity, "loadout", None):
-        scanner = entity.loadout.get_scanner()
+    if scanner is None:
+        if getattr(entity, "loadout", None):
+            scanner = entity.loadout.get_scanner()
     if not scanner:
-        for e in entity.inventory:
-            if e.item and e.item.get("type") == "scanner":
-                scanner = e
-                break
-    if not scanner:
-        engine.message_log.add_message("You need a scanner to scan.", (150, 150, 150))
+        engine.message_log.add_message("You need a scanner in your loadout.", (150, 150, 150))
         return None
 
     scan_range = scanner.item.get("range", 8)

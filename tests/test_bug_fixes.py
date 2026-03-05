@@ -83,7 +83,8 @@ def test_active_effects_cleared_on_game_over():
 
     from ui.game_over_state import GameOverState
     go = GameOverState()
-    engine.push_state(go)
+    engine.switch_state(go)
+    go._fade_start = 0.0  # skip fade for test
 
     # Simulate pressing ENTER
     class FakeEvent:
@@ -117,6 +118,7 @@ def test_state_stack_cleared_on_game_over_restart():
 
     from ui.game_over_state import GameOverState
     engine.switch_state(GameOverState())
+    engine._state_stack[-1]._fade_start = 0.0  # skip fade for test
 
     # Stack: [DummyStrategic, GameOverState]
     assert len(engine._state_stack) == 2

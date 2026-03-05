@@ -1,11 +1,16 @@
 """Tests for game over state and player reset."""
 from engine.game_state import Engine
-from ui.game_over_state import GameOverState
+from ui.game_over_state import GameOverState, FADE_IN_DURATION
 
 
 class FakeEvent:
     def __init__(self, sym=None):
         self.sym = sym
+
+
+def _skip_fade(state: GameOverState) -> None:
+    """Set fade start to epoch so fade is considered complete."""
+    state._fade_start = 0.0
 
 
 def test_game_over_ignores_non_enter_keys():
@@ -18,6 +23,7 @@ def test_game_over_ignores_non_enter_keys():
 
     state = GameOverState(victory=False)
     engine._state_stack.append(state)
+    _skip_fade(state)
 
     state.ev_keydown(engine, FakeEvent(sym=tcod.event.KeySym.SPACE))
 
@@ -35,6 +41,7 @@ def test_game_over_clears_saved_player():
 
     state = GameOverState(victory=False)
     engine._state_stack.append(state)
+    _skip_fade(state)
 
     state.ev_keydown(engine, FakeEvent(sym=tcod.event.KeySym.RETURN))
 
@@ -52,6 +59,7 @@ def test_victory_clears_saved_player():
 
     state = GameOverState(victory=True)
     engine._state_stack.append(state)
+    _skip_fade(state)
 
     state.ev_keydown(engine, FakeEvent(sym=tcod.event.KeySym.RETURN))
 

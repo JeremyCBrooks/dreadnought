@@ -249,9 +249,12 @@ class InteractAction(Action):
 class ScanAction(Action):
     """Area scan using equipped scanner. Populates engine.scan_results. Costs 1 turn."""
 
+    def __init__(self, scanner: Optional[Entity] = None) -> None:
+        self.scanner = scanner
+
     def perform(self, engine: Engine, entity: Entity) -> int:
         from game.scanner import perform_area_scan
-        results = perform_area_scan(engine, entity)
+        results = perform_area_scan(engine, entity, scanner=self.scanner)
         if results is None:
             return 0
         import time

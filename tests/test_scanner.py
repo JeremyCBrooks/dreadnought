@@ -292,16 +292,85 @@ def test_scan_contacts_message():
     assert any("1 contact" in m.lower() for m in msgs)
 
 
-def test_scan_inventory_fallback():
+def test_scan_inventory_only_fails():
+    """Scanner in inventory but NOT in loadout should NOT work."""
     gm = make_arena()
     player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
     gm.entities.append(player)
     scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8})
     player.inventory.append(scanner)
+    player.loadout = Loadout()  # empty loadout
     engine = MockEngine(gm, player)
     engine.scan_results = None
     results = perform_area_scan(engine, player)
+    assert results is None
+    msgs = [m[0] for m in engine.message_log.messages]
+    assert any("scanner" in m.lower() for m in msgs)
+
+
+def test_scan_with_explicit_scanner():
+    """perform_area_scan accepts an explicit scanner entity."""
+    gm = make_arena()
+    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
+    gm.entities.append(player)
+    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 2, "range": 8})
+    # Scanner not in loadout at all
+    engine = MockEngine(gm, player)
+    engine.scan_results = None
+    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180),
+                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    gm.entities.append(enemy)
+    results = perform_area_scan(engine, player, scanner=scanner)
     assert results is not None
+    assert len(results.entries) == 1
+
+
+def test_get_all_scanners_empty():
+    """Empty loadout returns no scanners."""
+    loadout = Loadout()
+    assert loadout.get_all_scanners() == []
+
+
+def test_get_all_scanners_tool_slot():
+    """Scanner in tool slot is found."""
+    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8})
+    loadout = Loadout(tool=scanner)
+    assert loadout.get_all_scanners() == [scanner]
+
+
+def test_get_all_scanners_multiple_slots():
+    """Scanners in multiple slots are all returned."""
+    s1 = Entity(name="Basic Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 6})
+    s2 = Entity(name="Advanced Scanner", item={"type": "scanner", "scanner_tier": 2, "range": 10})
+    loadout = Loadout(tool=s1, consumable1=s2)
+    result = loadout.get_all_scanners()
+    assert len(result) == 2
+    assert s1 in result
+    assert s2 in result
+
+
+def test_get_all_scanners_ignores_non_scanners():
+    """Non-scanner items in slots are ignored."""
+    weapon = Entity(name="Pipe", item={"type": "weapon", "value": 3})
+    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8})
+    loadout = Loadout(weapon=weapon, tool=scanner)
+    result = loadout.get_all_scanners()
+    assert result == [scanner]
+
+
+def test_scan_action_with_explicit_scanner():
+    """ScanAction can use an explicitly provided scanner."""
+    gm = make_arena()
+    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
+    gm.entities.append(player)
+    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8})
+    engine = MockEngine(gm, player)
+    engine.scan_results = None
+    engine.scan_glow = None
+    from game.actions import ScanAction
+    consumed = ScanAction(scanner=scanner).perform(engine, player)
+    assert consumed == 1
+    assert engine.scan_results is not None
 
 
 # ====================================================================
