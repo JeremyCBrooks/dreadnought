@@ -85,6 +85,10 @@ class CreatureAI:
             path = path[1:]
         result = [tuple(p) for p in path]
 
+        # Detect bogus paths: if first step is not adjacent, goal is unreachable
+        if result and (abs(result[0][0] - owner.x) > 1 or abs(result[0][1] - owner.y) > 1):
+            return []
+
         # If first step is a door-blocked diagonal, recompute cardinal-only
         if result:
             nx, ny = result[0]
@@ -106,6 +110,9 @@ class CreatureAI:
         if not path:
             return False
         nx, ny = path[0]
+        # Sanity check: step must be adjacent (1 tile max)
+        if abs(nx - owner.x) > 1 or abs(ny - owner.y) > 1:
+            return False
         gm = engine.game_map
 
         # Check for closed door
@@ -203,24 +210,53 @@ class CreatureAI:
         path = self._compute_path(owner, engine, goal)
         return self._move_along_path(owner, engine, path)
 
-    # ---- wander ----
+    # ---- wander (patrol) ----
+
+    def _pick_wander_goal(
+        self, owner: Entity, engine: Engine,
+    ) -> Optional[Tuple[int, int]]:
+        """Pick a random walkable, reachable, hazard-free tile as a patrol goal."""
+        import numpy as np
+        gm = engine.game_map
+        walkable = np.array(gm.tiles["walkable"], dtype=bool)
+        # Exclude hazard tiles
+        for overlay in gm.hazard_overlays.values():
+            walkable &= ~overlay
+        # Exclude owner's current position
+        walkable[owner.x, owner.y] = False
+        candidates = np.argwhere(walkable)
+        if len(candidates) == 0:
+            return None
+        # Shuffle and try candidates until we find one reachable
+        indices = list(range(len(candidates)))
+        random.shuffle(indices)
+        # Only test a limited sample to avoid expensive pathfinding
+        for i in indices[:20]:
+            gx, gy = int(candidates[i][0]), int(candidates[i][1])
+            path = self._compute_path(owner, engine, (gx, gy))
+            if path:
+                return (gx, gy)
+        return None
 
     def _wander(self, owner: Entity, engine: Engine) -> None:
         if not self._can_spend_move(owner, engine):
             return
-        from game.helpers import is_diagonal_blocked
-        game_map = engine.game_map
-        directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1),
-                      (0, 1), (1, -1), (1, 0), (1, 1)]
-        random.shuffle(directions)
-        for dx, dy in directions:
-            if is_diagonal_blocked(game_map, owner.x, owner.y, dx, dy):
-                continue
-            nx, ny = owner.x + dx, owner.y + dy
-            if game_map.is_walkable(nx, ny) and not game_map.get_blocking_entity(nx, ny):
-                owner.x = nx
-                owner.y = ny
+        from game.helpers import chebyshev
+        # Pick a patrol goal if we don't have one
+        if owner.ai_wander_goal is None:
+            owner.ai_wander_goal = self._pick_wander_goal(owner, engine)
+        if owner.ai_wander_goal is None:
+            return  # no reachable goal found
+        # Already at goal — pick a new one
+        if (owner.x, owner.y) == owner.ai_wander_goal:
+            owner.ai_wander_goal = self._pick_wander_goal(owner, engine)
+            if owner.ai_wander_goal is None:
                 return
+        # Pathfind toward the goal
+        path = self._compute_path(owner, engine, owner.ai_wander_goal)
+        if not path or not self._move_along_path(owner, engine, path):
+            # Stuck — pick a new goal next turn
+            owner.ai_wander_goal = None
 
     # ---- attack ----
 
@@ -232,6 +268,7 @@ class CreatureAI:
         if distance <= 1:
             from game.actions import MeleeAction
             MeleeAction(target).perform(engine, owner)
+            owner.ai_energy = 0
             return
 
         from game.actions import _get_equipped_ranged_weapon
@@ -241,6 +278,7 @@ class CreatureAI:
             if distance <= max_range:
                 from game.actions import RangedAction
                 RangedAction(target).perform(engine, owner)
+                owner.ai_energy = 0
                 return
 
     # ---- main perform ----
@@ -282,6 +320,7 @@ class CreatureAI:
                 owner.ai_state = "hunting"
                 owner.ai_target = (engine.player.x, engine.player.y)
                 owner.ai_turns_since_seen = 0
+                owner.ai_wander_goal = None
                 self._do_hunting(owner, engine)
                 return
         self._wander(owner, engine)

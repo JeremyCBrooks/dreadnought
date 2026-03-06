@@ -675,6 +675,59 @@ class TestMoveSpeed:
                 moves += 1
         assert moves == 10
 
+    def test_slow_drone_cannot_keep_up_with_player(self):
+        """A speed-3 drone chasing a player who moves every turn should fall behind."""
+        gm = make_arena(60, 5)
+        for x in range(1, 59):
+            for y in range(1, 4):
+                gm.tiles[x, y] = tile_types.floor
+        player = Entity(x=40, y=2, name="Player", fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        creature = _make_creature(42, 2, config={
+            "move_speed": 3, "aggro_distance": 55, "vision_radius": 55,
+        })
+        creature.ai_state = "hunting"
+        creature.ai_target = (player.x, player.y)
+        creature.organic = False
+        gm.entities.append(creature)
+        engine = MockEngine(gm, player)
+        from game.helpers import chebyshev
+        start_gap = chebyshev(creature.x, creature.y, player.x, player.y)
+        for _ in range(20):
+            player.x -= 1  # player always has room
+            creature.ai.perform(creature, engine)
+        end_gap = chebyshev(creature.x, creature.y, player.x, player.y)
+        assert end_gap > start_gap, (
+            f"Speed-3 drone should fall behind player. "
+            f"Gap went from {start_gap} to {end_gap}"
+        )
+
+    def test_normal_speed_creature_keeps_pace_with_player(self):
+        """A speed-4 creature should keep pace with a player moving every turn."""
+        gm = make_arena(60, 5)
+        for x in range(1, 59):
+            for y in range(1, 4):
+                gm.tiles[x, y] = tile_types.floor
+        player = Entity(x=40, y=2, name="Player", fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        creature = _make_creature(42, 2, config={
+            "move_speed": 4, "aggro_distance": 55, "vision_radius": 55,
+        })
+        creature.ai_state = "hunting"
+        creature.ai_target = (player.x, player.y)
+        gm.entities.append(creature)
+        engine = MockEngine(gm, player)
+        from game.helpers import chebyshev
+        start_gap = chebyshev(creature.x, creature.y, player.x, player.y)
+        for _ in range(20):
+            player.x -= 1
+            creature.ai.perform(creature, engine)
+        end_gap = chebyshev(creature.x, creature.y, player.x, player.y)
+        assert end_gap == start_gap, (
+            f"Speed-4 creature should keep pace. "
+            f"Gap went from {start_gap} to {end_gap}"
+        )
+
     def test_low_gravity_slows_organic_creature(self):
         """Low gravity halves effective speed for organic creatures."""
         gm, _, engine = _setup(w=30, h=30, player_pos=(1, 15))
@@ -730,6 +783,54 @@ class TestMoveSpeed:
             if player.fighter.hp < old_hp:
                 hits += 1
         assert hits == 4, "Attack should happen every turn regardless of speed"
+
+    def test_attack_drains_energy(self):
+        """Attacking should drain energy so creatures can't bank moves during melee."""
+        from game.ai import ACTION_COST
+        gm, player, engine = _setup(player_pos=(5, 5))
+        creature = _make_creature(6, 5, hp=5, max_hp=5, power=1, config={
+            "move_speed": 3,
+        })
+        creature.ai_state = "hunting"
+        creature.ai_target = (5, 5)
+        gm.entities.append(creature)
+        # Melee for 3 turns
+        for _ in range(3):
+            creature.ai.perform(creature, engine)
+        # Energy should not have banked above one turn's worth
+        assert creature.ai_energy <= creature.ai_config["move_speed"], (
+            f"Energy banked to {creature.ai_energy} during melee, "
+            f"expected at most {creature.ai_config['move_speed']}"
+        )
+
+    def test_slow_drone_falls_behind_after_melee(self):
+        """After disengaging from melee, player should outrun a speed-3 drone."""
+        gm = make_arena(60, 5)
+        for x in range(1, 59):
+            for y in range(1, 4):
+                gm.tiles[x, y] = tile_types.floor
+        player = Entity(x=30, y=2, name="Player", fighter=Fighter(50, 50, 5, 1))
+        gm.entities.append(player)
+        creature = _make_creature(31, 2, config={
+            "move_speed": 3, "aggro_distance": 55, "vision_radius": 55,
+        })
+        creature.ai_state = "hunting"
+        creature.ai_target = (player.x, player.y)
+        creature.organic = False
+        gm.entities.append(creature)
+        engine = MockEngine(gm, player)
+        # 3 turns of melee
+        for _ in range(3):
+            creature.ai.perform(creature, engine)
+        # Now player runs for 8 turns
+        from game.helpers import chebyshev
+        for _ in range(8):
+            player.x -= 1
+            creature.ai.perform(creature, engine)
+        gap = chebyshev(creature.x, creature.y, player.x, player.y)
+        assert gap >= 3, (
+            f"Player should outrun speed-3 drone after melee, but gap is only {gap}"
+        )
 
     def test_energy_capped_prevents_teleport_on_state_change(self):
         """Energy should not accumulate unboundedly during melee turns.
@@ -898,3 +999,152 @@ class TestDoorBlocking:
         assert player.fighter.hp < 10, (
             "Rat should be able to move diagonally past a wall corner"
         )
+
+
+# ---------------------------------------------------------------------------
+# Patrol-style wandering
+# ---------------------------------------------------------------------------
+
+class TestPatrolWander:
+
+    def test_wandering_creature_picks_a_goal(self):
+        """A wandering creature should set ai_wander_goal on its first move."""
+        gm, player, engine = _setup(w=20, h=20, player_pos=(1, 1))
+        creature = _make_creature(10, 10, config={
+            "aggro_distance": 3, "vision_radius": 4,
+        })
+        creature.ai_state = "wandering"
+        gm.entities.append(creature)
+        # Wall off player so creature doesn't aggro
+        for y in range(0, 20):
+            gm.tiles[5, y] = tile_types.wall
+        creature.ai.perform(creature, engine)
+        assert creature.ai_wander_goal is not None
+
+    def test_wandering_creature_moves_toward_goal(self):
+        """Over several turns a wandering creature should get closer to its goal."""
+        gm, player, engine = _setup(w=20, h=20, player_pos=(1, 1))
+        creature = _make_creature(15, 15, config={
+            "aggro_distance": 3, "vision_radius": 4,
+        })
+        creature.ai_state = "wandering"
+        gm.entities.append(creature)
+        # Wall off player
+        for y in range(0, 20):
+            gm.tiles[5, y] = tile_types.wall
+        # Force a known goal
+        creature.ai_wander_goal = (10, 10)
+        from game.helpers import chebyshev
+        start_dist = chebyshev(creature.x, creature.y, 10, 10)
+        for _ in range(5):
+            creature.ai.perform(creature, engine)
+        end_dist = chebyshev(creature.x, creature.y, 10, 10)
+        assert end_dist < start_dist, "Creature should move toward its wander goal"
+
+    def test_wandering_creature_picks_new_goal_on_arrival(self):
+        """When a creature reaches its wander goal it should pick a new one."""
+        gm, player, engine = _setup(w=20, h=20, player_pos=(1, 1))
+        creature = _make_creature(10, 10, config={
+            "aggro_distance": 3, "vision_radius": 4,
+        })
+        creature.ai_state = "wandering"
+        gm.entities.append(creature)
+        # Wall off player
+        for y in range(0, 20):
+            gm.tiles[5, y] = tile_types.wall
+        # Set goal to current position (already arrived)
+        creature.ai_wander_goal = (10, 10)
+        creature.ai.perform(creature, engine)
+        assert creature.ai_wander_goal != (10, 10), \
+            "Creature should pick a new goal after reaching the old one"
+
+    def test_wandering_goal_cleared_on_aggro(self):
+        """When a wandering creature transitions to hunting, wander goal is cleared."""
+        gm, player, engine = _setup(player_pos=(5, 5))
+        creature = _make_creature(7, 5, config={
+            "aggro_distance": 8, "vision_radius": 8,
+        })
+        creature.ai_state = "wandering"
+        creature.ai_wander_goal = (15, 15)
+        gm.entities.append(creature)
+        creature.ai.perform(creature, engine)
+        assert creature.ai_state == "hunting"
+        assert creature.ai_wander_goal is None
+
+    def test_wandering_picks_reachable_goal(self):
+        """The chosen wander goal should be a walkable tile."""
+        gm, player, engine = _setup(w=20, h=20, player_pos=(1, 1))
+        creature = _make_creature(10, 10, config={
+            "aggro_distance": 3, "vision_radius": 4,
+        })
+        creature.ai_state = "wandering"
+        gm.entities.append(creature)
+        # Wall off player
+        for y in range(0, 20):
+            gm.tiles[5, y] = tile_types.wall
+        creature.ai.perform(creature, engine)
+        gx, gy = creature.ai_wander_goal
+        assert gm.is_walkable(gx, gy)
+
+    def test_stuck_creature_picks_new_goal(self):
+        """If a creature can't make progress toward its goal, it picks a new one."""
+        gm, player, engine = _setup(w=20, h=20, player_pos=(1, 1))
+        creature = _make_creature(10, 10, config={
+            "aggro_distance": 3, "vision_radius": 4,
+        })
+        creature.ai_state = "wandering"
+        gm.entities.append(creature)
+        # Wall off player
+        for y in range(0, 20):
+            gm.tiles[5, y] = tile_types.wall
+        # Set an unreachable goal (inside the wall)
+        creature.ai_wander_goal = (5, 5)
+        # Box the creature in so pathfinding fails
+        for dx, dy in [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(-1,1),(1,-1),(1,1)]:
+            gm.tiles[10+dx, 10+dy] = tile_types.wall
+        # Give energy so the creature attempts to move
+        from game.ai import ACTION_COST
+        creature.ai_energy = ACTION_COST
+        creature.ai.perform(creature, engine)
+        # Creature should have given up on the unreachable goal
+        assert creature.ai_wander_goal is None
+
+    def test_wandering_does_not_path_through_walls(self):
+        """Wander goal must be truly reachable — not across a wall partition."""
+        gm, player, engine = _setup(w=30, h=30, player_pos=(1, 1))
+        creature = _make_creature(20, 20, config={
+            "aggro_distance": 3, "vision_radius": 4,
+        })
+        creature.ai_state = "wandering"
+        gm.entities.append(creature)
+        # Solid wall partition at x=10
+        for y in range(0, 30):
+            gm.tiles[10, y] = tile_types.wall
+        # Run many turns — creature must never cross the wall
+        for _ in range(30):
+            creature.ai.perform(creature, engine)
+            assert creature.x > 10, (
+                f"Creature crossed wall partition to ({creature.x},{creature.y})"
+            )
+
+    def test_wandering_avoids_hazard_tiles(self):
+        """Wander goal should never be on a hazard tile."""
+        gm, player, engine = _setup(w=20, h=20, player_pos=(1, 1))
+        creature = _make_creature(10, 10, config={
+            "aggro_distance": 3, "vision_radius": 4,
+        })
+        creature.ai_state = "wandering"
+        gm.entities.append(creature)
+        # Wall off player
+        for y in range(0, 20):
+            gm.tiles[5, y] = tile_types.wall
+        # Mark most of the map as hazardous
+        import numpy as np
+        hazard = np.zeros((20, 20), dtype=bool)
+        hazard[6:, :] = True
+        hazard[10, 10] = False  # creature's own tile
+        gm.hazard_overlays["vacuum"] = hazard
+        creature.ai.perform(creature, engine)
+        if creature.ai_wander_goal is not None:
+            gx, gy = creature.ai_wander_goal
+            assert not hazard[gx, gy], "Wander goal should not be on a hazard tile"

@@ -62,6 +62,7 @@ class Entity:
         self.ai_config: dict = {}
         self.ai_state: str = "wandering"
         self.ai_target: Optional[Tuple[int, int]] = None
+        self.ai_wander_goal: Optional[Tuple[int, int]] = None
         self.ai_turns_since_seen: int = 0
         self.ai_energy: int = 0
 
