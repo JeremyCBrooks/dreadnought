@@ -363,6 +363,8 @@ def apply_environment_tick(engine: Engine) -> None:
 
     px, py = engine.player.x, engine.player.y
 
+    import debug
+
     for hazard_type, severity in env.items():
         if hazard_type in NON_DAMAGING_HAZARDS:
             continue
@@ -382,7 +384,6 @@ def apply_environment_tick(engine: Engine) -> None:
         current = suit.current_pools.get(hazard_type, 0)
 
         if max_turns > 0 and current > 0:
-            import debug
             if not debug.DISABLE_OXYGEN:
                 ticks = suit._drain_ticks.get(hazard_type, 0) + 1
                 if ticks >= suit.DRAIN_INTERVAL:
@@ -391,12 +392,10 @@ def apply_environment_tick(engine: Engine) -> None:
                 suit._drain_ticks[hazard_type] = ticks
             continue
         # No resistance or pool depleted: deal 1 HP per turn
-        import debug
         if debug.GOD_MODE:
             continue
-        engine.player.fighter.hp -= 1
-        if engine.player.fighter.hp < 0:
-            engine.player.fighter.hp = 0
+        from game.hazards import _apply_hp_damage
+        _apply_hp_damage(engine.player.fighter, 1)
         engine.message_log.add_message(
             f"WARNING: {hazard_type.replace('_', ' ').title()}! Taking damage!",
             (255, 100, 100),
@@ -438,9 +437,8 @@ def apply_environment_tick_entity(engine: Engine, entity: Entity) -> None:
             if overlay is None and hazard_type in SPATIAL_HAZARDS:
                 continue
 
-        entity.fighter.hp -= 1
-        if entity.fighter.hp < 0:
-            entity.fighter.hp = 0
+        from game.hazards import _apply_hp_damage
+        _apply_hp_damage(entity.fighter, 1)
 
     if entity.fighter.hp <= 0:
         engine.message_log.add_message(

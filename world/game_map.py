@@ -39,6 +39,10 @@ class GameMap:
         self._light_map: np.ndarray | None = None
         self._light_dirty: bool = True
 
+    def _empty_bool_grid(self) -> np.ndarray:
+        """Create a False-filled bool array matching map dimensions."""
+        return np.full((self.width, self.height), fill_value=False, order="F")
+
     def in_bounds(self, x: int, y: int) -> bool:
         return 0 <= x < self.width and 0 <= y < self.height
 
@@ -96,9 +100,7 @@ class GameMap:
             # Detect newly-exposed tiles for explosive decompression
             if self._vacuum_baseline_set:
                 if old_vacuum is None:
-                    old_vacuum = np.full(
-                        (self.width, self.height), fill_value=False, order="F"
-                    )
+                    old_vacuum = self._empty_bool_grid()
                 newly_exposed = new_vacuum & ~old_vacuum
                 if np.any(newly_exposed):
                     self._pending_decompression = {
@@ -109,9 +111,7 @@ class GameMap:
         else:
             # No vacuum sources: clear any stale flood-fill overlay
             if "vacuum" in self.hazard_overlays:
-                self.hazard_overlays["vacuum"] = np.full(
-                    (self.width, self.height), fill_value=False, order="F"
-                )
+                self.hazard_overlays["vacuum"] = self._empty_bool_grid()
             self._vacuum_baseline_set = True
 
         # Space tiles always have vacuum — mark them unconditionally
@@ -120,9 +120,7 @@ class GameMap:
             space_mask = self.tiles["tile_id"] == space_tid
             if space_mask.any():
                 if "vacuum" not in self.hazard_overlays:
-                    self.hazard_overlays["vacuum"] = np.full(
-                        (self.width, self.height), fill_value=False, order="F"
-                    )
+                    self.hazard_overlays["vacuum"] = self._empty_bool_grid()
                 self.hazard_overlays["vacuum"] |= space_mask
 
     def get_hazards_at(self, x: int, y: int) -> set[str]:
@@ -312,13 +310,11 @@ class GameMap:
             ).astype(np.uint8)
 
         # Two-pass: non-blocking (items) first, then blocking entities on top
-        for entity in self.entities:
-            if entity.blocks_movement:
-                continue
+        def _draw_entity(entity):
             if not self.in_bounds(entity.x, entity.y):
-                continue
+                return
             if not self.visible[entity.x, entity.y]:
-                continue
+                return
             sx = vp_x + entity.x - cam_x
             sy = vp_y + entity.y - cam_y
             if vp_x <= sx < vp_x + rw and vp_y <= sy < vp_y + rh:
@@ -326,20 +322,13 @@ class GameMap:
                                               glow_mask, glow_alpha, cam_x, cam_y)
                 color = self._light_tint_color(color, entity.x, entity.y)
                 console.print(x=sx, y=sy, string=entity.char, fg=color)
+
         for entity in self.entities:
             if not entity.blocks_movement:
-                continue
-            if not self.in_bounds(entity.x, entity.y):
-                continue
-            if not self.visible[entity.x, entity.y]:
-                continue
-            sx = vp_x + entity.x - cam_x
-            sy = vp_y + entity.y - cam_y
-            if vp_x <= sx < vp_x + rw and vp_y <= sy < vp_y + rh:
-                color = self._glow_tint_color(entity.color, entity.x, entity.y,
-                                              glow_mask, glow_alpha, cam_x, cam_y)
-                color = self._light_tint_color(color, entity.x, entity.y)
-                console.print(x=sx, y=sy, string=entity.char, fg=color)
+                _draw_entity(entity)
+        for entity in self.entities:
+            if entity.blocks_movement:
+                _draw_entity(entity)
 
     @staticmethod
     def _glow_tint_color(color: Tuple[int, int, int], ex: int, ey: int,

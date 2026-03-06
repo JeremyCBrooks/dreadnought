@@ -336,11 +336,11 @@ def _make_strategic_engine_with_loadout(inventory_items=None, loadout_slot1=None
 
 
 def test_personal_list_shows_equipped_and_inventory():
-    """Combined personal list should show equipped items first, then inventory."""
+    """Combined personal list shows items in stable order with equipped tags."""
     weapon = Entity(name="Blaster", item={"type": "weapon", "value": 3})
     medkit = Entity(name="Medkit", item={"type": "consumable", "value": 5})
     engine = _make_strategic_engine_with_loadout(
-        inventory_items=[medkit], loadout_slot1=weapon,
+        inventory_items=[weapon, medkit], loadout_slot1=weapon,
     )
     state = CargoState()
     combined = state._combined_personal(engine)
@@ -350,7 +350,7 @@ def test_personal_list_shows_equipped_and_inventory():
 
 
 def test_equip_from_personal_in_strategic_context():
-    """Pressing 'e' on an equippable inventory item should equip it."""
+    """Pressing 'e' on an equippable inventory item should equip it (item stays in list)."""
     import tcod.event
     K = tcod.event.KeySym
     weapon = Entity(name="Blaster", item={"type": "weapon", "value": 3})
@@ -358,21 +358,22 @@ def test_equip_from_personal_in_strategic_context():
 
     state = CargoState()
     state._section = _PERSONAL
-    # Combined list: only the inventory item (no equipped items)
     state.selected = 0  # weapon in inventory
     state.ev_keydown(engine, FakeEvent(K.e))
 
     lo = engine._saved_player["loadout"]
     assert lo.has_item(weapon)
-    assert weapon not in engine._saved_player["inventory"]
+    assert weapon in engine._saved_player["inventory"]  # stays in list
 
 
 def test_unequip_from_personal_in_strategic_context():
-    """Pressing 'e' on an equipped item should unequip it to inventory."""
+    """Pressing 'e' on an equipped item should unequip it (stays in list)."""
     import tcod.event
     K = tcod.event.KeySym
     weapon = Entity(name="Blaster", item={"type": "weapon", "value": 3})
-    engine = _make_strategic_engine_with_loadout(loadout_slot1=weapon)
+    engine = _make_strategic_engine_with_loadout(
+        inventory_items=[weapon], loadout_slot1=weapon,
+    )
 
     state = CargoState()
     state._section = _PERSONAL
@@ -401,7 +402,7 @@ def test_equip_works_in_briefing_context():
     assert engine._saved_player is not None
     lo = engine._saved_player["loadout"]
     assert lo.has_item(weapon)
-    assert weapon not in engine.mission_loadout
+    assert weapon in engine.mission_loadout  # stays in list, just marked equipped
 
 
 def test_equip_ignored_in_cargo_section():
@@ -460,11 +461,12 @@ def test_footer_text_changes_with_section():
 
 
 def test_transfer_blocked_counts_equipped_items():
-    """Transfer from cargo should be blocked when equipped + inventory = max."""
+    """Transfer from cargo should be blocked when inventory (incl. equipped) = max."""
     import tcod.event
     K = tcod.event.KeySym
     weapon = Entity(name="Blaster", item={"type": "weapon", "value": 3})
-    inv_items = [Entity(name=f"Item{i}") for i in range(PLAYER_MAX_INVENTORY - 1)]
+    other_items = [Entity(name=f"Item{i}") for i in range(PLAYER_MAX_INVENTORY - 1)]
+    inv_items = [weapon] + other_items  # weapon is in inventory AND equipped
     extra = Entity(name="Extra", item={"type": "weapon", "value": 1})
     engine = _make_strategic_engine_with_loadout(
         inventory_items=inv_items, loadout_slot1=weapon, cargo_items=[extra],
@@ -475,7 +477,7 @@ def test_transfer_blocked_counts_equipped_items():
     state.selected = 0
     state.ev_keydown(engine, FakeEvent(K.RETURN))
 
-    # Transfer should be blocked (9 inv + 1 equipped = 10 = max)
+    # Transfer should be blocked (10 items in inventory = max)
     assert extra in engine.ship.cargo
     assert extra not in engine._saved_player["inventory"]
 
@@ -485,9 +487,9 @@ def test_unequip_when_at_capacity_still_works():
     import tcod.event
     K = tcod.event.KeySym
     weapon = Entity(name="Blaster", item={"type": "weapon", "value": 3})
-    inv_items = [Entity(name=f"Item{i}") for i in range(PLAYER_MAX_INVENTORY - 1)]
+    other_items = [Entity(name=f"Item{i}") for i in range(PLAYER_MAX_INVENTORY - 1)]
     engine = _make_strategic_engine_with_loadout(
-        inventory_items=inv_items, loadout_slot1=weapon,
+        inventory_items=[weapon] + other_items, loadout_slot1=weapon,
     )
 
     state = CargoState()
@@ -508,7 +510,7 @@ def test_equip_when_loadout_full():
     w2 = Entity(name="Scanner", item={"type": "scanner", "value": 1})
     w3 = Entity(name="Pipe", item={"type": "weapon", "value": 1})
     engine = _make_strategic_engine_with_loadout(
-        inventory_items=[w3], loadout_slot1=w1, loadout_slot2=w2,
+        inventory_items=[w1, w2, w3], loadout_slot1=w1, loadout_slot2=w2,
     )
 
     state = CargoState()
@@ -516,7 +518,7 @@ def test_equip_when_loadout_full():
     state.selected = 2  # w3 is third in combined list (after w1, w2)
     state.ev_keydown(engine, FakeEvent(K.e))
 
-    # w3 should still be in inventory
+    # w3 should still be in inventory, unequipped
     assert w3 in engine._saved_player["inventory"]
     assert any("full" in m[0].lower() for m in engine.message_log.messages)
 
@@ -526,7 +528,9 @@ def test_transfer_equipped_item_to_cargo():
     import tcod.event
     K = tcod.event.KeySym
     weapon = Entity(name="Blaster", item={"type": "weapon", "value": 3})
-    engine = _make_strategic_engine_with_loadout(loadout_slot1=weapon)
+    engine = _make_strategic_engine_with_loadout(
+        inventory_items=[weapon], loadout_slot1=weapon,
+    )
 
     state = CargoState()
     state._section = _PERSONAL
@@ -562,7 +566,7 @@ def test_equip_creates_loadout_when_none():
     lo = engine._saved_player["loadout"]
     assert lo is not None
     assert lo.has_item(weapon)
-    assert weapon not in engine._saved_player["inventory"]
+    assert weapon in engine._saved_player["inventory"]  # stays in list
 
 
 def test_equip_works_on_fresh_game():

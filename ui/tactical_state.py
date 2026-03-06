@@ -191,10 +191,8 @@ class TacticalState(State):
                     first_tool = item
             if first_weapon:
                 player.loadout.equip(first_weapon)
-                player.inventory.remove(first_weapon)
             if first_tool:
                 player.loadout.equip(first_tool)
-                player.inventory.remove(first_tool)
 
         # Apply melee weapon power bonus
         from game.loadout import recalc_melee_power

@@ -8,6 +8,14 @@ if TYPE_CHECKING:
     from game.entity import Entity
 
 
+from ui.colors import (
+    PLAYER_ATTACK, ENEMY_ATTACK, PLAYER_RANGED, ENEMY_RANGED,
+    DEATH_MSG, ENEMY_DEATH, NEUTRAL, WARNING, PICKUP, DARK_GRAY,
+    INTERACT_LOOT, INTERACT_SAFE, INTERACT_EMPTY, SCAN_MSG, HAZARD_VOID,
+    HAZARD_ENV_DAMAGE,
+)
+
+
 def _calc_damage(engine: Engine, attacker: Entity, target: Entity, base_power: int) -> int:
     """Calculate damage after defense, respecting debug flags."""
     import debug
@@ -28,10 +36,10 @@ def _apply_damage_and_death(engine: Engine, attacker: Entity, target: Entity, da
     target.fighter.hp = max(0, target.fighter.hp - damage)
     if target.fighter.hp <= 0:
         if target is engine.player:
-            engine.message_log.add_message("You die...", (255, 0, 0))
+            engine.message_log.add_message("You die...", DEATH_MSG)
         else:
             engine.message_log.add_message(
-                f"The {target.name} is destroyed!", (200, 200, 200)
+                f"The {target.name} is destroyed!", ENEMY_DEATH
             )
             if target in engine.game_map.entities:
                 engine.game_map.entities.remove(target)
@@ -84,10 +92,10 @@ class MeleeAction(Action):
 
         if entity is engine.player:
             msg = f"You hit the {self.target.name} for {damage} damage."
-            color = (255, 255, 255)
+            color = PLAYER_ATTACK
         else:
             msg = f"The {entity.name} hits you for {damage} damage."
-            color = (255, 200, 200)
+            color = ENEMY_ATTACK
         engine.message_log.add_message(msg, color)
 
         _apply_damage_and_death(engine, entity, self.target, damage)
@@ -133,7 +141,7 @@ class BumpAction(Action):
                 entity.drift_direction = (self.dx, self.dy)
                 if entity is engine.player:
                     engine.message_log.add_message(
-                        "You step into the void...", (200, 100, 255)
+                        "You step into the void...", HAZARD_VOID
                     )
                 return 1
 
@@ -144,21 +152,21 @@ class PickupAction(Action):
     def perform(self, engine: Engine, entity: Entity) -> int:
         items = engine.game_map.get_items_at(entity.x, entity.y)
         if not items:
-            engine.message_log.add_message("Nothing to pick up.", (100, 100, 100))
+            engine.message_log.add_message("Nothing to pick up.", DARK_GRAY)
             return 0
         item = items[0]
         if not entity.can_carry():
-            engine.message_log.add_message("Inventory full.", (255, 200, 100))
+            engine.message_log.add_message("Inventory full.", WARNING)
             return 0
         entity.inventory.append(item)
         engine.game_map.entities.remove(item)
         if entity is engine.player:
             engine.message_log.add_message(
-                f"You pick up the {item.name}.", (200, 200, 255)
+                f"You pick up the {item.name}.", PICKUP
             )
         else:
             engine.message_log.add_message(
-                f"The {entity.name} picks up the {item.name}.", (200, 200, 255)
+                f"The {entity.name} picks up the {item.name}.", PICKUP
             )
         return 1
 
@@ -174,7 +182,7 @@ class DropAction(Action):
         item.x = entity.x
         item.y = entity.y
         engine.game_map.entities.append(item)
-        engine.message_log.add_message(f"You drop the {item.name}.", (200, 200, 200))
+        engine.message_log.add_message(f"You drop the {item.name}.", NEUTRAL)
         return 1
 
 
@@ -207,7 +215,7 @@ class InteractAction(Action):
         else:
             target = _adjacent_interactable(engine, entity)
         if not target or not target.interactable:
-            engine.message_log.add_message("Nothing to interact with here.", (100, 100, 100))
+            engine.message_log.add_message("Nothing to interact with here.", DARK_GRAY)
             return 0
 
         ih = target.interactable
@@ -219,19 +227,19 @@ class InteractAction(Action):
             trigger_hazard(engine, ih["hazard"], name)
         elif ih.get("hazard") and ih.get("scanned"):
             engine.message_log.add_message(
-                f"Your scan helps you bypass the hazard on the {name}.", (100, 255, 200)
+                f"Your scan helps you bypass the hazard on the {name}.", INTERACT_SAFE
             )
 
         # Loot
         loot = ih.get("loot")
         if loot and isinstance(loot, dict) and all(k in loot for k in ("char", "color", "name")):
             if not entity.can_carry():
-                engine.message_log.add_message("Inventory full.", (255, 200, 100))
+                engine.message_log.add_message("Inventory full.", WARNING)
             else:
-                from game.entity import Entity as E
+                from game.entity import Entity as _Entity
                 from data import db
                 item_data = db.build_item_data(loot)
-                item_ent = E(
+                item_ent = _Entity(
                     x=entity.x, y=entity.y,
                     char=loot["char"], color=loot["color"], name=loot["name"],
                     blocks_movement=False,
@@ -239,11 +247,11 @@ class InteractAction(Action):
                 )
                 entity.inventory.append(item_ent)
                 engine.message_log.add_message(
-                    f"You search the {name}... Found {loot['name']}!", (200, 255, 200)
+                    f"You search the {name}... Found {loot['name']}!", INTERACT_LOOT
                 )
         else:
             engine.message_log.add_message(
-                f"You search the {name}. Nothing useful.", (150, 150, 150)
+                f"You search the {name}. Nothing useful.", INTERACT_EMPTY
             )
 
         # Remove interactable after use
@@ -274,32 +282,19 @@ class ScanAction(Action):
         if n:
             engine.message_log.add_message(
                 f"Scan complete: {n} contact{'s' if n != 1 else ''}.",
-                (100, 200, 255),
+                SCAN_MSG,
             )
         else:
             engine.message_log.add_message(
-                "Scan complete: all clear.", (100, 200, 255)
+                "Scan complete: all clear.", SCAN_MSG
             )
         return 1
 
 
 def _get_equipped_ranged_weapon(entity: Entity) -> Optional[Entity]:
     """Return the ranged weapon from loadout if available, else fallback to inventory (enemies)."""
-    # Check loadout weapon slot first (player)
-    if getattr(entity, "loadout", None):
-        wpn = entity.loadout.get_ranged_weapon()
-        if wpn:
-            return wpn
-    # Fallback to inventory (for enemies without loadout)
-    for e in entity.inventory:
-        if (
-            e.item
-            and e.item.get("type") == "weapon"
-            and e.item.get("weapon_class") == "ranged"
-            and e.item.get("ammo", 0) > 0
-        ):
-            return e
-    return None
+    from game.helpers import get_equipped_ranged_weapon
+    return get_equipped_ranged_weapon(entity)
 
 
 class ToggleDoorAction(Action):
@@ -314,7 +309,7 @@ class ToggleDoorAction(Action):
 
         tx, ty = entity.x + self.dx, entity.y + self.dy
         if not engine.game_map.in_bounds(tx, ty):
-            engine.message_log.add_message("No door there.", (100, 100, 100))
+            engine.message_log.add_message("No door there.", DARK_GRAY)
             return 0
 
         tile_id = int(engine.game_map.tiles["tile_id"][tx, ty])
@@ -325,30 +320,30 @@ class ToggleDoorAction(Action):
 
         if tile_id in (ext_closed_id, ext_open_id):
             engine.message_log.add_message(
-                "The exterior door is controlled by a switch.", (255, 200, 100)
+                "The exterior door is controlled by a switch.", WARNING
             )
             return 0
         elif tile_id == closed_id:
             engine.game_map.tiles[tx, ty] = tile_types.door_open
             engine.game_map._hazards_dirty = True
             engine.game_map.invalidate_lights()
-            engine.message_log.add_message("You open the door.", (200, 200, 200))
+            engine.message_log.add_message("You open the door.", NEUTRAL)
             return 1
         elif tile_id == open_id:
             # Don't close if an entity is standing there
             if engine.game_map.get_blocking_entity(tx, ty):
-                engine.message_log.add_message("Something is in the way.", (255, 200, 100))
+                engine.message_log.add_message("Something is in the way.", WARNING)
                 return 0
             if engine.game_map.get_items_at(tx, ty):
-                engine.message_log.add_message("Something is in the way.", (255, 200, 100))
+                engine.message_log.add_message("Something is in the way.", WARNING)
                 return 0
             engine.game_map.tiles[tx, ty] = tile_types.door_closed
             engine.game_map._hazards_dirty = True
             engine.game_map.invalidate_lights()
-            engine.message_log.add_message("You close the door.", (200, 200, 200))
+            engine.message_log.add_message("You close the door.", NEUTRAL)
             return 1
         else:
-            engine.message_log.add_message("No door there.", (100, 100, 100))
+            engine.message_log.add_message("No door there.", DARK_GRAY)
             return 0
 
 
@@ -364,7 +359,7 @@ class RangedAction(Action):
 
         weapon = _get_equipped_ranged_weapon(entity)
         if not weapon:
-            engine.message_log.add_message("No ranged weapon with ammo.", (255, 100, 100))
+            engine.message_log.add_message("No ranged weapon with ammo.", HAZARD_ENV_DAMAGE)
             return 0
 
         # Check range
@@ -372,12 +367,12 @@ class RangedAction(Action):
         distance = chebyshev(entity.x, entity.y, self.target.x, self.target.y)
         max_range = weapon.item.get("range", 5)
         if distance > max_range:
-            engine.message_log.add_message("Target out of range.", (255, 100, 100))
+            engine.message_log.add_message("Target out of range.", HAZARD_ENV_DAMAGE)
             return 0
 
         # Check FOV
         if not engine.game_map.visible[self.target.x, self.target.y]:
-            engine.message_log.add_message("Target not visible.", (255, 100, 100))
+            engine.message_log.add_message("Target not visible.", HAZARD_ENV_DAMAGE)
             return 0
 
         # Consume ammo
@@ -387,10 +382,10 @@ class RangedAction(Action):
 
         if entity is engine.player:
             msg = f"You shoot the {self.target.name} for {damage} damage."
-            color = (255, 200, 100)
+            color = PLAYER_RANGED
         else:
             msg = f"The {entity.name} shoots you for {damage} damage."
-            color = (255, 150, 150)
+            color = ENEMY_RANGED
         engine.message_log.add_message(msg, color)
 
         _apply_damage_and_death(engine, entity, self.target, damage)
@@ -416,7 +411,7 @@ class ToggleSwitchAction(Action):
         on_id = int(tile_types.airlock_switch_on["tile_id"])
 
         if tile_id not in (off_id, on_id):
-            engine.message_log.add_message("No switch there.", (100, 100, 100))
+            engine.message_log.add_message("No switch there.", DARK_GRAY)
             return 0
 
         # Find linked airlock
@@ -427,7 +422,7 @@ class ToggleSwitchAction(Action):
                 break
 
         if airlock is None:
-            engine.message_log.add_message("The switch doesn't seem connected.", (150, 150, 150))
+            engine.message_log.add_message("The switch doesn't seem connected.", INTERACT_EMPTY)
             return 0
 
         ex, ey = airlock["exterior_door"]
@@ -439,19 +434,19 @@ class ToggleSwitchAction(Action):
             engine.game_map._hazards_dirty = True
             engine.game_map.invalidate_lights()
             engine.message_log.add_message(
-                "You flip the switch. The exterior door grinds open.", (255, 200, 100)
+                "You flip the switch. The exterior door grinds open.", WARNING
             )
         else:
             # Turn off: close exterior door
             if engine.game_map.get_blocking_entity(ex, ey):
-                engine.message_log.add_message("Something is blocking the exterior door.", (255, 200, 100))
+                engine.message_log.add_message("Something is blocking the exterior door.", WARNING)
                 return 0
             engine.game_map.tiles[sx, sy] = tile_types.airlock_switch_off
             engine.game_map.tiles[ex, ey] = tile_types.airlock_ext_closed
             engine.game_map._hazards_dirty = True
             engine.game_map.invalidate_lights()
             engine.message_log.add_message(
-                "You flip the switch. The exterior door seals shut.", (200, 200, 200)
+                "You flip the switch. The exterior door seals shut.", NEUTRAL
             )
             # Warn if vacuum persists due to other sources (hull breaches)
             engine.game_map.recalculate_hazards()
@@ -459,6 +454,6 @@ class ToggleSwitchAction(Action):
             if overlay is not None and entity is engine.player and overlay[entity.x, entity.y]:
                 engine.message_log.add_message(
                     "Atmosphere not restored. Hull breaches detected nearby.",
-                    (255, 200, 100),
+                    WARNING,
                 )
         return 1

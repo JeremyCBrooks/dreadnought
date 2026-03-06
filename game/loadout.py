@@ -7,6 +7,8 @@ if TYPE_CHECKING:
     from game.entity import Entity
 
 
+from ui.colors import EQUIP_MSG, NEUTRAL, WARNING
+
 _EQUIPPABLE_TYPES = {"weapon", "scanner"}
 
 
@@ -115,3 +117,32 @@ class Loadout:
             if item.item and item.item.get("durability") is not None and item.item.get("durability", 0) > 0:
                 result.append(item)
         return result
+
+
+def toggle_equip(engine: object, player: Entity, item: Entity) -> None:
+    """Equip or unequip *item* on *player*, logging a message.
+
+    If the item is currently equipped, unequip it.  Otherwise equip it
+    (if equippable and a slot is free).  Used by both InventoryState and
+    CargoState to avoid duplicated equip/unequip logic.
+    """
+    lo = player.loadout
+    if lo and lo.has_item(item):
+        lo.unequip(item)
+        if player.fighter:
+            recalc_melee_power(player)
+        engine.message_log.add_message(f"Unequipped {item.name}.", NEUTRAL)
+        return
+
+    if not is_equippable(item):
+        return
+
+    if lo and not lo.is_full():
+        lo.equip(item)
+        if player.fighter:
+            recalc_melee_power(player)
+        engine.message_log.add_message(f"Equipped {item.name}.", EQUIP_MSG)
+    elif lo and lo.is_full():
+        engine.message_log.add_message(
+            "Equipment slots full. Unequip something first.", WARNING
+        )

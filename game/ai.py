@@ -266,6 +266,9 @@ class CreatureAI:
                 owner.ai_state = "hunting"
                 owner.ai_target = (engine.player.x, engine.player.y)
                 owner.ai_turns_since_seen = 0
+                # Reset banked energy so the creature doesn't get
+                # extra moves from energy accumulated while sleeping.
+                owner.ai_energy = 0
                 engine.message_log.add_message(
                     f"The {owner.name} wakes up!", (255, 200, 100)
                 )

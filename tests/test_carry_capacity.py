@@ -105,23 +105,27 @@ def test_interact_loot_refused_when_full():
 
 
 def test_can_carry_counts_loadout_items():
-    """Loadout items should count toward carry capacity."""
+    """Equipped items are in inventory, so they count toward capacity."""
     from game.loadout import Loadout
+    weapon = Entity(name="Weapon")
+    scanner = Entity(name="Scanner")
     e = Entity(name="Player", max_inventory=5)
-    e.inventory.extend([Entity(name="A"), Entity(name="B")])
-    e.loadout = Loadout(slot1=Entity(name="Weapon"), slot2=Entity(name="Scanner"))
-    # 2 inv + 2 loadout = 4/5 → can carry
+    e.inventory.extend([Entity(name="A"), Entity(name="B"), weapon, scanner])
+    e.loadout = Loadout(slot1=weapon, slot2=scanner)
+    # 4 items in inventory (2 equipped) → can carry
     assert e.can_carry() is True
     e.inventory.append(Entity(name="C"))
-    # 3 inv + 2 loadout = 5/5 → cannot carry
+    # 5/5 → cannot carry
     assert e.can_carry() is False
 
 
 def test_can_carry_with_loadout_under_limit():
     from game.loadout import Loadout
+    weapon = Entity(name="Weapon")
     e = Entity(name="Player", max_inventory=10)
-    e.loadout = Loadout(slot1=Entity(name="Weapon"))
-    # 0 inv + 1 loadout = 1/10 → can carry
+    e.inventory.append(weapon)
+    e.loadout = Loadout(slot1=weapon)
+    # 1 item in inventory (equipped) → can carry
     assert e.can_carry() is True
 
 

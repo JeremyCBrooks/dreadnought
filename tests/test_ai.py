@@ -352,6 +352,29 @@ class TestSleeping:
         # Adjacent — should have attacked on wake turn
         assert player.fighter.hp < 10
 
+    def test_sleeping_wake_does_not_teleport(self):
+        """Creature waking up should move at most 1 tile, not teleport to player."""
+        gm, player, engine = _setup(player_pos=(5, 5))
+        creature = _make_creature(8, 5, config={
+            "ai_initial_state": "sleeping",
+            "sleep_aggro_distance": 5,
+            "move_speed": 4,
+        })
+        gm.entities.append(creature)
+        start_x, start_y = creature.x, creature.y
+        # Simulate many turns of sleeping to bank energy
+        from game.ai import ACTION_COST
+        creature.ai_energy = ACTION_COST * 2
+        creature.ai.perform(creature, engine)
+        assert creature.ai_state == "hunting"
+        # Should have moved at most 1 tile from start
+        dx = abs(creature.x - start_x)
+        dy = abs(creature.y - start_y)
+        assert dx <= 1 and dy <= 1, (
+            f"Creature teleported from ({start_x},{start_y}) to "
+            f"({creature.x},{creature.y}) — moved {dx+dy} tiles!"
+        )
+
     def test_drone_returns_to_sleep_after_losing_player(self):
         """Drone with ai_initial_state=sleeping reverts to sleeping after memory decay."""
         gm, player, engine = _setup(w=20, h=20, player_pos=(1, 1))

@@ -66,8 +66,10 @@ class Entity:
         self.ai_energy: int = 0
 
     def can_carry(self) -> bool:
-        """Return True if inventory + loadout has room (or is unlimited)."""
+        """Return True if inventory has room (or is unlimited).
+
+        Equipped items are kept in inventory, so no separate loadout count needed.
+        """
         if self.max_inventory is None:
             return True
-        loadout_count = len(self.loadout.all_items()) if self.loadout else 0
-        return len(self.inventory) + loadout_count < self.max_inventory
+        return len(self.inventory) < self.max_inventory

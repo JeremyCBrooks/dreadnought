@@ -7,6 +7,9 @@ from typing import Tuple, List
 import numpy as np
 
 
+LIGHT_SPILL_RADIUS = 3
+
+
 @dataclass
 class LightSource:
     x: int
@@ -39,7 +42,7 @@ def compute_light_map(
         if not (0 <= ls.x < width and 0 <= ls.y < height):
             continue
         # Extend FOV radius so light can spill a few tiles through windows/doors
-        fov_radius = ls.radius + 3
+        fov_radius = ls.radius + LIGHT_SPILL_RADIUS
         fov = tcod.map.compute_fov(transparency, (ls.x, ls.y), fov_radius)
 
         # Euclidean distance from source for all tiles

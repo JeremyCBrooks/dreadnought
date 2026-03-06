@@ -55,23 +55,16 @@ class CargoState(State):
         return lo
 
     def _combined_personal(self, engine: Engine) -> List[Tuple[Entity, bool]]:
-        """Return [(item, is_equipped), ...] with equipped items first, then inventory."""
-        result: List[Tuple[Entity, bool]] = []
+        """Return [(item, is_equipped), ...] in stable insertion order."""
         lo = self._get_loadout(engine)
-        if lo:
-            for item in lo.all_items():
-                result.append((item, True))
-        for item in self._personal_list(engine):
-            result.append((item, False))
-        return result
+        return [
+            (item, lo.has_item(item) if lo else False)
+            for item in self._personal_list(engine)
+        ]
 
     def _personal_count(self, engine: Engine) -> int:
-        """Total personal items: inventory + loadout equipped items."""
-        count = len(self._personal_list(engine))
-        lo = self._get_loadout(engine)
-        if lo:
-            count += len(lo.all_items())
-        return count
+        """Total personal items (equipped items are kept in inventory)."""
+        return len(self._personal_list(engine))
 
     def _current_list_len(self, engine: Engine) -> int:
         """Length of the current section's list (combined for personal)."""
@@ -138,39 +131,28 @@ class CargoState(State):
 
     def _equip_unequip(self, engine: Engine) -> None:
         """Handle 'e' key: equip or unequip the selected personal item."""
-        from game.loadout import is_equippable
+        from game.loadout import toggle_equip
+        from game.entity import Entity as _Entity
 
         if self._section != _PERSONAL:
             return
 
         lo = self._get_loadout(engine)
         if lo is None:
-            return  # briefing context, no loadout available
+            return
 
         combined = self._combined_personal(engine)
         if not combined or self.selected >= len(combined):
             return
 
-        item, is_equipped = combined[self.selected]
+        item, _is_equipped = combined[self.selected]
 
-        if is_equipped:
-            # Unequip to inventory
-            lo.unequip(item)
-            self._personal_list(engine).append(item)
-            engine.message_log.add_message(f"Unequipped {item.name}.", (200, 200, 200))
-        else:
-            # Equip from inventory
-            if not is_equippable(item):
-                return
-            if lo.is_full():
-                engine.message_log.add_message(
-                    "Equipment slots full. Unequip something first.", (255, 200, 100)
-                )
-                return
-            self._personal_list(engine).remove(item)
-            lo.equip(item)
-            engine.message_log.add_message(f"Equipped {item.name}.", (100, 255, 100))
-
+        # Build a proxy entity carrying the saved loadout + inventory
+        # so toggle_equip sees the real item list (no fighter → skip melee recalc).
+        proxy = _Entity()
+        proxy.loadout = lo
+        proxy.inventory = self._personal_list(engine)
+        toggle_equip(engine, proxy, item)
         self._clamp_selected(engine)
 
     # ------------------------------------------------------------------
@@ -197,14 +179,11 @@ class CargoState(State):
                 return
             item, is_equipped = combined[self.selected]
             if is_equipped:
-                # Unequip + transfer to cargo in one step
                 lo = self._get_loadout(engine)
                 if lo:
                     lo.unequip(item)
-                engine.ship.add_cargo(item)
-            else:
-                personal.remove(item)
-                engine.ship.add_cargo(item)
+            personal.remove(item)
+            engine.ship.add_cargo(item)
 
         self._clamp_selected(engine)
 

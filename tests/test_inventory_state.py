@@ -19,13 +19,13 @@ def _press(state, engine, sym):
 
 # --- Combined list ---
 
-def test_combined_list_equipped_first():
-    """Equipped items appear first with is_equipped=True, then inventory."""
+def test_combined_list_shows_equipped_tags():
+    """Equipped items shown with is_equipped=True in stable insertion order."""
     engine = make_engine()
     weapon = Entity(name="Baton", item={"type": "weapon", "value": 3})
     medkit = Entity(name="Med-kit", item={"type": "heal", "value": 5})
     engine.player.loadout = Loadout(slot1=weapon)
-    engine.player.inventory.append(medkit)
+    engine.player.inventory.extend([weapon, medkit])
 
     state = InventoryState()
     combined = state._combined_items(engine)
@@ -47,13 +47,14 @@ def test_unequip_via_enter():
     engine = make_engine()
     weapon = Entity(name="Baton", item={"type": "weapon", "value": 3})
     engine.player.loadout = Loadout(slot1=weapon)
+    engine.player.inventory.append(weapon)
 
     state = InventoryState()
     state.selected = 0  # equipped weapon
     _press(state, engine, tcod.event.KeySym.e)
 
     assert engine.player.loadout.slot1 is None
-    assert weapon in engine.player.inventory
+    assert weapon in engine.player.inventory  # stays in inventory
 
 
 def test_equip_via_enter():
@@ -67,11 +68,11 @@ def test_equip_via_enter():
     _press(state, engine, tcod.event.KeySym.e)
 
     assert engine.player.loadout.slot1 is weapon
-    assert weapon not in engine.player.inventory
+    assert weapon in engine.player.inventory  # stays in inventory
 
 
 def test_equip_shows_equipped_tag():
-    """After equipping, combined list should show the item as equipped."""
+    """After equipping, combined list should show the item as equipped in place."""
     engine = make_engine()
     engine.player.loadout = Loadout()
     weapon = Entity(name="Baton", item={"type": "weapon", "value": 3})
@@ -122,7 +123,7 @@ def test_repair_via_inventory():
     weapon = Entity(name="Baton", item={"type": "weapon", "value": 2, "durability": 2, "max_durability": 5})
     repair = Entity(name="Repair Kit", item={"type": "repair", "value": 3})
     engine.player.loadout = Loadout(slot1=weapon)
-    engine.player.inventory.append(repair)
+    engine.player.inventory.extend([weapon, repair])
 
     state = InventoryState()
     # repair is at index 1 (weapon equipped at 0)
@@ -185,9 +186,9 @@ def test_equip_when_full():
     engine = make_engine()
     w1 = Entity(name="Baton", item={"type": "weapon", "value": 3})
     w2 = Entity(name="Pipe", item={"type": "weapon", "value": 2})
-    engine.player.loadout = Loadout(slot1=w1, slot2=w2)
     w3 = Entity(name="Rifle", item={"type": "weapon", "weapon_class": "ranged", "value": 5, "ammo": 5, "max_ammo": 20})
-    engine.player.inventory.append(w3)
+    engine.player.loadout = Loadout(slot1=w1, slot2=w2)
+    engine.player.inventory.extend([w1, w2, w3])
 
     state = InventoryState()
     # w1=0(eq), w2=1(eq), w3=2(inv)
@@ -207,7 +208,7 @@ def test_navigation_up_down():
     scanner = Entity(name="T", item={"type": "scanner", "scanner_tier": 1, "value": 1})
     medkit = Entity(name="M", item={"type": "heal", "value": 5})
     engine.player.loadout = Loadout(slot1=weapon, slot2=scanner)
-    engine.player.inventory.append(medkit)
+    engine.player.inventory.extend([weapon, scanner, medkit])
 
     state = InventoryState()
     assert state.selected == 0
@@ -227,16 +228,17 @@ def test_navigation_up_down():
 
 
 def test_selected_clamps_after_unequip():
-    """After unequipping the last item, selected should clamp."""
+    """After unequipping, selected should remain valid."""
     engine = make_engine()
     weapon = Entity(name="Baton", item={"type": "weapon", "value": 3})
     engine.player.loadout = Loadout(slot1=weapon)
+    engine.player.inventory.append(weapon)
 
     state = InventoryState()
     state.selected = 0
     _press(state, engine, tcod.event.KeySym.e)  # unequip
 
-    # Now weapon is in inventory at index 0, selected should be valid
+    # Weapon stays in inventory at index 0, selected should be valid
     combined = state._combined_items(engine)
     assert state.selected < len(combined)
 

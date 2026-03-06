@@ -16,7 +16,7 @@ def use_consumable(engine: Engine, player: Entity, item: Entity) -> bool:
     itype = item.item.get("type") if item.item else None
 
     if itype == "heal":
-        heal = item.item["value"]
+        heal = item.item.get("value", 0)
         player.fighter.hp = min(player.fighter.max_hp, player.fighter.hp + heal)
         engine.message_log.add_message(
             f"Used {item.name}. Healed {heal} HP.", (0, 255, 0)
@@ -33,7 +33,7 @@ def use_consumable(engine: Engine, player: Entity, item: Entity) -> bool:
                     d = other.item.get("durability", 0)
                     max_d = other.item.get("max_durability", 5)
                     if d < max_d:
-                        other.item["durability"] = min(max_d, d + item.item["value"])
+                        other.item["durability"] = min(max_d, d + item.item.get("value", 1))
                         repaired = other.name
                         break
         if repaired:
@@ -50,7 +50,7 @@ def use_consumable(engine: Engine, player: Entity, item: Entity) -> bool:
         if getattr(engine, "suit", None) and "vacuum" in engine.suit.resistances:
             max_o2 = engine.suit.resistances["vacuum"]
             cur = engine.suit.current_pools.get("vacuum", 0)
-            engine.suit.current_pools["vacuum"] = min(max_o2, cur + item.item["value"])
+            engine.suit.current_pools["vacuum"] = min(max_o2, cur + item.item.get("value", 0))
             engine.message_log.add_message(
                 f"Used {item.name}. O2 restored.", (100, 200, 255)
             )

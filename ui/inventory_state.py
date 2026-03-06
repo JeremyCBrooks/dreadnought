@@ -15,15 +15,12 @@ class InventoryState(State):
         self.selected = 0
 
     def _combined_items(self, engine: Engine) -> List[Tuple[Entity, bool]]:
-        """Return [(item, is_equipped), ...] with equipped items first, then inventory."""
-        result: List[Tuple[Entity, bool]] = []
+        """Return [(item, is_equipped), ...] in stable insertion order."""
         lo = engine.player.loadout
-        if lo:
-            for item in lo.all_items():
-                result.append((item, True))
-        for item in engine.player.inventory:
-            result.append((item, False))
-        return result
+        return [
+            (item, lo.has_item(item) if lo else False)
+            for item in engine.player.inventory
+        ]
 
     def ev_keydown(self, engine: Engine, event: Any) -> bool:
         from ui.keys import move_keys, cancel_keys, is_action
@@ -54,7 +51,7 @@ class InventoryState(State):
 
     def _activate(self, engine: Engine) -> None:
         """ENTER on selected item: unequip, equip, or use consumable."""
-        from game.loadout import is_equippable, recalc_melee_power
+        from game.loadout import is_equippable, toggle_equip
 
         combined = self._combined_items(engine)
         if not combined or self.selected >= len(combined):
@@ -62,32 +59,9 @@ class InventoryState(State):
 
         item, is_equipped = combined[self.selected]
 
-        if is_equipped:
-            # Unequip back to inventory
-            if engine.player.loadout:
-                result = engine.player.loadout.unequip(item)
-                if result:
-                    engine.player.inventory.append(result)
-                    recalc_melee_power(engine.player)
-                    engine.message_log.add_message(
-                        f"Unequipped {item.name}.", (200, 200, 200)
-                    )
-        elif is_equippable(item):
-            # Equip from inventory
-            lo = engine.player.loadout
-            if lo and not lo.is_full():
-                engine.player.inventory.remove(item)
-                lo.equip(item)
-                recalc_melee_power(engine.player)
-                engine.message_log.add_message(
-                    f"Equipped {item.name}.", (100, 255, 100)
-                )
-            elif lo and lo.is_full():
-                engine.message_log.add_message(
-                    "Equipment slots full. Unequip something first.", (255, 200, 100)
-                )
+        if is_equipped or is_equippable(item):
+            toggle_equip(engine, engine.player, item)
         else:
-            # Use consumable
             from game.consumables import use_consumable
             use_consumable(engine, engine.player, item)
 

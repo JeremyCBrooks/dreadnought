@@ -7,6 +7,8 @@ from world.game_map import GameMap
 from world import tile_types
 from game.entity import Entity, Fighter
 from game.suit import Suit
+from game.loadout import Loadout
+from game.ai import CreatureAI
 
 
 @pytest.fixture(autouse=True)
@@ -65,3 +67,81 @@ class MockEngine:
         self.scan_results = None
         self.scan_glow = None
         self.mission_loadout = []
+
+
+# ---- Shared helpers for common entity creation ----
+
+def make_weapon(name="Laser Pistol", weapon_class="ranged", value=3,
+                ammo=5, max_ammo=5, range_=5):
+    """Create a weapon Entity."""
+    return Entity(
+        char=")", color=(255, 200, 100), name=name,
+        blocks_movement=False,
+        item={"type": "weapon", "weapon_class": weapon_class, "value": value,
+              "ammo": ammo, "max_ammo": max_ammo, "range": range_},
+    )
+
+
+def make_melee_weapon(name="Combat Knife", value=3):
+    """Create a melee weapon Entity."""
+    return Entity(
+        char=")", color=(200, 200, 200), name=name,
+        blocks_movement=False,
+        item={"type": "weapon", "weapon_class": "melee", "value": value},
+    )
+
+
+def make_scanner(name="Scanner", tier=1, scan_range=8):
+    """Create a scanner Entity."""
+    return Entity(
+        char="~", color=(100, 200, 255), name=name,
+        blocks_movement=False,
+        item={"type": "scanner", "scanner_tier": tier, "range": scan_range,
+              "value": tier},
+    )
+
+
+def make_heal_item(name="Medkit", value=5):
+    """Create a heal consumable Entity."""
+    return Entity(
+        char="+", color=(0, 255, 0), name=name,
+        blocks_movement=False,
+        item={"type": "heal", "value": value},
+    )
+
+
+DEFAULT_AI_CONFIG = {
+    "ai_initial_state": "wandering",
+    "aggro_distance": 8,
+    "sleep_aggro_distance": 3,
+    "can_open_doors": False,
+    "flee_threshold": 0.0,
+    "memory_turns": 15,
+    "vision_radius": 8,
+    "move_speed": 4,
+}
+
+
+def make_creature(x=3, y=3, hp=5, power=1, defense=0, name="Drone",
+                  ai_config=None, ai_state="wandering", organic=True):
+    """Create an enemy Entity with CreatureAI."""
+    cfg = dict(DEFAULT_AI_CONFIG)
+    if ai_config:
+        cfg.update(ai_config)
+    e = Entity(
+        x=x, y=y, char="d", color=(255, 100, 100), name=name,
+        blocks_movement=True,
+        fighter=Fighter(hp=hp, max_hp=hp, defense=defense, power=power),
+        ai=CreatureAI(),
+        organic=organic,
+    )
+    e.ai_config = cfg
+    e.ai_state = ai_state
+    return e
+
+
+class FakeEvent:
+    """Minimal tcod event stand-in for UI state tests."""
+    def __init__(self, sym, mod=0):
+        self.sym = sym
+        self.mod = mod
