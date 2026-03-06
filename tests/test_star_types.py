@@ -29,8 +29,8 @@ class TestStarTypeDefinitions:
         for w in STAR_TYPE_WEIGHTS.values():
             assert w > 0
 
-    def test_at_least_fifteen_types(self):
-        assert len(STAR_TYPES) >= 15
+    def test_at_least_seventeen_types(self):
+        assert len(STAR_TYPES) >= 17
 
 
     def test_render_hints_are_valid(self):
@@ -42,6 +42,28 @@ class TestStarTypeDefinitions:
         hints = {st.render_hint for st in STAR_TYPES.values()}
         assert "pulsar" in hints
         assert "black_hole" in hints
+
+
+    def test_yellow_white_dwarf_exists_and_sized_correctly(self):
+        yw = STAR_TYPES["yellow_white_dwarf"]
+        yd = STAR_TYPES["yellow_dwarf"]
+        bg = STAR_TYPES["blue_giant"]
+        assert yw.radius > yd.radius, "yellow/white dwarf should be larger than yellow dwarf"
+        assert yw.radius <= bg.radius, "yellow/white dwarf should be smaller than blue giant"
+
+    def test_yellow_white_dwarf_less_common_than_yellow_dwarf(self):
+        assert STAR_TYPE_WEIGHTS["yellow_white_dwarf"] < STAR_TYPE_WEIGHTS["yellow_dwarf"]
+
+    def test_white_star_exists_and_sized_correctly(self):
+        ws = STAR_TYPES["white_star"]
+        yw = STAR_TYPES["yellow_white_dwarf"]
+        bg = STAR_TYPES["blue_giant"]
+        assert ws.radius > yw.radius, "white star should be larger than yellow/white dwarf"
+        assert ws.radius <= bg.radius, "white star should be no larger than blue giant"
+
+    def test_white_star_rarity_between_yellow_white_and_blue_giant(self):
+        assert STAR_TYPE_WEIGHTS["blue_giant"] < STAR_TYPE_WEIGHTS["white_star"]
+        assert STAR_TYPE_WEIGHTS["white_star"] < STAR_TYPE_WEIGHTS["yellow_white_dwarf"]
 
 
 class TestPickStarType:

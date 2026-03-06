@@ -266,9 +266,9 @@ def render_viewport(
             np.clip(region, 0, 255, out=region)
             bg_slice["bg"][x0:x1, y0:y1, ch] = region.astype(np.uint8)
 
-    # Precompute star brightness field: clip to narrow band then cube
-    # This gives most stars near-invisible, a few very bright, smooth gradient between
-    star_brightness = np.clip((noise - 0.25) / 0.55, 0, 1) ** 3
+    # Precompute star brightness field: aggressive curve pushes most stars
+    # toward black while a few rare bright ones punch through hard
+    star_brightness = np.clip((noise - 0.20) / 0.60, 0, 1) ** 5
 
     # Render background stars
     for lx in range(vp_w):
@@ -294,7 +294,7 @@ def render_viewport(
                 speed = 0.4 + (h % 13) * 0.02
                 cycle = (t * speed + phase) % 1.0
                 if cycle < 0.5:
-                    brightness = int(10 + 245 * noise_val)
+                    brightness = int(255 * noise_val)
                     console.print(x=sx, y=sy, string=".",
                                   fg=(min(int(brightness * tint[0]), 255),
                                       min(int(brightness * tint[1]), 255),
@@ -304,7 +304,7 @@ def render_viewport(
                 phase = ((h >> 3) & 0xFF) / 64.0
                 speed = 0.25 + (h % 11) * 0.01
                 idx = int((t * speed + phase) % len(chars))
-                brightness = int(20 + 235 * noise_val)
+                brightness = int(255 * noise_val)
                 console.print(x=sx, y=sy, string=chars[idx],
                               fg=(min(int(brightness * tint[0]), 255),
                                   min(int(brightness * tint[1]), 255),

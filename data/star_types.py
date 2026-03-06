@@ -43,6 +43,18 @@ STAR_TYPES: Dict[str, StarType] = {
         edge_color=(180, 50, 20), corona_color=(100, 20, 5),
         corona_width=6, surface_chars="~*+.oO#",
     ),
+    "yellow_white_dwarf": StarType(
+        name="yellow-white dwarf", radius=7,
+        core_color=(255, 255, 240), mid_color=(255, 240, 190),
+        edge_color=(250, 220, 140), corona_color=(210, 190, 80),
+        corona_width=4, surface_chars="~*+.o",
+    ),
+    "white_star": StarType(
+        name="white star", radius=8,
+        core_color=(255, 255, 255), mid_color=(240, 245, 255),
+        edge_color=(220, 230, 250), corona_color=(170, 185, 220),
+        corona_width=5, surface_chars="~*+.ox",
+    ),
     "blue_giant": StarType(
         name="blue giant", radius=8,
         core_color=(220, 230, 255), mid_color=(140, 180, 255),
@@ -117,6 +129,8 @@ STAR_TYPES: Dict[str, StarType] = {
 STAR_TYPE_WEIGHTS: Dict[str, float] = {
     "red_dwarf": 30,
     "yellow_dwarf": 20,
+    "yellow_white_dwarf": 12,
+    "white_star": 7,
     "brown_dwarf": 8,
     "orange_giant": 6,
     "yellow_giant": 5,
@@ -128,7 +142,7 @@ STAR_TYPE_WEIGHTS: Dict[str, float] = {
     "wolf_rayet": 2,
     "neutron_star": 3,
     "pulsar": 3,
-    "black_hole": 3,
+    "black_hole": 2,
     "supermassive_black_hole": 1,
 }
 
