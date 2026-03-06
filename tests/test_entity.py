@@ -9,7 +9,6 @@ def test_entity_defaults():
     assert e.char == "?"
     assert e.blocks_movement is True
     assert e.inventory == []
-    assert e.collection_tank == []
     assert e.loadout is None
 
 

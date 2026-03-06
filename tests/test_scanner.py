@@ -15,7 +15,7 @@ def _make_engine_with_scanner(tier=1, scan_range=8):
     player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
     gm.entities.append(player)
     scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": tier, "range": scan_range})
-    player.loadout = Loadout(tool=scanner)
+    player.loadout = Loadout(slot1=scanner)
     engine = MockEngine(gm, player)
     engine.scan_results = None
     return engine
@@ -334,7 +334,7 @@ def test_get_all_scanners_empty():
 def test_get_all_scanners_tool_slot():
     """Scanner in tool slot is found."""
     scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8})
-    loadout = Loadout(tool=scanner)
+    loadout = Loadout(slot1=scanner)
     assert loadout.get_all_scanners() == [scanner]
 
 
@@ -342,7 +342,7 @@ def test_get_all_scanners_multiple_slots():
     """Scanners in multiple slots are all returned."""
     s1 = Entity(name="Basic Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 6})
     s2 = Entity(name="Advanced Scanner", item={"type": "scanner", "scanner_tier": 2, "range": 10})
-    loadout = Loadout(tool=s1, consumable1=s2)
+    loadout = Loadout(slot1=s1, slot2=s2)
     result = loadout.get_all_scanners()
     assert len(result) == 2
     assert s1 in result
@@ -353,7 +353,7 @@ def test_get_all_scanners_ignores_non_scanners():
     """Non-scanner items in slots are ignored."""
     weapon = Entity(name="Pipe", item={"type": "weapon", "value": 3})
     scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8})
-    loadout = Loadout(weapon=weapon, tool=scanner)
+    loadout = Loadout(slot1=weapon, slot2=scanner)
     result = loadout.get_all_scanners()
     assert result == [scanner]
 

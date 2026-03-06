@@ -35,14 +35,25 @@ def _threat_level(env: dict | None, depth: int) -> str:
 
 
 class BriefingState(State):
-    """Shows mission intel before entering a location. [C] to continue to loadout."""
+    """Shows mission intel and suit picker before deploying. [ENTER] to deploy."""
 
     def __init__(self, location: Location, depth: int = 0) -> None:
         self.location = location
         self.depth = depth
+        self._suit_index = 0
+        self._suits: list = []
+
+    def on_enter(self, engine: Engine) -> None:
+        from game.suit import EVA_SUIT, HAZARD_SUIT
+        self._suits = [EVA_SUIT, HAZARD_SUIT]
+        if engine.suit:
+            for i, s in enumerate(self._suits):
+                if s.name == engine.suit.name:
+                    self._suit_index = i
+                    break
 
     def ev_keydown(self, engine: Engine, event: Any) -> bool:
-        from ui.keys import confirm_keys, cancel_keys
+        from ui.keys import confirm_keys, cancel_keys, move_keys
 
         key = event.sym
 
@@ -50,9 +61,20 @@ class BriefingState(State):
             engine.pop_state()
             return True
 
+        direction = move_keys().get(key)
+        if direction:
+            _, dy = direction
+            if dy < 0:
+                self._suit_index = max(0, self._suit_index - 1)
+            elif dy > 0 and self._suits:
+                self._suit_index = min(len(self._suits) - 1, self._suit_index + 1)
+            return True
+
         if key in confirm_keys():
-            from ui.loadout_state import LoadoutState
-            engine.switch_state(LoadoutState(location=self.location, depth=self.depth))
+            if self._suits:
+                engine.suit = self._suits[self._suit_index]
+            from ui.tactical_state import TacticalState
+            engine.switch_state(TacticalState(location=self.location, depth=self.depth))
             return True
 
         return True
@@ -95,8 +117,20 @@ class BriefingState(State):
             console.print(x=bx + 4, y=y, string="None detected", fg=(100, 200, 100))
             y += 1
 
+        # Suit picker
+        y += 1
+        console.print(x=bx + 2, y=y, string="Select Suit:", fg=(180, 180, 200))
+        y += 1
+        for i, suit in enumerate(self._suits):
+            prefix = ">" if i == self._suit_index else " "
+            color = (255, 255, 255) if i == self._suit_index else (150, 150, 150)
+            res_str = ", ".join(f"{k}:{v}" for k, v in suit.resistances.items())
+            label = f"{prefix} {suit.name} (DEF+{suit.defense_bonus}, {res_str})"
+            console.print(x=bx + 4, y=y, string=label[:max(1, bw - 6)], fg=color)
+            y += 1
+
         console.print(
             x=bx + 2, y=by + bh - 2,
-            string="[ENTER] Continue to Loadout  [ESC] Back",
+            string="[ENTER] Deploy  [UP/DOWN] Suit  [ESC] Back",
             fg=(100, 100, 100),
         )

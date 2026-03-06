@@ -48,7 +48,6 @@ class Entity:
         self.interactable = interactable  # {kind, hazard?: {type, severity, damage, equipment_damage}, loot?, scanned?}
         self.organic = organic
         self.inventory: List[Entity] = []
-        self.collection_tank: List[Entity] = []
         self.loadout: Optional[Loadout] = None
         self.drifting: bool = False
         self.drift_direction: Tuple[int, int] = (0, 0)

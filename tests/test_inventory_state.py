@@ -1,4 +1,4 @@
-"""Tests for the InventoryState (two-section: LOADOUT + COLLECTION TANK)."""
+"""Tests for the InventoryState (two-section: EQUIPPED + INVENTORY)."""
 import tcod.event
 
 from game.entity import Entity, Fighter
@@ -17,121 +17,164 @@ def _press(state, engine, sym):
     return state.ev_keydown(engine, FakeEvent(sym))
 
 
-# --- Loadout section ---
+# --- Equipped section ---
 
-def test_loadout_section_shows_slots():
+def test_equipped_section_shows_slots():
     engine = make_engine()
     weapon = Entity(name="Baton", item={"type": "weapon", "value": 3})
     scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "value": 1})
-    heal = Entity(name="Med-kit", item={"type": "heal", "value": 5})
-    engine.player.loadout = Loadout(weapon=weapon, tool=scanner, consumable1=heal)
+    engine.player.loadout = Loadout(slot1=weapon, slot2=scanner)
 
     state = InventoryState()
-    slots = state._loadout_slots(engine)
-    assert len(slots) == 4
-    assert slots[0] == ("WPN", weapon, False)
-    assert slots[1] == ("TOOL", scanner, False)
-    assert slots[2] == ("C1", heal, True)
-    assert slots[3] == ("C2", None, True)
+    slots = state._equipped_slots(engine)
+    assert len(slots) == 2
+    assert slots[0] == ("S1", weapon)
+    assert slots[1] == ("S2", scanner)
 
 
-def test_heal_via_loadout():
+def test_unequip_via_equipped():
+    engine = make_engine()
+    weapon = Entity(name="Baton", item={"type": "weapon", "value": 3})
+    engine.player.loadout = Loadout(slot1=weapon)
+
+    state = InventoryState()
+    state.selected = 0  # S1 slot
+    _press(state, engine, tcod.event.KeySym.RETURN)
+
+    assert engine.player.loadout.slot1 is None
+    assert weapon in engine.player.inventory
+
+
+def test_equip_from_inventory():
+    engine = make_engine()
+    engine.player.loadout = Loadout()
+    weapon = Entity(name="Baton", item={"type": "weapon", "value": 3})
+    engine.player.inventory.append(weapon)
+
+    state = InventoryState()
+    state._section = 1  # inventory
+    state.selected = 0
+    _press(state, engine, tcod.event.KeySym.RETURN)
+
+    assert engine.player.loadout.slot1 is weapon
+    assert weapon not in engine.player.inventory
+
+
+def test_use_consumable_from_inventory():
     engine = make_engine()
     engine.player.fighter.hp = 3
+    engine.player.loadout = Loadout()
     heal = Entity(name="Med-kit", item={"type": "heal", "value": 5})
-    engine.player.loadout = Loadout(consumable1=heal)
+    engine.player.inventory.append(heal)
 
     state = InventoryState()
-    state.selected = 2  # C1 slot
+    state._section = 1  # inventory
+    state.selected = 0
     _press(state, engine, tcod.event.KeySym.RETURN)
 
     assert engine.player.fighter.hp == 8
-    assert engine.player.loadout.consumable1 is None
+    assert heal not in engine.player.inventory
 
 
 def test_heal_caps_at_max():
     engine = make_engine()
     engine.player.fighter.hp = 8
+    engine.player.loadout = Loadout()
     heal = Entity(name="Med-kit", item={"type": "heal", "value": 5})
-    engine.player.loadout = Loadout(consumable1=heal)
+    engine.player.inventory.append(heal)
 
     state = InventoryState()
-    state.selected = 2  # C1 slot
+    state._section = 1
+    state.selected = 0
     _press(state, engine, tcod.event.KeySym.RETURN)
 
     assert engine.player.fighter.hp == 10
 
 
-def test_repair_via_loadout():
+def test_repair_via_inventory():
     engine = make_engine()
     weapon = Entity(name="Baton", item={"type": "weapon", "value": 2, "durability": 2, "max_durability": 5})
     repair = Entity(name="Repair Kit", item={"type": "repair", "value": 3})
-    engine.player.loadout = Loadout(weapon=weapon, consumable1=repair)
+    engine.player.loadout = Loadout(slot1=weapon)
+    engine.player.inventory.append(repair)
 
     state = InventoryState()
-    state.selected = 2  # C1 slot (repair)
+    state._section = 1
+    state.selected = 0
     _press(state, engine, tcod.event.KeySym.RETURN)
 
     assert weapon.item["durability"] == 5
-    assert engine.player.loadout.consumable1 is None
+    assert repair not in engine.player.inventory
 
 
 def test_repair_not_consumed_when_nothing_to_repair():
     engine = make_engine()
+    engine.player.loadout = Loadout()
     repair = Entity(name="Repair Kit", item={"type": "repair", "value": 3})
-    engine.player.loadout = Loadout(consumable1=repair)
+    engine.player.inventory.append(repair)
 
     state = InventoryState()
-    state.selected = 2
+    state._section = 1
+    state.selected = 0
     _press(state, engine, tcod.event.KeySym.RETURN)
 
-    assert engine.player.loadout.consumable1 is repair
+    assert repair in engine.player.inventory
     msgs = [m[0] for m in engine.message_log.messages]
     assert any("No damaged items" in m for m in msgs)
 
 
-def test_o2_via_loadout():
+def test_o2_via_inventory():
     engine = make_engine()
     engine.suit = Suit("Test", {"vacuum": 50}, defense_bonus=0)
     engine.suit.current_pools["vacuum"] = 20
+    engine.player.loadout = Loadout()
     o2 = Entity(name="O2", item={"type": "o2", "value": 20})
-    engine.player.loadout = Loadout(consumable1=o2)
+    engine.player.inventory.append(o2)
 
     state = InventoryState()
-    state.selected = 2
+    state._section = 1
+    state.selected = 0
     _press(state, engine, tcod.event.KeySym.RETURN)
 
     assert engine.suit.current_pools["vacuum"] == 40
-    assert engine.player.loadout.consumable1 is None
+    assert o2 not in engine.player.inventory
 
 
 def test_o2_not_consumed_when_no_suit():
     engine = make_engine()
     engine.suit = None
+    engine.player.loadout = Loadout()
     o2 = Entity(name="O2", item={"type": "o2", "value": 20})
-    engine.player.loadout = Loadout(consumable1=o2)
+    engine.player.inventory.append(o2)
 
     state = InventoryState()
-    state.selected = 2
+    state._section = 1
+    state.selected = 0
     _press(state, engine, tcod.event.KeySym.RETURN)
 
-    assert engine.player.loadout.consumable1 is o2
+    assert o2 in engine.player.inventory
     msgs = [m[0] for m in engine.message_log.messages]
     assert any("No suit O2" in m for m in msgs)
 
 
-def test_weapon_not_usable():
-    """Weapon slot should not be usable (info-only)."""
+def test_equip_when_full():
+    """Equipping when both slots full should show message."""
     engine = make_engine()
-    weapon = Entity(name="Baton", item={"type": "weapon", "value": 3})
-    engine.player.loadout = Loadout(weapon=weapon)
+    w1 = Entity(name="Baton", item={"type": "weapon", "value": 3})
+    w2 = Entity(name="Pipe", item={"type": "weapon", "value": 2})
+    engine.player.loadout = Loadout(slot1=w1, slot2=w2)
+    w3 = Entity(name="Rifle", item={"type": "weapon", "weapon_class": "ranged", "value": 5, "ammo": 5, "max_ammo": 20})
+    engine.player.inventory.append(w3)
 
     state = InventoryState()
-    state.selected = 0  # WPN slot
+    state._section = 1
+    state.selected = 0
     _press(state, engine, tcod.event.KeySym.RETURN)
 
-    # No message, weapon stays
-    assert engine.player.loadout.weapon is weapon
+    # Slots full, item stays in inventory
+    assert w3 in engine.player.inventory
+    msgs = [m[0] for m in engine.message_log.messages]
+    assert any("full" in m.lower() for m in msgs)
 
 
 # --- Navigation ---
@@ -139,9 +182,8 @@ def test_weapon_not_usable():
 def test_navigation_up_down():
     engine = make_engine()
     engine.player.loadout = Loadout(
-        weapon=Entity(name="W", item={"type": "weapon", "value": 1}),
-        tool=Entity(name="T", item={"type": "scanner", "scanner_tier": 1, "value": 1}),
-        consumable1=Entity(name="C1", item={"type": "heal", "value": 5}),
+        slot1=Entity(name="W", item={"type": "weapon", "value": 1}),
+        slot2=Entity(name="T", item={"type": "scanner", "scanner_tier": 1, "value": 1}),
     )
 
     state = InventoryState()
@@ -150,18 +192,12 @@ def test_navigation_up_down():
     _press(state, engine, tcod.event.KeySym.DOWN)
     assert state.selected == 1
 
+    # Can't go past 2 slots
     _press(state, engine, tcod.event.KeySym.DOWN)
-    assert state.selected == 2
-
-    _press(state, engine, tcod.event.KeySym.DOWN)
-    assert state.selected == 3
-
-    # Can't go past 4 slots
-    _press(state, engine, tcod.event.KeySym.DOWN)
-    assert state.selected == 3
+    assert state.selected == 1
 
     _press(state, engine, tcod.event.KeySym.UP)
-    assert state.selected == 2
+    assert state.selected == 0
 
 
 # --- Tab switching ---
@@ -181,32 +217,18 @@ def test_tab_switches_section():
     assert state._section == 0
 
 
-# --- Collection tank ---
+# --- Inventory navigation ---
 
-def test_collection_tank_view_only():
-    """Items in collection tank should be view-only (no use via ENTER)."""
+def test_inventory_navigation():
     engine = make_engine()
     engine.player.loadout = Loadout()
-    item = Entity(name="Pipe", item={"type": "weapon", "value": 2})
-    engine.player.collection_tank.append(item)
-
-    state = InventoryState()
-    _press(state, engine, tcod.event.KeySym.RIGHT)  # switch to collection
-    _press(state, engine, tcod.event.KeySym.RETURN)  # should do nothing
-
-    assert engine.player.collection_tank[0] is item
-
-
-def test_collection_tank_navigation():
-    engine = make_engine()
-    engine.player.loadout = Loadout()
-    engine.player.collection_tank.extend([
+    engine.player.inventory.extend([
         Entity(name="A", item={"type": "weapon", "value": 1}),
         Entity(name="B", item={"type": "heal", "value": 5}),
     ])
 
     state = InventoryState()
-    _press(state, engine, tcod.event.KeySym.RIGHT)  # switch to collection
+    _press(state, engine, tcod.event.KeySym.RIGHT)  # switch to inventory
     assert state.selected == 0
 
     _press(state, engine, tcod.event.KeySym.DOWN)

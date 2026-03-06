@@ -52,8 +52,8 @@ def test_pickup():
     eng = MockEngine(gm, p)
     eng.player = p  # PickupAction checks entity is engine.player
     PickupAction().perform(eng, p)
-    assert len(p.collection_tank) == 1
-    assert p.collection_tank[0].name == "Pipe"
+    assert len(p.inventory) == 1
+    assert p.inventory[0].name == "Pipe"
     assert item not in gm.entities
 
 

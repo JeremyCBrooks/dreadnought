@@ -58,7 +58,7 @@ class TestHasUsableRanged:
         wpn = Entity(name="Blaster", item={
             "type": "weapon", "weapon_class": "ranged", "ammo": 5, "value": 3,
         })
-        e.loadout = Loadout(weapon=wpn)
+        e.loadout = Loadout(slot1=wpn)
         assert has_usable_ranged(e) is True
 
     def test_loadout_no_ammo(self):
@@ -66,7 +66,7 @@ class TestHasUsableRanged:
         wpn = Entity(name="Blaster", item={
             "type": "weapon", "weapon_class": "ranged", "ammo": 0, "value": 3,
         })
-        e.loadout = Loadout(weapon=wpn)
+        e.loadout = Loadout(slot1=wpn)
         assert has_usable_ranged(e) is False
 
 

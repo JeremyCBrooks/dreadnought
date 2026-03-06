@@ -44,12 +44,12 @@ def _find_print(calls, substring):
 
 def test_stats_show_equipped_ranged_weapon():
     engine = make_engine()
-    engine.player.loadout = Loadout(weapon=_ranged_weapon(ammo=15, max_ammo=20))
+    engine.player.loadout = Loadout(slot1=_ranged_weapon(ammo=15, max_ammo=20))
     state = TacticalState()
     console, calls = _mock_console()
     layout = _make_layout()
     state._render_stats(console, engine, layout)
-    hit = _find_print(calls, "WPN:")
+    hit = _find_print(calls, "S1:")
     assert hit is not None
     assert "Blaster" in hit["string"]
     assert "15/20" in hit["string"]
@@ -62,7 +62,7 @@ def test_stats_no_ranged_weapon():
     console, calls = _mock_console()
     layout = _make_layout()
     state._render_stats(console, engine, layout)
-    hit = _find_print(calls, "WPN:")
+    hit = _find_print(calls, "S1:")
     assert hit is not None
     assert "--" in hit["string"]
 
@@ -71,7 +71,7 @@ def test_stats_no_ranged_weapon():
 
 def test_targeting_header():
     engine = make_engine()
-    engine.player.loadout = Loadout(weapon=_ranged_weapon())
+    engine.player.loadout = Loadout(slot1=_ranged_weapon())
     state = TacticalState()
     state._ranged_cursor = (7, 5)
     console, calls = _mock_console()
@@ -110,7 +110,7 @@ def test_underfoot_header():
 
 def test_targeting_distance_display():
     engine = make_engine()
-    engine.player.loadout = Loadout(weapon=_ranged_weapon(range_=5))
+    engine.player.loadout = Loadout(slot1=_ranged_weapon(range_=5))
     state = TacticalState()
     # Player at (5,5), cursor at (8,5) -> Chebyshev distance = 3
     state._ranged_cursor = (8, 5)
@@ -125,7 +125,7 @@ def test_targeting_distance_display():
 
 def test_targeting_out_of_range_color():
     engine = make_engine()
-    engine.player.loadout = Loadout(weapon=_ranged_weapon(range_=2))
+    engine.player.loadout = Loadout(slot1=_ranged_weapon(range_=2))
     state = TacticalState()
     # Player at (5,5), cursor at (8,5) -> distance = 3, range = 2 -> out of range
     state._ranged_cursor = (8, 5)

@@ -55,17 +55,39 @@ def test_briefing_esc_pops():
     assert engine.current_state is not briefing
 
 
-def test_briefing_enter_switches_to_loadout():
+def test_briefing_enter_switches_to_tactical():
     import tcod.event
     engine = _make_engine()
     loc = Location("Test Station", "derelict")
     briefing = BriefingState(loc, depth=1)
     engine.push_state(briefing)
     briefing.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RETURN))
-    from ui.loadout_state import LoadoutState
-    assert isinstance(engine.current_state, LoadoutState)
-    assert engine.current_state.location is loc
-    assert engine.current_state.depth == 1
+    from ui.tactical_state import TacticalState
+    assert isinstance(engine.current_state, TacticalState)
+
+
+def test_briefing_suit_navigation():
+    import tcod.event
+    engine = _make_engine()
+    loc = Location("Test Station", "derelict")
+    briefing = BriefingState(loc, depth=0)
+    engine.push_state(briefing)
+    assert briefing._suit_index == 0
+    briefing.ev_keydown(engine, FakeEvent(tcod.event.KeySym.DOWN))
+    assert briefing._suit_index == 1
+    briefing.ev_keydown(engine, FakeEvent(tcod.event.KeySym.UP))
+    assert briefing._suit_index == 0
+
+
+def test_briefing_confirm_sets_suit():
+    import tcod.event
+    engine = _make_engine()
+    loc = Location("Test Station", "derelict")
+    briefing = BriefingState(loc, depth=0)
+    engine.push_state(briefing)
+    briefing.ev_keydown(engine, FakeEvent(tcod.event.KeySym.DOWN))
+    briefing.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RETURN))
+    assert engine.suit.name == "Hazard Suit"
 
 
 def test_briefing_stores_location():

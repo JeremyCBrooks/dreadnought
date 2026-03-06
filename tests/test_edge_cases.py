@@ -17,7 +17,7 @@ from tests.conftest import make_engine, make_arena, MockEngine
 def test_scan_tier3_shows_details():
     engine = make_engine()
     scanner = Entity(name="Military Scanner", item={"type": "scanner", "scanner_tier": 3, "range": 8})
-    engine.player.loadout = Loadout(tool=scanner)
+    engine.player.loadout = Loadout(slot1=scanner)
     hazard = {"type": "electric", "damage": 3, "severity": "severe", "equipment_damage": True}
     inter = Entity(
         x=6, y=5, name="Console", blocks_movement=False,
@@ -35,7 +35,7 @@ def test_scan_nothing_nearby():
     """Area scan with nothing in range returns 1 (costs turn) and logs all clear."""
     engine = make_engine()
     scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8})
-    engine.player.loadout = Loadout(tool=scanner)
+    engine.player.loadout = Loadout(slot1=scanner)
     result = ScanAction().perform(engine, engine.player)
     assert result == 1
     msgs = [m[0] for m in engine.message_log.messages]
@@ -70,7 +70,7 @@ def test_electric_equipment_damage(monkeypatch):
     """Electric hazard can damage equipment in loadout."""
     engine = make_engine()
     weapon = Entity(name="Baton", item={"type": "weapon", "value": 2, "durability": 1, "max_durability": 5})
-    engine.player.loadout = Loadout(weapon=weapon)
+    engine.player.loadout = Loadout(slot1=weapon)
 
     hazard = {"type": "electric", "damage": 1, "equipment_damage": True, "dot": 0, "duration": 0}
 
@@ -81,7 +81,7 @@ def test_electric_equipment_damage(monkeypatch):
 
     trigger_hazard(engine, hazard, "Console")
     # Weapon had durability 1, should be destroyed (durability 1 - 1 = 0 <= 0)
-    assert engine.player.loadout.weapon is None
+    assert engine.player.loadout.slot1 is None
     msgs = [m[0] for m in engine.message_log.messages]
     assert any("destroyed" in m for m in msgs)
 
@@ -90,7 +90,7 @@ def test_electric_equipment_no_damage_when_random_high(monkeypatch):
     """Electric hazard doesn't damage equipment when random > 0.5."""
     engine = make_engine()
     weapon = Entity(name="Baton", item={"type": "weapon", "value": 2, "durability": 3, "max_durability": 5})
-    engine.player.loadout = Loadout(weapon=weapon)
+    engine.player.loadout = Loadout(slot1=weapon)
 
     hazard = {"type": "electric", "damage": 1, "equipment_damage": True, "dot": 0, "duration": 0}
 
@@ -124,9 +124,9 @@ def test_pickup_takes_first_item():
     eng = MockEngine(gm, p)
     eng.player = p
     PickupAction().perform(eng, p)
-    # Should pick up the first item into collection_tank
-    assert len(p.collection_tank) == 1
-    assert p.collection_tank[0].name == "Pipe"
+    # Should pick up the first item into inventory
+    assert len(p.inventory) == 1
+    assert p.inventory[0].name == "Pipe"
     # Second item remains on map
     assert item_b in gm.entities
 
@@ -267,7 +267,7 @@ def test_interact_hazard_and_loot():
     )
     engine.game_map.entities.append(inter)
     InteractAction().perform(engine, engine.player)
-    # Player takes hazard damage AND gets loot in collection_tank
+    # Player takes hazard damage AND gets loot in inventory
     assert engine.player.fighter.hp == 9
-    assert len(engine.player.collection_tank) == 1
-    assert engine.player.collection_tank[0].name == "Med-kit"
+    assert len(engine.player.inventory) == 1
+    assert engine.player.inventory[0].name == "Med-kit"

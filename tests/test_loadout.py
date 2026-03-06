@@ -1,6 +1,6 @@
-"""Tests for the Loadout data model."""
+"""Tests for the Loadout data model (2 generic equipment slots)."""
 from game.entity import Entity
-from game.loadout import Loadout, SlotType, item_slot_type, ITEM_TYPE_TO_SLOT
+from game.loadout import Loadout, is_equippable
 
 
 def _weapon(name="Blaster", weapon_class="ranged", ammo=5, value=3):
@@ -26,55 +26,51 @@ def _o2(value=20):
     return Entity(name="O2 Canister", item={"type": "o2", "value": value})
 
 
-# --- item_slot_type ---
+# --- is_equippable ---
 
-def test_item_slot_type_weapon():
-    assert item_slot_type(_weapon()) == SlotType.WEAPON
+def test_is_equippable_weapon():
+    assert is_equippable(_weapon()) is True
 
-def test_item_slot_type_scanner():
-    assert item_slot_type(_scanner()) == SlotType.TOOL
+def test_is_equippable_scanner():
+    assert is_equippable(_scanner()) is True
 
-def test_item_slot_type_heal():
-    assert item_slot_type(_heal()) == SlotType.CONSUMABLE
+def test_is_equippable_heal():
+    assert is_equippable(_heal()) is False
 
-def test_item_slot_type_repair():
-    assert item_slot_type(_repair()) == SlotType.CONSUMABLE
+def test_is_equippable_repair():
+    assert is_equippable(_repair()) is False
 
-def test_item_slot_type_o2():
-    assert item_slot_type(_o2()) == SlotType.CONSUMABLE
+def test_is_equippable_o2():
+    assert is_equippable(_o2()) is False
 
-def test_item_slot_type_no_item():
+def test_is_equippable_no_item():
     e = Entity(name="Rock")
-    assert item_slot_type(e) is None
+    assert is_equippable(e) is False
 
-def test_item_slot_type_unknown_type():
+def test_is_equippable_unknown_type():
     e = Entity(name="Gizmo", item={"type": "unknown", "value": 1})
-    assert item_slot_type(e) is None
+    assert is_equippable(e) is False
 
 
 # --- Loadout basics ---
 
 def test_loadout_defaults_empty():
     lo = Loadout()
-    assert lo.weapon is None
-    assert lo.tool is None
-    assert lo.consumable1 is None
-    assert lo.consumable2 is None
+    assert lo.slot1 is None
+    assert lo.slot2 is None
     assert lo.all_items() == []
 
 
 def test_loadout_all_items():
     w = _weapon()
     t = _scanner()
-    c1 = _heal()
-    c2 = _o2()
-    lo = Loadout(weapon=w, tool=t, consumable1=c1, consumable2=c2)
-    assert lo.all_items() == [w, t, c1, c2]
+    lo = Loadout(slot1=w, slot2=t)
+    assert lo.all_items() == [w, t]
 
 
 def test_loadout_all_items_partial():
     w = _weapon()
-    lo = Loadout(weapon=w)
+    lo = Loadout(slot1=w)
     assert lo.all_items() == [w]
 
 
@@ -82,84 +78,121 @@ def test_loadout_all_items_partial():
 
 def test_has_item_true():
     w = _weapon()
-    lo = Loadout(weapon=w)
+    lo = Loadout(slot1=w)
     assert lo.has_item(w) is True
 
 def test_has_item_false():
     lo = Loadout()
     assert lo.has_item(_weapon()) is False
 
+def test_has_item_slot2():
+    t = _scanner()
+    lo = Loadout(slot2=t)
+    assert lo.has_item(t) is True
+
 
 # --- remove_item ---
 
-def test_remove_item_weapon():
+def test_remove_item_slot1():
     w = _weapon()
-    lo = Loadout(weapon=w)
+    lo = Loadout(slot1=w)
     assert lo.remove_item(w) is True
-    assert lo.weapon is None
+    assert lo.slot1 is None
 
-def test_remove_item_tool():
+def test_remove_item_slot2():
     t = _scanner()
-    lo = Loadout(tool=t)
+    lo = Loadout(slot2=t)
     assert lo.remove_item(t) is True
-    assert lo.tool is None
-
-def test_remove_item_consumable1():
-    c = _heal()
-    lo = Loadout(consumable1=c)
-    assert lo.remove_item(c) is True
-    assert lo.consumable1 is None
-
-def test_remove_item_consumable2():
-    c = _o2()
-    lo = Loadout(consumable2=c)
-    assert lo.remove_item(c) is True
-    assert lo.consumable2 is None
+    assert lo.slot2 is None
 
 def test_remove_item_not_found():
     lo = Loadout()
     assert lo.remove_item(_weapon()) is False
 
 
-# --- use_consumable ---
+# --- equip ---
 
-def test_use_consumable1():
-    c = _heal()
-    lo = Loadout(consumable1=c)
-    assert lo.use_consumable(c) is True
-    assert lo.consumable1 is None
-
-def test_use_consumable2():
-    c = _o2()
-    lo = Loadout(consumable2=c)
-    assert lo.use_consumable(c) is True
-    assert lo.consumable2 is None
-
-def test_use_consumable_weapon_fails():
-    w = _weapon()
-    lo = Loadout(weapon=w)
-    assert lo.use_consumable(w) is False
-
-def test_use_consumable_not_found():
+def test_equip_into_empty_slot1():
     lo = Loadout()
-    assert lo.use_consumable(_heal()) is False
+    w = _weapon()
+    result = lo.equip(w)
+    assert result is None
+    assert lo.slot1 is w
+
+def test_equip_into_slot2_when_slot1_full():
+    w = _weapon()
+    t = _scanner()
+    lo = Loadout(slot1=w)
+    result = lo.equip(t)
+    assert result is None
+    assert lo.slot2 is t
+
+def test_equip_when_both_full():
+    w = _weapon()
+    t = _scanner()
+    lo = Loadout(slot1=w, slot2=t)
+    new = _weapon("Pipe")
+    result = lo.equip(new)
+    assert result is None  # returns None, loadout unchanged when full
+    assert lo.is_full()
+
+
+# --- unequip ---
+
+def test_unequip_slot1():
+    w = _weapon()
+    lo = Loadout(slot1=w)
+    result = lo.unequip(w)
+    assert result is w
+    assert lo.slot1 is None
+
+def test_unequip_slot2():
+    t = _scanner()
+    lo = Loadout(slot2=t)
+    result = lo.unequip(t)
+    assert result is t
+    assert lo.slot2 is None
+
+def test_unequip_not_found():
+    lo = Loadout()
+    assert lo.unequip(_weapon()) is None
+
+
+# --- is_full ---
+
+def test_is_full_empty():
+    lo = Loadout()
+    assert lo.is_full() is False
+
+def test_is_full_one():
+    lo = Loadout(slot1=_weapon())
+    assert lo.is_full() is False
+
+def test_is_full_both():
+    lo = Loadout(slot1=_weapon(), slot2=_scanner())
+    assert lo.is_full() is True
 
 
 # --- get_ranged_weapon ---
 
-def test_get_ranged_weapon_found():
+def test_get_ranged_weapon_slot1():
     w = _weapon(weapon_class="ranged", ammo=5)
-    lo = Loadout(weapon=w)
+    lo = Loadout(slot1=w)
+    assert lo.get_ranged_weapon() is w
+
+def test_get_ranged_weapon_slot2():
+    w = _weapon(weapon_class="ranged", ammo=5)
+    lo = Loadout(slot2=w)
     assert lo.get_ranged_weapon() is w
 
 def test_get_ranged_weapon_melee_returns_none():
     w = _weapon(weapon_class="melee", ammo=0)
-    lo = Loadout(weapon=w)
+    lo = Loadout(slot1=w)
     assert lo.get_ranged_weapon() is None
 
 def test_get_ranged_weapon_no_ammo():
     w = _weapon(weapon_class="ranged", ammo=0)
-    lo = Loadout(weapon=w)
+    lo = Loadout(slot1=w)
     assert lo.get_ranged_weapon() is None
 
 def test_get_ranged_weapon_empty():
@@ -169,14 +202,19 @@ def test_get_ranged_weapon_empty():
 
 # --- get_scanner ---
 
-def test_get_scanner_found():
+def test_get_scanner_slot1():
     t = _scanner()
-    lo = Loadout(tool=t)
+    lo = Loadout(slot1=t)
     assert lo.get_scanner() is t
 
-def test_get_scanner_non_scanner_tool():
+def test_get_scanner_slot2():
+    t = _scanner()
+    lo = Loadout(slot2=t)
+    assert lo.get_scanner() is t
+
+def test_get_scanner_non_scanner():
     t = Entity(name="Gizmo", item={"type": "weapon", "value": 1})
-    lo = Loadout(tool=t)
+    lo = Loadout(slot1=t)
     assert lo.get_scanner() is None
 
 def test_get_scanner_empty():
@@ -184,27 +222,43 @@ def test_get_scanner_empty():
     assert lo.get_scanner() is None
 
 
+# --- get_all_scanners ---
+
+def test_get_all_scanners_empty():
+    lo = Loadout()
+    assert lo.get_all_scanners() == []
+
+def test_get_all_scanners_one():
+    s = _scanner()
+    lo = Loadout(slot1=s)
+    assert lo.get_all_scanners() == [s]
+
+def test_get_all_scanners_two():
+    s1 = _scanner(tier=1)
+    s2 = _scanner(tier=2)
+    lo = Loadout(slot1=s1, slot2=s2)
+    assert lo.get_all_scanners() == [s1, s2]
+
+def test_get_all_scanners_mixed():
+    w = _weapon()
+    s = _scanner()
+    lo = Loadout(slot1=w, slot2=s)
+    assert lo.get_all_scanners() == [s]
+
+
 # --- items_with_durability ---
 
 def test_items_with_durability():
     w = Entity(name="Baton", item={"type": "weapon", "value": 2, "durability": 3, "max_durability": 5})
     t = _scanner()  # no durability
-    c = _heal()  # no durability
-    lo = Loadout(weapon=w, tool=t, consumable1=c)
+    lo = Loadout(slot1=w, slot2=t)
     assert lo.items_with_durability() == [w]
 
 def test_items_with_durability_zero():
     w = Entity(name="Baton", item={"type": "weapon", "value": 2, "durability": 0, "max_durability": 5})
-    lo = Loadout(weapon=w)
+    lo = Loadout(slot1=w)
     assert lo.items_with_durability() == []
 
 def test_items_with_durability_empty():
     lo = Loadout()
     assert lo.items_with_durability() == []
-
-
-# --- ITEM_TYPE_TO_SLOT mapping ---
-
-def test_all_consumable_types_map_to_consumable():
-    for t in ("heal", "repair", "o2"):
-        assert ITEM_TYPE_TO_SLOT[t] == SlotType.CONSUMABLE

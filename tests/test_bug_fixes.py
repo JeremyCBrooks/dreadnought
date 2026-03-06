@@ -14,38 +14,27 @@ from tests.conftest import make_engine, make_arena, MockEngine
 
 def test_repair_kit_not_consumed_when_nothing_to_repair():
     from game.loadout import Loadout
+    from game.consumables import use_consumable
     engine = make_engine()
-    # Only item is the repair kit itself — nothing else to repair
+    engine.player.loadout = Loadout()
     repair = Entity(name="Repair Kit", item={"type": "repair", "value": 3})
-    engine.player.loadout = Loadout(consumable1=repair)
+    engine.player.inventory.append(repair)
 
-    # Simulate InventoryState logic: try to repair
-    repaired = None
-    for other in engine.player.loadout.all_items():
-        if other is not repair and other.item and other.item.get("durability") is not None:
-            d = other.item.get("durability", 0)
-            max_d = other.item.get("max_durability", 5)
-            if d < max_d:
-                repaired = other.name
-                break
-    if repaired:
-        engine.player.loadout.use_consumable(repair)
-    # No repaired item, so kit should still be in loadout
-    assert engine.player.loadout.consumable1 is repair
+    result = use_consumable(engine, engine.player, repair)
+    assert result is False
+    assert repair in engine.player.inventory
 
 
 def test_o2_not_consumed_when_no_suit():
-    from game.loadout import Loadout
+    from game.consumables import use_consumable
     engine = make_engine()
     engine.suit = None
     o2 = Entity(name="O2 Canister", item={"type": "o2", "value": 20})
-    engine.player.loadout = Loadout(consumable1=o2)
+    engine.player.inventory.append(o2)
 
-    # Simulate the fixed InventoryState logic
-    if getattr(engine, "suit", None) and "vacuum" in engine.suit.resistances:
-        engine.player.loadout.use_consumable(o2)
-    # No suit, so canister should remain
-    assert engine.player.loadout.consumable1 is o2
+    result = use_consumable(engine, engine.player, o2)
+    assert result is False
+    assert o2 in engine.player.inventory
 
 
 # --- Fix #2: DoT with duration=0 should not become infinite ---

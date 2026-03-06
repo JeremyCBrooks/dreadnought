@@ -62,6 +62,5 @@ class MockEngine:
         self._state_stack = []
         self._saved_player = None
         self.ship = None
-        self._pending_loadout = None
         self.scan_results = None
         self.scan_glow = None

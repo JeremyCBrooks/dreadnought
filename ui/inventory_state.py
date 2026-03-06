@@ -1,4 +1,4 @@
-"""Inventory overlay state: two sections (LOADOUT + COLLECTION TANK)."""
+"""Inventory overlay state: two sections (EQUIPPED + INVENTORY)."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -9,25 +9,23 @@ if TYPE_CHECKING:
     from engine.game_state import Engine
 
 # Sections
-_LOADOUT = 0
-_COLLECTION = 1
+_EQUIPPED = 0
+_INVENTORY = 1
 
 
 class InventoryState(State):
     def __init__(self) -> None:
         self.selected = 0
-        self._section = _LOADOUT  # 0=loadout, 1=collection tank
+        self._section = _EQUIPPED  # 0=equipped, 1=inventory
 
-    def _loadout_slots(self, engine: Engine) -> list:
-        """Return list of (label, item_or_None, usable) tuples for the loadout."""
+    def _equipped_slots(self, engine: Engine) -> list:
+        """Return list of (label, item_or_None) tuples for equipped slots."""
         lo = engine.player.loadout
         if not lo:
             return []
         return [
-            ("WPN", lo.weapon, False),
-            ("TOOL", lo.tool, False),
-            ("C1", lo.consumable1, True),
-            ("C2", lo.consumable2, True),
+            ("S1", lo.slot1),
+            ("S2", lo.slot2),
         ]
 
     def ev_keydown(self, engine: Engine, event: Any) -> bool:
@@ -43,29 +41,29 @@ class InventoryState(State):
         if direction:
             dx, dy = direction
             if dx < 0:  # left
-                if self._section != _LOADOUT:
-                    self._section = _LOADOUT
+                if self._section != _EQUIPPED:
+                    self._section = _EQUIPPED
                     self.selected = 0
                 return True
             if dx > 0:  # right
-                if self._section != _COLLECTION:
-                    self._section = _COLLECTION
+                if self._section != _INVENTORY:
+                    self._section = _INVENTORY
                     self.selected = 0
                 return True
             if dy != 0:
-                if self._section == _LOADOUT:
-                    return self._handle_loadout_nav(engine, dy)
+                if self._section == _EQUIPPED:
+                    return self._handle_equipped_nav(engine, dy)
                 else:
-                    return self._handle_collection_nav(engine, dy)
+                    return self._handle_inventory_nav(engine, dy)
             return True
 
-        if self._section == _LOADOUT:
-            return self._handle_loadout(engine, key)
+        if self._section == _EQUIPPED:
+            return self._handle_equipped(engine, key)
         else:
-            return self._handle_collection(engine, key)
+            return self._handle_inventory(engine, key)
 
-    def _handle_loadout_nav(self, engine: Engine, dy: int) -> bool:
-        slots = self._loadout_slots(engine)
+    def _handle_equipped_nav(self, engine: Engine, dy: int) -> bool:
+        slots = self._equipped_slots(engine)
         if not slots:
             return True
         if dy < 0:
@@ -74,87 +72,84 @@ class InventoryState(State):
             self.selected = min(len(slots) - 1, self.selected + 1)
         return True
 
-    def _handle_collection_nav(self, engine: Engine, dy: int) -> bool:
-        tank = engine.player.collection_tank
+    def _handle_inventory_nav(self, engine: Engine, dy: int) -> bool:
+        inv = engine.player.inventory
         if dy < 0:
             self.selected = max(0, self.selected - 1)
-        elif dy > 0 and tank:
-            self.selected = min(len(tank) - 1, self.selected + 1)
+        elif dy > 0 and inv:
+            self.selected = min(len(inv) - 1, self.selected + 1)
         return True
 
-    def _handle_loadout(self, engine: Engine, key: Any) -> bool:
+    def _handle_equipped(self, engine: Engine, key: Any) -> bool:
         from ui.keys import confirm_keys
 
-        slots = self._loadout_slots(engine)
-        if not slots:
+        if key in confirm_keys():
+            slots = self._equipped_slots(engine)
+            if self.selected < len(slots):
+                _, item = slots[self.selected]
+                if item:
+                    self._unequip(engine, item)
             return True
+
+        return True
+
+    def _handle_inventory(self, engine: Engine, key: Any) -> bool:
+        from ui.keys import confirm_keys
 
         if key in confirm_keys():
-            if self.selected < len(slots):
-                label, item, usable = slots[self.selected]
-                if usable and item:
-                    self._use_consumable(engine, item)
+            inv = engine.player.inventory
+            if 0 <= self.selected < len(inv):
+                item = inv[self.selected]
+                self._use_or_equip(engine, item)
             return True
 
         return True
 
-    def _handle_collection(self, engine: Engine, key: Any) -> bool:
-        return True
+    def _unequip(self, engine: Engine, item: Any) -> None:
+        """Unequip item from loadout back to inventory."""
+        if engine.player.loadout:
+            result = engine.player.loadout.unequip(item)
+            if result:
+                engine.player.inventory.append(result)
+                from game.loadout import recalc_melee_power
+                recalc_melee_power(engine.player)
+                engine.message_log.add_message(
+                    f"Unequipped {item.name}.", (200, 200, 200)
+                )
+
+    def _use_or_equip(self, engine: Engine, item: Any) -> None:
+        """Equip (weapon/tool) or use (consumable) an inventory item."""
+        from game.loadout import is_equippable, recalc_melee_power
+
+        if is_equippable(item):
+            lo = engine.player.loadout
+            if lo and not lo.is_full():
+                engine.player.inventory.remove(item)
+                lo.equip(item)
+                recalc_melee_power(engine.player)
+                engine.message_log.add_message(
+                    f"Equipped {item.name}.", (100, 255, 100)
+                )
+            elif lo and lo.is_full():
+                engine.message_log.add_message(
+                    "Equipment slots full. Unequip something first.", (255, 200, 100)
+                )
+        else:
+            from game.consumables import use_consumable
+            use_consumable(engine, engine.player, item)
+        self._clamp_selected(engine)
 
     def _clamp_selected(self, engine: Engine) -> None:
-        """Clamp selected index to valid loadout range after slot changes."""
-        self.selected = max(0, min(self.selected, len(self._loadout_slots(engine)) - 1))
-
-    def _use_consumable(self, engine: Engine, item: Any) -> None:
-        """Apply consumable effect and clear slot."""
-        itype = item.item.get("type") if item.item else None
-
-        if itype == "heal":
-            heal = item.item["value"]
-            engine.player.fighter.hp = min(
-                engine.player.fighter.max_hp,
-                engine.player.fighter.hp + heal,
-            )
-            engine.message_log.add_message(
-                f"Used {item.name}. Healed {heal} HP.", (0, 255, 0)
-            )
-            engine.player.loadout.use_consumable(item)
-            self._clamp_selected(engine)
-
-        elif itype == "repair":
-            repaired = None
-            if engine.player.loadout:
-                for other in engine.player.loadout.all_items():
-                    if other is not item and other.item and other.item.get("durability") is not None:
-                        d = other.item.get("durability", 0)
-                        max_d = other.item.get("max_durability", 5)
-                        if d < max_d:
-                            other.item["durability"] = min(max_d, d + item.item["value"])
-                            repaired = other.name
-                            break
-            if repaired:
-                engine.message_log.add_message(
-                    f"Used {item.name}. Repaired {repaired}.", (200, 200, 100)
-                )
-                engine.player.loadout.use_consumable(item)
-                self.selected = max(0, min(self.selected, len(self._loadout_slots(engine)) - 1))
+        """Clamp selected index to valid range after changes."""
+        if self._section == _EQUIPPED:
+            slots = self._equipped_slots(engine)
+            self.selected = max(0, min(self.selected, len(slots) - 1))
+        else:
+            inv = engine.player.inventory
+            if inv:
+                self.selected = max(0, min(self.selected, len(inv) - 1))
             else:
-                engine.message_log.add_message(
-                    "No damaged items to repair.", (150, 150, 100)
-                )
-
-        elif itype == "o2":
-            if getattr(engine, "suit", None) and "vacuum" in engine.suit.resistances:
-                max_o2 = engine.suit.resistances["vacuum"]
-                cur = engine.suit.current_pools.get("vacuum", 0)
-                engine.suit.current_pools["vacuum"] = min(max_o2, cur + item.item["value"])
-                engine.message_log.add_message(
-                    f"Used {item.name}. O2 restored.", (100, 200, 255)
-                )
-                engine.player.loadout.use_consumable(item)
-                self.selected = max(0, min(self.selected, len(self._loadout_slots(engine)) - 1))
-            else:
-                engine.message_log.add_message("No suit O2 to restore.", (150, 150, 150))
+                self.selected = 0
 
     def on_render(self, console: Any, engine: Engine) -> None:
         cw, ch = engine.CONSOLE_WIDTH, engine.CONSOLE_HEIGHT
@@ -166,38 +161,38 @@ class InventoryState(State):
         console.draw_rect(bx, by, bw, bh, ch=32, bg=DIALOG_BG)
 
         # Section tabs
-        loadout_color = TAB_SELECTED if self._section == _LOADOUT else TAB_UNSELECTED
-        tank_color = TAB_SELECTED if self._section == _COLLECTION else TAB_UNSELECTED
-        console.print(x=bx + 2, y=by + 1, string="LOADOUT", fg=loadout_color)
-        console.print(x=bx + 12, y=by + 1, string="COLLECTION TANK", fg=tank_color)
+        eq_color = TAB_SELECTED if self._section == _EQUIPPED else TAB_UNSELECTED
+        inv_color = TAB_SELECTED if self._section == _INVENTORY else TAB_UNSELECTED
+        console.print(x=bx + 2, y=by + 1, string="EQUIPPED", fg=eq_color)
+        console.print(x=bx + 12, y=by + 1, string="INVENTORY", fg=inv_color)
 
         label_width = bw - 4
         max_visible = max(0, bh - 6)
         row = by + 3
 
-        if self._section == _LOADOUT:
-            slots = self._loadout_slots(engine)
+        if self._section == _EQUIPPED:
+            slots = self._equipped_slots(engine)
             if not slots:
                 console.print(x=bx + 2, y=row, string="(no loadout)", fg=(100, 100, 100))
             else:
-                for j, (label, item, usable) in enumerate(slots):
+                for j, (label, item) in enumerate(slots):
                     prefix = ">" if j == self.selected else " "
                     color = (255, 255, 255) if j == self.selected else (150, 150, 150)
                     item_name = item.name if item else "--"
-                    use_hint = " [ENTER]" if usable and item else ""
+                    use_hint = " [ENTER]" if item else ""
                     line = f"{prefix} {label}: {item_name}{use_hint}"
                     if label_width > 3 and len(line) > label_width:
                         line = line[:label_width - 3] + "..."
                     console.print(x=bx + 2, y=row + j, string=line, fg=color)
         else:
-            tank = engine.player.collection_tank
-            if not tank:
+            inv = engine.player.inventory
+            if not inv:
                 console.print(x=bx + 2, y=row, string="(empty)", fg=(100, 100, 100))
             else:
-                start = max(0, min(self.selected - max_visible + 1, len(tank) - max_visible))
-                for j in range(min(max_visible, len(tank) - start)):
+                start = max(0, min(self.selected - max_visible + 1, len(inv) - max_visible))
+                for j in range(min(max_visible, len(inv) - start)):
                     i = start + j
-                    item = tank[i]
+                    item = inv[i]
                     prefix = ">" if i == self.selected else " "
                     color = (255, 255, 255) if i == self.selected else (150, 150, 150)
                     line = f"{prefix} {item.name}"
@@ -209,6 +204,6 @@ class InventoryState(State):
 
         console.print(
             x=bx + 2, y=by + bh - 2,
-            string="[LEFT/RIGHT] Switch [ENTER] Use [ESC] Close",
+            string="[LEFT/RIGHT] Switch [ENTER] Use/Equip [ESC] Close",
             fg=(100, 100, 100),
         )

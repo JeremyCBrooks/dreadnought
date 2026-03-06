@@ -49,7 +49,6 @@ class Engine:
         self.suit: Optional[Suit] = None
         self.active_effects: List[dict] = []
         self.ship: Any = None
-        self._pending_loadout: Any = None
         # Persist player stats between areas
         self._saved_player: Optional[dict] = None
         # Persisted areas: (location_name, depth) -> {game_map, rooms, exit_pos, seed}

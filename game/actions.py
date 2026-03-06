@@ -139,11 +139,7 @@ class PickupAction(Action):
             engine.message_log.add_message("Nothing to pick up.", (100, 100, 100))
             return 0
         item = items[0]
-        # Player picks up into collection tank (not usable until return to ship)
-        if entity is engine.player:
-            entity.collection_tank.append(item)
-        else:
-            entity.inventory.append(item)
+        entity.inventory.append(item)
         engine.game_map.entities.remove(item)
         if entity is engine.player:
             engine.message_log.add_message(
@@ -227,11 +223,7 @@ class InteractAction(Action):
                 blocks_movement=False,
                 item=item_data,
             )
-            # Player loot goes to collection tank
-            if entity is engine.player:
-                entity.collection_tank.append(item_ent)
-            else:
-                entity.inventory.append(item_ent)
+            entity.inventory.append(item_ent)
             engine.message_log.add_message(
                 f"You search the {name}... Found {loot['name']}!", (200, 255, 200)
             )

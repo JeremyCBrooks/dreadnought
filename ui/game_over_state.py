@@ -48,7 +48,6 @@ class GameOverState(State):
         engine.suit = None
         engine.environment = None
         engine.ship = None
-        engine._pending_loadout = None
         engine.reset_to_state(TitleState())
         return True
 

@@ -27,19 +27,19 @@ def _melee_weapon():
 
 def test_get_ranged_weapon_found():
     player = Entity(name="Player", fighter=Fighter(10, 10, 0, 1))
-    player.loadout = Loadout(weapon=_ranged_weapon())
+    player.loadout = Loadout(slot1=_ranged_weapon())
     assert _get_equipped_ranged_weapon(player) is not None
 
 
 def test_get_ranged_weapon_no_ammo():
     player = Entity(name="Player", fighter=Fighter(10, 10, 0, 1))
-    player.loadout = Loadout(weapon=_ranged_weapon(ammo=0))
+    player.loadout = Loadout(slot1=_ranged_weapon(ammo=0))
     assert _get_equipped_ranged_weapon(player) is None
 
 
 def test_get_ranged_weapon_only_melee():
     player = Entity(name="Player", fighter=Fighter(10, 10, 0, 1))
-    player.loadout = Loadout(weapon=_melee_weapon())
+    player.loadout = Loadout(slot1=_melee_weapon())
     assert _get_equipped_ranged_weapon(player) is None
 
 
@@ -52,7 +52,7 @@ def test_get_ranged_weapon_empty_inventory():
 
 def test_ranged_hit():
     engine = make_engine()
-    engine.player.loadout = Loadout(weapon=_ranged_weapon())
+    engine.player.loadout = Loadout(slot1=_ranged_weapon())
     target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 2),
                     blocks_movement=True)
     engine.game_map.entities.append(target)
@@ -66,7 +66,7 @@ def test_ranged_hit():
 def test_ranged_ammo_decrement():
     engine = make_engine()
     weapon = _ranged_weapon(ammo=3)
-    engine.player.loadout = Loadout(weapon=weapon)
+    engine.player.loadout = Loadout(slot1=weapon)
     target = Entity(x=7, y=5, name="Bot", fighter=Fighter(10, 10, 0, 0),
                     blocks_movement=True)
     engine.game_map.entities.append(target)
@@ -77,7 +77,7 @@ def test_ranged_ammo_decrement():
 
 def test_ranged_out_of_range():
     engine = make_engine()
-    engine.player.loadout = Loadout(weapon=_ranged_weapon(range_=2))
+    engine.player.loadout = Loadout(slot1=_ranged_weapon(range_=2))
     target = Entity(x=8, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
                     blocks_movement=True)
     engine.game_map.entities.append(target)
@@ -102,7 +102,7 @@ def test_ranged_no_weapon():
 
 def test_ranged_no_ammo():
     engine = make_engine()
-    engine.player.loadout = Loadout(weapon=_ranged_weapon(ammo=0))
+    engine.player.loadout = Loadout(slot1=_ranged_weapon(ammo=0))
     target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
                     blocks_movement=True)
     engine.game_map.entities.append(target)
@@ -113,7 +113,7 @@ def test_ranged_no_ammo():
 
 def test_ranged_kills_removes():
     engine = make_engine()
-    engine.player.loadout = Loadout(weapon=_ranged_weapon(value=10))
+    engine.player.loadout = Loadout(slot1=_ranged_weapon(value=10))
     target = Entity(x=7, y=5, name="Bot", fighter=Fighter(1, 1, 0, 0),
                     blocks_movement=True)
     engine.game_map.entities.append(target)
@@ -124,7 +124,7 @@ def test_ranged_kills_removes():
 
 def test_ranged_not_visible():
     engine = make_engine()
-    engine.player.loadout = Loadout(weapon=_ranged_weapon())
+    engine.player.loadout = Loadout(slot1=_ranged_weapon())
     target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
                     blocks_movement=True)
     engine.game_map.entities.append(target)

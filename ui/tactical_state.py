@@ -157,7 +157,6 @@ class TacticalState(State):
             player.fighter.base_power = sp["base_power"]
             player.inventory = sp.get("inventory", [])
             player.loadout = sp.get("loadout")
-            player.collection_tank = sp.get("collection_tank", [])
         game_map.entities.append(player)
 
         engine.game_map = game_map
@@ -167,15 +166,35 @@ class TacticalState(State):
         if game_map.hull_breaches or game_map.airlocks:
             engine.environment.setdefault("vacuum", 1)
 
-        # Apply pending loadout from LoadoutState
-        pending = getattr(engine, '_pending_loadout', None)
-        if pending:
-            player.loadout = pending
-            engine._pending_loadout = None
-            # Auto-apply melee weapon power bonus
-            w = pending.weapon
-            if w and w.item and w.item.get("weapon_class", "melee") == "melee":
-                player.fighter.power = player.fighter.base_power + w.item.get("value", 0)
+        # Transfer ship cargo to player inventory on entry
+        if getattr(engine, 'ship', None) and not engine._saved_player:
+            for item in list(engine.ship.cargo):
+                player.inventory.append(item)
+            engine.ship.cargo.clear()
+
+        # Auto-equip: first weapon and first tool into loadout if not already set
+        if not player.loadout:
+            from game.loadout import Loadout, is_equippable
+            player.loadout = Loadout()
+            first_weapon = None
+            first_tool = None
+            for item in player.inventory:
+                if not is_equippable(item):
+                    continue
+                if item.item.get("type") == "weapon" and first_weapon is None:
+                    first_weapon = item
+                elif item.item.get("type") == "scanner" and first_tool is None:
+                    first_tool = item
+            if first_weapon:
+                player.loadout.equip(first_weapon)
+                player.inventory.remove(first_weapon)
+            if first_tool:
+                player.loadout.equip(first_tool)
+                player.inventory.remove(first_tool)
+
+        # Apply melee weapon power bonus
+        from game.loadout import recalc_melee_power
+        recalc_melee_power(player)
 
         # Debug: inject starting inventory on first entry (no saved player)
         if not engine._saved_player:
@@ -199,19 +218,14 @@ class TacticalState(State):
                 if p.loadout:
                     for item in p.loadout.all_items():
                         engine.ship.add_cargo(item)
-                # Transfer collection tank to cargo
-                for item in list(p.collection_tank):
-                    engine.ship.add_cargo(item)
-                # Transfer any legacy inventory to cargo
+                # Transfer inventory to cargo
                 for item in list(p.inventory):
                     engine.ship.add_cargo(item)
                 saved_inventory = []
                 saved_loadout = None
-                saved_tank = []
             else:
                 saved_inventory = list(p.inventory)
                 saved_loadout = p.loadout
-                saved_tank = list(p.collection_tank)
 
             engine._saved_player = {
                 "hp": p.fighter.hp,
@@ -221,7 +235,6 @@ class TacticalState(State):
                 "base_power": p.fighter.base_power,
                 "inventory": saved_inventory,
                 "loadout": saved_loadout,
-                "collection_tank": saved_tank,
             }
             key = _area_key(self.location, self.depth)
             if engine.player in engine.game_map.entities:
@@ -937,10 +950,10 @@ class TacticalState(State):
             console.print(x=x, y=row, string="NO HAZARDS", fg=(0, 200, 100))
             row += 2
 
-        # LOADOUT display (4 slots)
+        # LOADOUT display (2 slots)
         loadout_section_start = row + 1
         ground_block_lines = 1 + GROUND_MAX_LINES_DEFAULT
-        ground_header_y = loadout_section_start + 5  # 1 header + 4 slot lines
+        ground_header_y = loadout_section_start + 3  # 1 header + 2 slot lines
         ground_max_lines = min(GROUND_MAX_LINES_DEFAULT, max(1, ctrl_y - 1 - ground_header_y))
 
         console.print(x=x, y=row, string="LOADOUT:", fg=(180, 180, 200))
@@ -948,22 +961,18 @@ class TacticalState(State):
         lo = p.loadout
         inv_width = layout.stats_w - 2
         if lo:
-            if lo.weapon:
-                ammo = lo.weapon.item.get("ammo")
-                max_ammo = lo.weapon.item.get("max_ammo")
-                if ammo is not None and max_ammo is not None:
-                    wpn_label = f"WPN: {lo.weapon.name} {ammo}/{max_ammo}"
+            for si, slot_item in enumerate((lo.slot1, lo.slot2)):
+                label = f"S{si + 1}"
+                if slot_item:
+                    ammo = slot_item.item.get("ammo") if slot_item.item else None
+                    max_ammo = slot_item.item.get("max_ammo") if slot_item.item else None
+                    if ammo is not None and max_ammo is not None:
+                        slot_label = f"{label}: {slot_item.name} {ammo}/{max_ammo}"
+                    else:
+                        slot_label = f"{label}: {slot_item.name}"
                 else:
-                    wpn_label = f"WPN: {lo.weapon.name}"
-            else:
-                wpn_label = "WPN: --"
-            tool_name = lo.tool.name if lo.tool else "--"
-            c1_name = lo.consumable1.name if lo.consumable1 else "--"
-            c2_name = lo.consumable2.name if lo.consumable2 else "--"
-            console.print(x=x, y=row, string=wpn_label[:inv_width], fg=(150, 150, 255))
-            console.print(x=x, y=row + 1, string=f"TOOL: {tool_name}"[:inv_width], fg=(150, 150, 255))
-            console.print(x=x, y=row + 2, string=f"C1: {c1_name}"[:inv_width], fg=(150, 150, 255))
-            console.print(x=x, y=row + 3, string=f"C2: {c2_name}"[:inv_width], fg=(150, 150, 255))
+                    slot_label = f"{label}: --"
+                console.print(x=x, y=row + si, string=slot_label[:inv_width], fg=(150, 150, 255))
         else:
             console.print(x=x, y=row, string="(none)", fg=(80, 80, 80))
 
