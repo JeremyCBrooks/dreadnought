@@ -34,7 +34,7 @@ class StarSystem:
 
 
 class Galaxy:
-    def __init__(self, seed: Optional[int] = None, num_systems: int = 3) -> None:
+    def __init__(self, seed: Optional[int] = None, num_systems: int = 10) -> None:
         rng = random.Random(seed)
         self.systems: Dict[str, StarSystem] = {}
 

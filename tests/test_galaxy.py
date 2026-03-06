@@ -4,9 +4,9 @@ from data.star_types import STAR_TYPES
 from world.galaxy import Galaxy
 
 
-def test_galaxy_has_three_systems():
+def test_galaxy_has_ten_systems():
     g = Galaxy(seed=1)
-    assert len(g.systems) == 3
+    assert len(g.systems) == 10
 
 
 def test_systems_are_connected():

@@ -74,3 +74,100 @@ class TestStarDisc:
         bright_rg = np.sum(np.max(vp_rg, axis=-1) > 50)
         bright_wd = np.sum(np.max(vp_wd, axis=-1) > 50)
         assert bright_rg > bright_wd, f"red_giant ({bright_rg}) should fill more than white_dwarf ({bright_wd})"
+
+
+class TestSpecialStars:
+    def test_black_hole_center_is_dark(self):
+        """Black hole center should be darker than surrounding space."""
+        c = FakeConsole(160, 50)
+        render_viewport(c, 64, 0, 96, 42, "black_hole", 1, time_override=0.0)
+        # Star center: cx=158, cy=1 — check a cell very near center
+        center_bg = c.rgb["bg"][157, 0]
+        center_brightness = int(center_bg[0]) + int(center_bg[1]) + int(center_bg[2])
+        # Should be very dark (near 0)
+        assert center_brightness < 20, f"Black hole center too bright: {tuple(center_bg)}"
+
+    def test_black_hole_has_accretion_glow(self):
+        """Black hole should have some bright cells around it (accretion disc)."""
+        c = FakeConsole(160, 50)
+        render_viewport(c, 64, 0, 96, 42, "black_hole", 1, time_override=0.0)
+        # Check region around star for bright cells
+        region = c.rgb["bg"][140:158, 0:15]
+        max_brightness = np.max(region)
+        assert max_brightness > 30, f"No accretion glow found, max={max_brightness}"
+
+    def test_pulsar_brightness_changes_over_time(self):
+        """Pulsar should pulse, producing different brightness at different times."""
+        c1 = FakeConsole(160, 50)
+        c2 = FakeConsole(160, 50)
+        render_viewport(c1, 64, 0, 96, 42, "pulsar", 1, time_override=0.0)
+        render_viewport(c2, 64, 0, 96, 42, "pulsar", 1, time_override=1.0)
+        region1 = c1.rgb["bg"][140:158, 0:10]
+        region2 = c2.rgb["bg"][140:158, 0:10]
+        assert not np.array_equal(region1, region2), "Pulsar should pulse brightness"
+
+    def test_all_star_types_render_without_error(self):
+        """Smoke test: every star type renders without crashing."""
+        for key in STAR_TYPES:
+            c = FakeConsole(160, 50)
+            render_viewport(c, 64, 0, 96, 42, key, 42, time_override=0.0)
+
+
+class TestFlares:
+    def test_flares_change_over_time(self):
+        """Flares should animate — different times produce different output."""
+        c1 = FakeConsole(160, 50)
+        c2 = FakeConsole(160, 50)
+        render_viewport(c1, 64, 0, 96, 42, "yellow_dwarf", 42, time_override=0.0)
+        render_viewport(c2, 64, 0, 96, 42, "yellow_dwarf", 42, time_override=15.0)
+        # The bg around the star should differ due to flare movement
+        # Check the corona/glow region (near but not at the star center)
+        region1 = c1.rgb["bg"][120:155, 0:20]
+        region2 = c2.rgb["bg"][120:155, 0:20]
+        assert not np.array_equal(region1, region2), "Flares should cause different bg over time"
+
+    def test_flares_stay_in_viewport(self):
+        """All flare effects must remain within viewport bounds."""
+        c = FakeConsole(160, 50)
+        render_viewport(c, 64, 0, 96, 42, "orange_giant", 99, time_override=5.0)
+        # Outside viewport bg should remain zero
+        assert np.all(c.rgb["bg"][:64, :] == 0)
+        assert np.all(c.rgb["bg"][:, 42:] == 0)
+
+class TestStarColors:
+    def test_background_stars_have_color_variation(self):
+        """Background stars should not all be the same hue — some yellow/red."""
+        c = FakeConsole(160, 50)
+        # Use white_dwarf (small radius) so most prints are background stars
+        render_viewport(c, 64, 0, 96, 42, "white_dwarf", 42, time_override=0.0)
+        # Only look at stars rendered with "." or "*+x" chars (background stars)
+        bg_star_chars = set(".*+x")
+        has_warm = False  # r > b (yellow or red tinted)
+        has_cool = False  # b >= r (white or blue tinted)
+        for p in c.prints:
+            if p["string"] not in bg_star_chars:
+                continue
+            r, g, b = p["fg"]
+            if r > b + 5:
+                has_warm = True
+            elif b >= r:
+                has_cool = True
+        assert has_cool, "No cool/white background stars found"
+        assert has_warm, "No warm (yellow/red) background stars found"
+
+    def test_star_colors_are_deterministic(self):
+        """Same seed should produce same star colors."""
+        c1 = FakeConsole(160, 50)
+        c2 = FakeConsole(160, 50)
+        render_viewport(c1, 64, 0, 96, 42, "yellow_dwarf", 42, time_override=0.0)
+        render_viewport(c2, 64, 0, 96, 42, "yellow_dwarf", 42, time_override=0.0)
+        assert c1.prints == c2.prints
+
+
+    def test_flares_are_deterministic(self):
+        """Same seed + same time = same flares."""
+        c1 = FakeConsole(160, 50)
+        c2 = FakeConsole(160, 50)
+        render_viewport(c1, 64, 0, 96, 42, "red_dwarf", 77, time_override=10.0)
+        render_viewport(c2, 64, 0, 96, 42, "red_dwarf", 77, time_override=10.0)
+        assert np.array_equal(c1.rgb["bg"], c2.rgb["bg"])

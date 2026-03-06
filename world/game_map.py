@@ -11,6 +11,17 @@ from world import tile_types
 if TYPE_CHECKING:
     from game.entity import Entity
 
+# Background star color tints: (r_mult, g_mult, b_mult)
+_STAR_TINTS = [
+    (1.0, 1.0, 1.0),    # white
+    (0.9, 0.9, 1.0),    # blue-white
+    (0.85, 0.85, 1.0),  # blue
+    (1.0, 1.0, 0.7),    # yellow
+    (1.0, 0.8, 0.5),    # orange
+    (1.0, 0.6, 0.5),    # red
+]
+_STAR_TINT_INDEX = [0]*30 + [1]*30 + [2]*20 + [3]*12 + [4]*5 + [5]*3
+
 
 class GameMap:
     def __init__(self, width: int, height: int, fill_tile: np.ndarray | None = None) -> None:
@@ -471,7 +482,11 @@ class GameMap:
                 if nbg > 2:
                     console.rgb[sx, sy]["bg"] = (nbg // 2, nbg // 3, nbg)
                 continue
-            elif kind < 93:
+
+            # Star color tint from hash
+            tint = _STAR_TINTS[_STAR_TINT_INDEX[(h >> 8) % 100]]
+
+            if kind < 93:
                 # Dim star — twinkle on/off
                 phase = ((h >> 4) & 0xFF) / 256.0
                 speed = 0.4 + (h % 13) * 0.02  # 0.40–0.64
@@ -480,7 +495,9 @@ class GameMap:
                     brightness = int(10 + 245 * noise_val)
                     console.print(
                         x=sx, y=sy, string=".",
-                        fg=(brightness, brightness, min(brightness + 10, 255)),
+                        fg=(min(int(brightness * tint[0]), 255),
+                            min(int(brightness * tint[1]), 255),
+                            min(int(brightness * tint[2]), 255)),
                     )
             else:
                 # Bright star — cycle characters
@@ -491,5 +508,7 @@ class GameMap:
                 brightness = int(20 + 235 * noise_val)
                 console.print(
                     x=sx, y=sy, string=chars[idx],
-                    fg=(brightness, brightness, min(brightness + 20, 255)),
+                    fg=(min(int(brightness * tint[0]), 255),
+                        min(int(brightness * tint[1]), 255),
+                        min(int(brightness * tint[2]), 255)),
                 )

@@ -22,15 +22,26 @@ class TestStarTypeDefinitions:
 
     def test_radii_are_reasonable(self):
         for key, st in STAR_TYPES.items():
-            assert 1 <= st.radius <= 15, f"{key}.radius={st.radius} out of range"
+            assert 1 <= st.radius <= 20, f"{key}.radius={st.radius} out of range"
 
     def test_weights_match_types(self):
         assert set(STAR_TYPE_WEIGHTS.keys()) == set(STAR_TYPES.keys())
         for w in STAR_TYPE_WEIGHTS.values():
             assert w > 0
 
-    def test_at_least_seven_types(self):
-        assert len(STAR_TYPES) >= 7
+    def test_at_least_fourteen_types(self):
+        assert len(STAR_TYPES) >= 14
+
+
+    def test_render_hints_are_valid(self):
+        valid_hints = {"", "pulsar", "black_hole"}
+        for key, st in STAR_TYPES.items():
+            assert st.render_hint in valid_hints, f"{key}.render_hint={st.render_hint!r}"
+
+    def test_pulsar_and_black_hole_exist(self):
+        hints = {st.render_hint for st in STAR_TYPES.values()}
+        assert "pulsar" in hints
+        assert "black_hole" in hints
 
 
 class TestPickStarType:
