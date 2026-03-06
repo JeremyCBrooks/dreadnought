@@ -29,8 +29,8 @@ class TestStarTypeDefinitions:
         for w in STAR_TYPE_WEIGHTS.values():
             assert w > 0
 
-    def test_at_least_fourteen_types(self):
-        assert len(STAR_TYPES) >= 14
+    def test_at_least_fifteen_types(self):
+        assert len(STAR_TYPES) >= 15
 
 
     def test_render_hints_are_valid(self):

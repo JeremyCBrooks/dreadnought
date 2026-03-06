@@ -44,6 +44,19 @@ def test_location_names_are_unique_across_seeds():
     assert len(names) >= 30
 
 
+def test_no_duplicate_names_within_galaxy():
+    """All system and location names within a single galaxy must be unique."""
+    for seed in range(50):
+        g = Galaxy(seed=seed)
+        all_names: list[str] = []
+        for sys in g.systems.values():
+            all_names.append(sys.name)
+            for loc in sys.locations:
+                all_names.append(loc.name)
+        dupes = [n for n in all_names if all_names.count(n) > 1]
+        assert not dupes, f"seed={seed}: duplicate names {set(dupes)}"
+
+
 def test_every_system_has_valid_star_type():
     for seed in range(10):
         g = Galaxy(seed=seed)

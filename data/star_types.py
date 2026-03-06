@@ -105,6 +105,13 @@ STAR_TYPES: Dict[str, StarType] = {
         corona_width=6, surface_chars=".",
         render_hint="black_hole",
     ),
+    "supermassive_black_hole": StarType(
+        name="supermassive black hole", radius=8,
+        core_color=(0, 0, 0), mid_color=(5, 5, 10),
+        edge_color=(10, 10, 20), corona_color=(60, 40, 15),
+        corona_width=8, surface_chars=".",
+        render_hint="black_hole",
+    ),
 }
 
 STAR_TYPE_WEIGHTS: Dict[str, float] = {
@@ -122,6 +129,7 @@ STAR_TYPE_WEIGHTS: Dict[str, float] = {
     "neutron_star": 3,
     "pulsar": 3,
     "black_hole": 3,
+    "supermassive_black_hole": 1,
 }
 
 

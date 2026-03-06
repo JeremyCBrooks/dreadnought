@@ -229,6 +229,8 @@ TILE_FLAVORS: dict[int, tuple[str, list[str]]] = {
         "The airlock back to your ship.",
         "An open hatch leading to the docking bay.",
         "The way out. Safety awaits beyond.",
+        "Your ship's boarding ramp. Ready to depart.",
+        "The landing pad beacon pulses beneath your feet.",
     ]),
     int(rock_floor["tile_id"]): ("Cavern Floor", [
         "Rough stone, uneven underfoot.",

@@ -2,7 +2,6 @@
 from types import SimpleNamespace
 
 import numpy as np
-import pytest
 
 from tests.conftest import FakeEvent, MockEngine, make_arena
 from game.entity import Entity, Fighter
@@ -29,6 +28,7 @@ def _make_galaxy(num_locations=3, connections=None):
     conns = connections or {}
     system = SimpleNamespace(
         name="TestSystem",
+        gx=0, gy=0,
         locations=locs,
         connections=conns,
         depth=0,
@@ -88,10 +88,11 @@ class TestStrategicNavigation:
         state.ev_keydown(engine, FakeEvent(_sym("DOWN")))
         assert state.selected == 1
 
-    def test_left_right_changes_system(self):
+    def test_direction_changes_system(self):
         galaxy = _make_galaxy(connections={"OtherSystem": 10})
         other = SimpleNamespace(
             name="OtherSystem",
+            gx=1, gy=0,
             locations=[],
             connections={"TestSystem": 10},
             depth=1,
@@ -100,13 +101,16 @@ class TestStrategicNavigation:
         galaxy.systems["OtherSystem"] = other
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
-        state.ev_keydown(engine, FakeEvent(_sym("LEFT")))
+        # Switch to navigation focus first
+        state.ev_keydown(engine, FakeEvent(_sym("TAB")))
+        state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
         assert galaxy.current_system == "OtherSystem"
 
-    def test_left_no_connections_stays(self):
+    def test_no_connections_stays(self):
         galaxy = _make_galaxy(connections={})
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
+        state.ev_keydown(engine, FakeEvent(_sym("TAB")))
         state.ev_keydown(engine, FakeEvent(_sym("LEFT")))
         assert galaxy.current_system == "TestSystem"
 
@@ -165,5 +169,4 @@ class TestStrategicRender:
         engine.CONSOLE_WIDTH = 160
         engine.CONSOLE_HEIGHT = 50
         console = self._make_console()
-        # Should not raise
         state.on_render(console, engine)

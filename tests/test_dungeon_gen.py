@@ -3,6 +3,7 @@ from world.dungeon_gen import (
     generate_dungeon, RectRoom, _room_wall_positions,
     _build_ship_skeleton, _ROOM_DRESSING, _pick_building_room_count,
     _subdivide_building, _carve_external_door, _bfs_path, _meander,
+    _place_ship_dock, _in_dock_octagon, _on_dock_perimeter,
 )
 from world.game_map import GameMap
 from world import tile_types
@@ -1584,3 +1585,235 @@ def test_meander_never_crosses_walls():
                 f"seed={seed}: meander tile ({x}, {y}) has tid={tid}, "
                 f"expected ground"
             )
+
+
+# -------------------------------------------------------------------
+# Ship dock tests
+# -------------------------------------------------------------------
+
+def test_colony_has_ship_dock():
+    """Colony villages should have a ship_dock as rooms[0]."""
+    for seed in range(10):
+        _, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
+        assert len(rooms) >= 1, f"seed={seed}: no rooms"
+        assert rooms[0].label == "ship_dock", (
+            f"seed={seed}: rooms[0].label={rooms[0].label!r}, expected 'ship_dock'"
+        )
+
+
+def test_colony_exit_on_dock_not_building():
+    """Exit tile should be on the dock pad, not inside a building."""
+    dirt_tid = int(tile_types.dirt_floor["tile_id"])
+    for seed in range(10):
+        game_map, rooms, exit_pos = generate_dungeon(seed=seed, loc_type="colony")
+        assert exit_pos is not None
+        ex, ey = exit_pos
+        # The exit should be at dock center (rooms[0])
+        dock = rooms[0]
+        assert dock.label == "ship_dock"
+        assert (ex, ey) == dock.center, (
+            f"seed={seed}: exit at {exit_pos} != dock center {dock.center}"
+        )
+        # Exit should NOT be on dirt_floor (building interior)
+        # (the exit tile itself replaces whatever was there, so check neighbors)
+        # At least one neighbor should be ground/path, not dirt_floor
+        has_outdoor_neighbor = False
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = ex + dx, ey + dy
+            if game_map.in_bounds(nx, ny):
+                tid = int(game_map.tiles["tile_id"][nx, ny])
+                if tid != dirt_tid:
+                    has_outdoor_neighbor = True
+                    break
+        assert has_outdoor_neighbor, f"seed={seed}: exit surrounded by dirt_floor (inside building)"
+
+
+def test_dock_has_no_flora():
+    """The ship dock octagon should be clear of flora."""
+    flora_tids = {
+        int(tile_types.flora_low["tile_id"]),
+        int(tile_types.flora_tall["tile_id"]),
+        int(tile_types.flora_scrub["tile_id"]),
+        int(tile_types.flora_sprout["tile_id"]),
+    }
+    for seed in range(10):
+        game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
+        dock = rooms[0]
+        assert dock.label == "ship_dock"
+        for x in range(dock.x1, dock.x2 + 1):
+            for y in range(dock.y1, dock.y2 + 1):
+                dx, dy = x - dock.x1, y - dock.y1
+                if not _in_dock_octagon(dx, dy):
+                    continue
+                tid = int(game_map.tiles["tile_id"][x, y])
+                assert tid not in flora_tids, (
+                    f"seed={seed}: flora at ({x},{y}) inside dock octagon"
+                )
+
+
+def test_dock_does_not_overlap_buildings():
+    """The dock area should not overlap any building rooms."""
+    for seed in range(10):
+        game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
+        if len(rooms) < 2:
+            continue
+        dock = rooms[0]
+        assert dock.label == "ship_dock"
+        for room in rooms[1:]:
+            # Dock rect (with 1-tile gap) should not intersect building rects
+            assert not dock.intersects(room), (
+                f"seed={seed}: dock overlaps room {room.label} at "
+                f"({room.x1},{room.y1})-({room.x2},{room.y2})"
+            )
+
+
+def test_dock_has_path_outline():
+    """The octagonal dock perimeter should use path tiles."""
+    path_tid = int(tile_types.path["tile_id"])
+    for seed in range(10):
+        game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
+        dock = rooms[0]
+        assert dock.label == "ship_dock"
+        perimeter_path_count = 0
+        perimeter_total = 0
+        for x in range(dock.x1, dock.x2 + 1):
+            for y in range(dock.y1, dock.y2 + 1):
+                dx, dy = x - dock.x1, y - dock.y1
+                if _on_dock_perimeter(dx, dy):
+                    perimeter_total += 1
+                    if int(game_map.tiles["tile_id"][x, y]) == path_tid:
+                        perimeter_path_count += 1
+        assert perimeter_total > 0, f"seed={seed}: no perimeter tiles found"
+        # All octagonal perimeter tiles must be path (hard repaint after generation)
+        assert perimeter_path_count == perimeter_total, (
+            f"seed={seed}: only {perimeter_path_count}/{perimeter_total} "
+            f"octagon perimeter tiles are path"
+        )
+
+
+def test_dock_connected_to_road():
+    """The dock should have a path connection to the main village road."""
+    path_tid = int(tile_types.path["tile_id"])
+    for seed in range(10):
+        game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
+        dock = rooms[0]
+        w, h = game_map.width, game_map.height
+        # Collect tiles inside the octagonal dock
+        dock_set = {
+            (x, y)
+            for x in range(dock.x1, dock.x2 + 1)
+            for y in range(dock.y1, dock.y2 + 1)
+            if _in_dock_octagon(x - dock.x1, y - dock.y1)
+        }
+        dock_adj = set()
+        for x, y in dock_set:
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if (nx, ny) not in dock_set and 0 <= nx < w and 0 <= ny < h:
+                    dock_adj.add((nx, ny))
+        start_tiles = {(x, y) for x, y in dock_adj
+                       if int(game_map.tiles["tile_id"][x, y]) == path_tid}
+        if not start_tiles:
+            continue
+        visited = set(start_tiles)
+        frontier = list(start_tiles)
+        while frontier:
+            nxt = []
+            for cx, cy in frontier:
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = cx + dx, cy + dy
+                    if (nx, ny) in visited or not (0 <= nx < w and 0 <= ny < h):
+                        continue
+                    if (nx, ny) in dock_set:
+                        continue
+                    if int(game_map.tiles["tile_id"][nx, ny]) == path_tid:
+                        visited.add((nx, ny))
+                        nxt.append((nx, ny))
+            frontier = nxt
+        assert len(visited) > 3, (
+            f"seed={seed}: dock path only reaches {len(visited)} tiles outside dock"
+        )
+
+
+def test_place_ship_dock_basic():
+    """_place_ship_dock returns a valid dock room on open ground."""
+    from world.palettes import pick_biome, make_ground_tile, make_path_tile
+    rng = random.Random(42)
+    palette = pick_biome(rng)
+    ground_tile = make_ground_tile(palette)
+    path_tile = make_path_tile(palette, rng)
+    gm = GameMap(60, 40, fill_tile=ground_tile)
+    # Border walls
+    gm.tiles[0, :] = tile_types.wall
+    gm.tiles[59, :] = tile_types.wall
+    gm.tiles[:, 0] = tile_types.wall
+    gm.tiles[:, 39] = tile_types.wall
+    dock = _place_ship_dock(gm, rng, [], path_tile, ground_tile)
+    assert dock is not None
+    assert dock.label == "ship_dock"
+    # Dock should be within map bounds
+    assert dock.x1 >= 1
+    assert dock.y1 >= 1
+    assert dock.x2 < 59
+    assert dock.y2 < 39
+
+
+def test_dock_no_walls():
+    """The dock octagon should have no wall tiles."""
+    wall_tid = int(tile_types.structure_wall["tile_id"])
+    border_wall_tid = int(tile_types.wall["tile_id"])
+    for seed in range(10):
+        game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
+        dock = rooms[0]
+        assert dock.label == "ship_dock"
+        for x in range(dock.x1, dock.x2 + 1):
+            for y in range(dock.y1, dock.y2 + 1):
+                dx, dy = x - dock.x1, y - dock.y1
+                if not _in_dock_octagon(dx, dy):
+                    continue
+                tid = int(game_map.tiles["tile_id"][x, y])
+                assert tid != wall_tid and tid != border_wall_tid, (
+                    f"seed={seed}: wall tile at ({x},{y}) inside dock octagon"
+                )
+
+
+def test_dock_is_octagonal():
+    """The dock shape should be octagonal — corner tiles outside the bounding box are untouched."""
+    path_tid = int(tile_types.path["tile_id"])
+    ground_tid = int(tile_types.ground["tile_id"])
+    for seed in range(5):
+        game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
+        dock = rooms[0]
+        assert dock.label == "ship_dock"
+        inside_count = 0
+        outside_count = 0
+        for x in range(dock.x1, dock.x2 + 1):
+            for y in range(dock.y1, dock.y2 + 1):
+                dx, dy = x - dock.x1, y - dock.y1
+                if _in_dock_octagon(dx, dy):
+                    inside_count += 1
+                else:
+                    outside_count += 1
+        # An octagon has fewer tiles than its bounding square
+        assert outside_count > 0, f"seed={seed}: no corner cuts — not octagonal"
+        assert inside_count > outside_count, f"seed={seed}: too few interior tiles"
+
+
+def test_dock_center_is_exact():
+    """The exit hatch should be at the exact center tile of the dock."""
+    for seed in range(10):
+        game_map, rooms, exit_pos = generate_dungeon(seed=seed, loc_type="colony")
+        dock = rooms[0]
+        cx, cy = dock.center
+        # Verify the center tile is truly centered (equal tiles on each side)
+        left = cx - dock.x1
+        right = dock.x2 - cx
+        top = cy - dock.y1
+        bottom = dock.y2 - cy
+        assert left == right, (
+            f"seed={seed}: center not horizontally centered: left={left}, right={right}"
+        )
+        assert top == bottom, (
+            f"seed={seed}: center not vertically centered: top={top}, bottom={bottom}"
+        )
+        assert exit_pos == (cx, cy)

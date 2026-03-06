@@ -1967,6 +1967,97 @@ def _place_street_lights(
             game_map.add_light_source(sx, sy, radius=radius, color=color, intensity=intensity)
 
 
+_DOCK_SIZE = 8   # bounding box side (tiles span 0..SIZE → SIZE+1 tiles per axis)
+_DOCK_CUT = 2    # corner cut depth for the octagon
+
+
+def _in_dock_octagon(dx: int, dy: int, size: int = _DOCK_SIZE, cut: int = _DOCK_CUT) -> bool:
+    """Return True if offset (dx, dy) within a *size*×*size* rect is inside the octagon."""
+    return (dx + dy >= cut
+            and dx + dy <= 2 * size - cut
+            and size - dx + dy >= cut
+            and dx + size - dy >= cut)
+
+
+def _on_dock_perimeter(dx: int, dy: int, size: int = _DOCK_SIZE, cut: int = _DOCK_CUT) -> bool:
+    """Return True if (dx, dy) is on the octagon edge.
+
+    Uses 8-directional neighbour check so diagonal corner transitions are
+    filled in, producing a visually unbroken outline.
+    """
+    if not _in_dock_octagon(dx, dy, size, cut):
+        return False
+    for ndx, ndy in ((dx - 1, dy), (dx + 1, dy), (dx, dy - 1), (dx, dy + 1),
+                      (dx - 1, dy - 1), (dx + 1, dy - 1), (dx - 1, dy + 1), (dx + 1, dy + 1)):
+        if not _in_dock_octagon(ndx, ndy, size, cut):
+            return True
+    return False
+
+
+def _place_ship_dock(
+    game_map: GameMap,
+    rng: random.Random,
+    placed_wings: List[RectRoom],
+    path_tile: np.ndarray,
+    ground_tile: np.ndarray,
+) -> Optional[RectRoom]:
+    """Place an octagonal ship dock landing pad with path-tile outline.
+
+    Returns a RectRoom bounding box labelled 'ship_dock', or None on failure.
+    The dock is added to *placed_wings* for building collision avoidance.
+    """
+    w, h = game_map.width, game_map.height
+    gap = 2  # buffer from buildings and border
+    # RectRoom(x, y, size, size) → x2 = x+size, tiles x..x+size = size+1 tiles.
+    # _DOCK_SIZE must be even so tile count (size+1) is odd → true center.
+    dock_side = _DOCK_SIZE  # RectRoom width/height parameter
+
+    margin = 4  # distance from map border
+    max_x = w - margin - dock_side
+    max_y = h - margin - dock_side
+    if max_x < margin or max_y < margin:
+        return None
+
+    # Candidate positions: prefer edges, then random interior
+    candidates: List[Tuple[int, int]] = []
+    for _ in range(30):
+        side = rng.randint(0, 3)
+        if side == 0:
+            candidates.append((rng.randint(margin, max_x), margin))
+        elif side == 1:
+            candidates.append((rng.randint(margin, max_x), max_y))
+        elif side == 2:
+            candidates.append((margin, rng.randint(margin, max_y)))
+        else:
+            candidates.append((max_x, rng.randint(margin, max_y)))
+    for _ in range(20):
+        candidates.append((rng.randint(margin, max_x), rng.randint(margin, max_y)))
+
+    for rx, ry in candidates:
+        if rx < 2 or ry < 2 or rx + dock_side >= w - 2 or ry + dock_side >= h - 2:
+            continue
+        dock_rect = RectRoom(rx, ry, dock_side, dock_side, label="ship_dock")
+        expanded = RectRoom(rx - gap, ry - gap, dock_side + gap * 2, dock_side + gap * 2)
+        if any(expanded.intersects(o) for o in placed_wings):
+            continue
+
+        # Paint octagonal dock
+        for x in range(dock_rect.x1, dock_rect.x2 + 1):
+            for y in range(dock_rect.y1, dock_rect.y2 + 1):
+                dx, dy = x - dock_rect.x1, y - dock_rect.y1
+                if not _in_dock_octagon(dx, dy):
+                    continue
+                if _on_dock_perimeter(dx, dy):
+                    game_map.tiles[x, y] = path_tile
+                else:
+                    game_map.tiles[x, y] = ground_tile
+
+        placed_wings.append(dock_rect)
+        return dock_rect
+
+    return None
+
+
 def _generate_village_paths(
     game_map: GameMap,
     rng: random.Random,
@@ -2084,6 +2175,11 @@ def _generate_village(
     game_map.tiles[w - 1, :] = wall_tile
     game_map.tiles[:, 0] = wall_tile
     game_map.tiles[:, h - 1] = wall_tile
+
+    # Place ship dock landing pad before buildings so it gets a clear spot
+    dock_room = _place_ship_dock(
+        game_map, rng, placed_wings, path_tile, biome_ground,
+    )
 
     # Square-footage budget: buildings may cover 50-60% of usable area
     usable_area = (w - 2) * (h - 2)
@@ -2207,6 +2303,9 @@ def _generate_village(
 
     # Generate paths connecting building doors to a main road
     ground_tid = int(tile_types.ground["tile_id"])
+    # Include dock center as a door position so it gets a branch path to the road
+    if dock_room is not None:
+        door_positions.append(dock_room.center)
     _generate_village_paths(game_map, rng, door_positions, path_tile, ground_tid)
 
     # Scatter flora on ground tiles (before noise so flora gets the same bg noise)
@@ -2220,6 +2319,20 @@ def _generate_village(
         int(tile_types.flora_sprout["tile_id"]),
     ]
     apply_ground_noise(game_map, rng, ground_tid, palette.noise_range, extra_tids=flora_tids)
+
+    # Hard repaint the entire dock: perimeter = path, interior = ground, no exceptions.
+    if dock_room is not None:
+        for x in range(dock_room.x1, dock_room.x2 + 1):
+            for y in range(dock_room.y1, dock_room.y2 + 1):
+                dx, dy = x - dock_room.x1, y - dock_room.y1
+                if not _in_dock_octagon(dx, dy):
+                    continue
+                if _on_dock_perimeter(dx, dy):
+                    game_map.tiles[x, y] = path_tile
+                else:
+                    game_map.tiles[x, y] = biome_ground
+        # Insert dock as rooms[0] so exit/spawn uses it
+        rooms.insert(0, dock_room)
 
     return rooms
 

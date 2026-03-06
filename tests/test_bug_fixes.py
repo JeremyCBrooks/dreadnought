@@ -206,7 +206,7 @@ def test_fallback_generator_small_map():
 
 
 def test_strategic_navigate_all_systems():
-    """LEFT/RIGHT should allow navigating through the entire chain of systems."""
+    """Direction keys should allow navigating the graph of systems."""
     from world.galaxy import Galaxy
     from ui.strategic_state import StrategicState
 
@@ -221,26 +221,37 @@ def test_strategic_navigate_all_systems():
 
     engine = Engine()
 
-    # Collect all system names in chain order (by depth)
-    chain = sorted(galaxy.systems.values(), key=lambda s: s.depth)
-    assert len(chain) == 3
+    # All systems should be reachable via BFS
+    visited = {galaxy.home_system}
+    queue = [galaxy.home_system]
+    while queue:
+        name = queue.pop(0)
+        for neighbor in galaxy.systems[name].connections:
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append(neighbor)
+    assert visited == set(galaxy.systems.keys()), "All systems reachable"
 
-    # Start at system 0 (home), press RIGHT to reach system 1
-    assert galaxy.current_system == chain[0].name
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RIGHT))
-    assert galaxy.current_system == chain[1].name
+    # Navigate from home to a connected system using the correct direction key
+    home = galaxy.systems[galaxy.home_system]
+    neighbor_name = next(iter(home.connections))
+    neighbor = galaxy.systems[neighbor_name]
+    dx = (neighbor.gx > home.gx) - (neighbor.gx < home.gx)
+    dy = (neighbor.gy > home.gy) - (neighbor.gy < home.gy)
+    _dir_to_key = {
+        (0, -1): "UP", (0, 1): "DOWN", (-1, 0): "LEFT", (1, 0): "RIGHT",
+        (-1, -1): "KP_7", (1, -1): "KP_9", (-1, 1): "KP_1", (1, 1): "KP_3",
+    }
+    key_name = _dir_to_key[(dx, dy)]
+    # Tab to navigation focus, then navigate
+    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.TAB))
+    state.ev_keydown(engine, FakeEvent(getattr(tcod.event.KeySym, key_name)))
+    assert galaxy.current_system == neighbor_name
 
-    # From system 1, press RIGHT to reach system 2
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RIGHT))
-    assert galaxy.current_system == chain[2].name
-
-    # From system 2, press LEFT to go back to system 1
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.LEFT))
-    assert galaxy.current_system == chain[1].name
-
-    # From system 1, press LEFT to go back to system 0
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.LEFT))
-    assert galaxy.current_system == chain[0].name
+    # Focus stays on navigation; navigate back home
+    back_key = _dir_to_key[(-dx, -dy)]
+    state.ev_keydown(engine, FakeEvent(getattr(tcod.event.KeySym, back_key)))
+    assert galaxy.current_system == home.name
 
 
 # --- Fix #11a: on_exit entities.remove guard ---
