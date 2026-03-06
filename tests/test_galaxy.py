@@ -1,5 +1,6 @@
 """Tests for galaxy, star system, and location generation."""
 from data.db import location_types, location_words, system_words
+from data.star_types import STAR_TYPES
 from world.galaxy import Galaxy
 
 
@@ -41,6 +42,21 @@ def test_location_names_are_unique_across_seeds():
             for loc in system.locations:
                 names.add(loc.name)
     assert len(names) >= 30
+
+
+def test_every_system_has_valid_star_type():
+    for seed in range(10):
+        g = Galaxy(seed=seed)
+        for system in g.systems.values():
+            assert hasattr(system, "star_type")
+            assert system.star_type in STAR_TYPES, f"{system.name} has unknown star_type {system.star_type}"
+
+
+def test_same_seed_produces_same_star_types():
+    g1 = Galaxy(seed=42)
+    g2 = Galaxy(seed=42)
+    for name in g1.systems:
+        assert g1.systems[name].star_type == g2.systems[name].star_type
 
 
 def test_location_name_formats():

@@ -10,6 +10,8 @@ if TYPE_CHECKING:
     from world.galaxy import Galaxy
 
 class StrategicState(State):
+    needs_animation = True
+
     def __init__(self, galaxy: Galaxy) -> None:
         self.galaxy = galaxy
         self.selected = 0
@@ -70,6 +72,9 @@ class StrategicState(State):
         return False
 
     def on_render(self, console: Any, engine: Engine) -> None:
+        from data.star_types import STAR_TYPES
+        from ui.viewport_renderer import render_viewport
+
         system = self.galaxy.systems[self.galaxy.current_system]
         cw = engine.CONSOLE_WIDTH
         ch = engine.CONSOLE_HEIGHT
@@ -77,16 +82,19 @@ class StrategicState(State):
         log_y = ch - log_h
         ctrl_y = log_y - 2
         content_max_y = ctrl_y - 1
-        text_width = max(1, cw - 4)
+        left_w = 64
+        text_width = max(1, left_w - 4)
         loc_start_y = 6
         # Reserve room for "CONNECTED SYSTEMS" (1) + blank (1) + connections
         available_lines = max(0, content_max_y - loc_start_y - 2)
-        max_locs = min(len(system.locations), max(0, available_lines - 1))  # at least 1 line for connections
+        max_locs = min(len(system.locations), max(0, available_lines - 1))
         max_conns = max(0, available_lines - max_locs)
 
-        console.print(x=2, y=1, string=f"STAR SYSTEM: {system.name}", fg=(255, 255, 100))
+        # Header with star type
+        star_type_name = STAR_TYPES[system.star_type].name if system.star_type in STAR_TYPES else system.star_type
+        console.print(x=2, y=1, string=f"STAR SYSTEM: {system.name} ({star_type_name})", fg=(255, 255, 100))
         from ui.colors import HEADER_SEP
-        console.print(x=2, y=2, string="=" * max(1, cw - 4), fg=HEADER_SEP)
+        console.print(x=2, y=2, string="=" * text_width, fg=HEADER_SEP)
 
         console.print(x=2, y=4, string="LOCATIONS:", fg=(180, 180, 200))
         # Scroll so selected location is visible
@@ -122,5 +130,12 @@ class StrategicState(State):
             string="[UP/DOWN] Select  [LEFT/RIGHT] System  [ENTER] Dock  [C] Cargo  [ESC] Quit",
             fg=(80, 80, 80),
         )
+
+        # Viewport: star + starfield (ends above controls/log)
+        vp_x = left_w
+        vp_w = cw - left_w
+        vp_h = ctrl_y
+        system_seed = hash(system.name) & 0xFFFFFFFF
+        render_viewport(console, vp_x, 0, vp_w, vp_h, system.star_type, system_seed)
 
         engine.message_log.render(console, 0, log_y, cw, log_h)

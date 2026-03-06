@@ -5,6 +5,7 @@ import random
 from typing import Dict, List, Optional
 
 from data.db import system_words, location_types, location_words
+from data.star_types import pick_star_type
 
 
 _LOW_GRAVITY_TYPES = frozenset({"asteroid", "derelict"})
@@ -23,10 +24,12 @@ class Location:
 
 
 class StarSystem:
-    def __init__(self, name: str, locations: Optional[List[Location]] = None, depth: int = 0) -> None:
+    def __init__(self, name: str, locations: Optional[List[Location]] = None, depth: int = 0,
+                 star_type: str = "yellow_dwarf") -> None:
         self.name = name
         self.locations: List[Location] = locations or []
         self.depth = depth
+        self.star_type = star_type
         self.connections: Dict[str, int] = {}
 
 
@@ -69,7 +72,8 @@ class Galaxy:
                 if lt in ("asteroid", "derelict") and rng.random() < 0.7:
                     env["low_gravity"] = 1
                 locations.append(Location(loc_name, lt, environment=env or None))
-            self.systems[name] = StarSystem(name, locations, depth=i)
+            self.systems[name] = StarSystem(name, locations, depth=i,
+                                               star_type=pick_star_type(rng))
 
         for i in range(len(chosen) - 1):
             fuel = 30 + i * 15

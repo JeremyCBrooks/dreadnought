@@ -1,6 +1,7 @@
 """Tests for the strategic (galaxy navigation) state."""
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 from tests.conftest import FakeEvent, MockEngine, make_arena
@@ -31,6 +32,7 @@ def _make_galaxy(num_locations=3, connections=None):
         locations=locs,
         connections=conns,
         depth=0,
+        star_type="yellow_dwarf",
     )
     galaxy = SimpleNamespace(
         systems={"TestSystem": system},
@@ -93,6 +95,7 @@ class TestStrategicNavigation:
             locations=[],
             connections={"TestSystem": 10},
             depth=1,
+            star_type="red_dwarf",
         )
         galaxy.systems["OtherSystem"] = other
         state = StrategicState(galaxy)
@@ -142,3 +145,25 @@ class TestStrategicNavigation:
         assert len(pushed) == 1
         from ui.cargo_state import CargoState
         assert isinstance(pushed[0], CargoState)
+
+
+class TestStrategicRender:
+    def _make_console(self, w=160, h=50):
+        console = SimpleNamespace(
+            width=w, height=h,
+            rgb=np.zeros((w, h), dtype=[("ch", np.int32),
+                         ("fg", "3u1"), ("bg", "3u1")]),
+        )
+        console.print = lambda *, x, y, string, fg=(255, 255, 255): None
+        console.draw_rect = lambda *a, **kw: None
+        return console
+
+    def test_on_render_smoke(self):
+        galaxy = _make_galaxy()
+        state = StrategicState(galaxy)
+        engine = _make_strategic_engine(galaxy)
+        engine.CONSOLE_WIDTH = 160
+        engine.CONSOLE_HEIGHT = 50
+        console = self._make_console()
+        # Should not raise
+        state.on_render(console, engine)

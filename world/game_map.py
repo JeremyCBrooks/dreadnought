@@ -30,6 +30,9 @@ class GameMap:
         self.hazard_overlays: dict[str, np.ndarray] = {}
         self._hazards_dirty: bool = True
         self.hull_breaches: list[tuple[int, int]] = []
+        self._space_noise: np.ndarray | None = None
+        self._nebula_density: np.ndarray | None = None
+        self._nebula_hue: np.ndarray | None = None
         self._pending_decompression: dict | None = None
         self._pull_directions: dict[tuple[int, int], tuple[int, int]] | None = None
         self._vacuum_baseline_set: bool = False
@@ -398,7 +401,50 @@ class GameMap:
         if len(xs) == 0:
             return
 
+        # Lazy-init fractal noise for brightness + nebula
+        if self._space_noise is None:
+            from world.noise import fractal_noise
+            np_rng = np.random.RandomState(self.width * 1000 + self.height)
+            self._space_noise = fractal_noise(np_rng, self.width, self.height,
+                                              octaves=3, base_radius=10)
+            self._nebula_density = fractal_noise(np_rng, self.width, self.height,
+                                                 octaves=2, base_radius=14)
+            self._nebula_hue = fractal_noise(np_rng, self.width, self.height,
+                                             octaves=2, base_radius=8)
+
         t = time.time()
+
+        # Nebula clouds via numpy bulk ops on visible space tiles
+        _NEBULA_PALETTES = [
+            (20, 5, 35),   # purple
+            (6, 18, 35),   # blue
+            (28, 10, 18),  # warm
+            (8, 22, 28),   # teal
+            (24, 6, 28),   # magenta
+        ]
+        neb_thresh = 0.5
+        neb_slice = self._nebula_density[ms]
+        neb_mask = mask & (neb_slice > neb_thresh)
+        if np.any(neb_mask):
+            neb_intensity = np.zeros((rw, rh), dtype=np.float64)
+            neb_intensity[neb_mask] = (neb_slice[neb_mask] - neb_thresh) / (1.0 - neb_thresh)
+            neb_intensity *= neb_intensity  # squared: diffuse=faint, dense=bright
+            hue_slice = self._nebula_hue[ms]
+            n_pal = len(_NEBULA_PALETTES)
+            for ch in range(3):
+                idx_f = hue_slice * (n_pal - 1)
+                idx_lo = np.clip(idx_f.astype(int), 0, n_pal - 2)
+                idx_hi = idx_lo + 1
+                frac = idx_f - idx_lo
+                pal_arr = np.array([p[ch] for p in _NEBULA_PALETTES], dtype=np.float64)
+                nebula_color = pal_arr[idx_lo] * (1 - frac) + pal_arr[idx_hi] * frac
+                addition = (nebula_color * neb_intensity * 3.5).astype(np.int16)
+                nxs, nys = np.where(neb_mask)
+                for j in range(len(nxs)):
+                    scx = vp_x + nxs[j]
+                    scy = vp_y + nys[j]
+                    old = int(console.rgb[scx, scy]["bg"][ch])
+                    console.rgb[scx, scy]["bg"][ch] = min(old + int(addition[nxs[j], nys[j]]), 255)
 
         for i in range(len(xs)):
             mx = xs[i] + cam_x  # map coords
@@ -410,12 +456,20 @@ class GameMap:
             if (xs[i], ys[i]) in entity_positions:
                 continue
 
+            # Aggressive contrast: clip to narrow band then cube
+            raw = self._space_noise[mx, my]
+            noise_val = max(0.0, min(1.0, (raw - 0.25) / 0.55))
+            noise_val = noise_val * noise_val * noise_val
+
             # Deterministic hash for stable star placement
             h = (mx * 7919 + my * 104729) & 0xFFFF
             kind = h % 100
 
             if kind < 80:
-                # Empty void — near-black background
+                # Empty void — near-black background, tinted by noise
+                nbg = int(noise_val * 10)
+                if nbg > 2:
+                    console.rgb[sx, sy]["bg"] = (nbg // 2, nbg // 3, nbg)
                 continue
             elif kind < 93:
                 # Dim star — twinkle on/off
@@ -423,31 +477,19 @@ class GameMap:
                 speed = 0.4 + (h % 13) * 0.02  # 0.40–0.64
                 cycle = (t * speed + phase) % 1.0
                 if cycle < 0.5:
-                    brightness = int(40 + 30 * (h % 7))
+                    brightness = int(10 + 245 * noise_val)
                     console.print(
                         x=sx, y=sy, string=".",
-                        fg=(brightness, brightness, brightness + 10),
+                        fg=(brightness, brightness, min(brightness + 10, 255)),
                     )
-            elif kind < 98:
+            else:
                 # Bright star — cycle characters
                 chars = "*+x*."
                 phase = ((h >> 3) & 0xFF) / 64.0
                 speed = 0.25 + (h % 11) * 0.01  # 0.25–0.35
                 idx = int((t * speed + phase) % len(chars))
-                brightness = 140 + (h % 60)
+                brightness = int(20 + 235 * noise_val)
                 console.print(
                     x=sx, y=sy, string=chars[idx],
-                    fg=(brightness, brightness, brightness + 20),
+                    fg=(brightness, brightness, min(brightness + 20, 255)),
                 )
-            else:
-                # Nebula — colored background, slow color shift
-                phase = ((h >> 5) & 0xFF) / 128.0
-                speed = 0.08 + (h % 7) * 0.005  # 0.08–0.11
-                shift = (t * speed + phase) % 3.0
-                if shift < 1.0:
-                    bg = (8, 2, 15)
-                elif shift < 2.0:
-                    bg = (3, 8, 15)
-                else:
-                    bg = (12, 4, 8)
-                console.rgb[sx, sy]["bg"] = bg
