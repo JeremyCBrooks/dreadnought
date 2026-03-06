@@ -166,11 +166,15 @@ class TacticalState(State):
         if game_map.hull_breaches or game_map.airlocks:
             engine.environment.setdefault("vacuum", 1)
 
-        # Transfer ship cargo to player inventory on entry
-        if getattr(engine, 'ship', None) and not engine._saved_player:
-            for item in list(engine.ship.cargo):
+        # Transfer mission loadout to player inventory on entry
+        if hasattr(engine, 'mission_loadout'):
+            for item in engine.mission_loadout:
                 player.inventory.append(item)
-            engine.ship.cargo.clear()
+            engine.mission_loadout.clear()
+
+        # Set carry capacity
+        from game.entity import PLAYER_MAX_INVENTORY
+        player.max_inventory = PLAYER_MAX_INVENTORY
 
         # Auto-equip: first weapon and first tool into loadout if not already set
         if not player.loadout:
@@ -196,12 +200,6 @@ class TacticalState(State):
         from game.loadout import recalc_melee_power
         recalc_melee_power(player)
 
-        # Debug: inject starting inventory on first entry (no saved player)
-        if not engine._saved_player:
-            import debug
-            for item in debug.build_debug_inventory():
-                player.inventory.append(item)
-
         game_map.update_fov(player.x, player.y)
 
         engine.message_log.add_message(
@@ -213,19 +211,8 @@ class TacticalState(State):
         if engine.game_map and engine.player:
             p = engine.player
 
-            if getattr(engine, 'ship', None):
-                # Transfer loadout items back to cargo
-                if p.loadout:
-                    for item in p.loadout.all_items():
-                        engine.ship.add_cargo(item)
-                # Transfer inventory to cargo
-                for item in list(p.inventory):
-                    engine.ship.add_cargo(item)
-                saved_inventory = []
-                saved_loadout = None
-            else:
-                saved_inventory = list(p.inventory)
-                saved_loadout = p.loadout
+            saved_inventory = list(p.inventory)
+            saved_loadout = p.loadout
 
             engine._saved_player = {
                 "hp": p.fighter.hp,

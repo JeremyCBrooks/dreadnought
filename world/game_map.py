@@ -107,6 +107,11 @@ class GameMap:
                     }
             self._vacuum_baseline_set = True
         else:
+            # No vacuum sources: clear any stale flood-fill overlay
+            if "vacuum" in self.hazard_overlays:
+                self.hazard_overlays["vacuum"] = np.full(
+                    (self.width, self.height), fill_value=False, order="F"
+                )
             self._vacuum_baseline_set = True
 
         # Space tiles always have vacuum — mark them unconditionally

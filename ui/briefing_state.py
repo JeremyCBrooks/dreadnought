@@ -46,6 +46,7 @@ class BriefingState(State):
     def on_enter(self, engine: Engine) -> None:
         from game.suit import EVA_SUIT, HAZARD_SUIT
         self._suits = [EVA_SUIT, HAZARD_SUIT]
+        engine.mission_loadout = []
         if engine.suit:
             for i, s in enumerate(self._suits):
                 if s.name == engine.suit.name:
@@ -75,6 +76,12 @@ class BriefingState(State):
                 engine.suit = self._suits[self._suit_index]
             from ui.tactical_state import TacticalState
             engine.switch_state(TacticalState(location=self.location, depth=self.depth))
+            return True
+
+        import tcod.event
+        if key == tcod.event.KeySym.c:
+            from ui.cargo_state import CargoState
+            engine.push_state(CargoState())
             return True
 
         return True
@@ -131,6 +138,6 @@ class BriefingState(State):
 
         console.print(
             x=bx + 2, y=by + bh - 2,
-            string="[ENTER] Deploy  [UP/DOWN] Suit  [ESC] Back",
+            string="[ENTER] Deploy  [UP/DOWN] Suit  [C] Cargo  [ESC] Back",
             fg=(100, 100, 100),
         )

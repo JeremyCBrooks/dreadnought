@@ -70,6 +70,7 @@ class CreatureAI:
         self, owner: Entity, engine: Engine, goal: Tuple[int, int],
     ) -> List[Tuple[int, int]]:
         import tcod.path
+        from game.helpers import is_diagonal_blocked
 
         cost = self._build_cost(owner, engine)
         # Ensure goal tile is passable in the cost array
@@ -82,7 +83,22 @@ class CreatureAI:
         # Remove the starting position
         if path and tuple(path[0]) == (owner.x, owner.y):
             path = path[1:]
-        return [tuple(p) for p in path]
+        result = [tuple(p) for p in path]
+
+        # If first step is a door-blocked diagonal, recompute cardinal-only
+        if result:
+            nx, ny = result[0]
+            dx, dy = nx - owner.x, ny - owner.y
+            if is_diagonal_blocked(engine.game_map, owner.x, owner.y, dx, dy):
+                graph2 = tcod.path.SimpleGraph(cost=cost, cardinal=2, diagonal=0)
+                pf2 = tcod.path.Pathfinder(graph2)
+                pf2.add_root((owner.x, owner.y))
+                path2 = pf2.path_to(goal).tolist()
+                if path2 and tuple(path2[0]) == (owner.x, owner.y):
+                    path2 = path2[1:]
+                result = [tuple(p) for p in path2]
+
+        return result
 
     def _move_along_path(
         self, owner: Entity, engine: Engine, path: List[Tuple[int, int]],
@@ -104,6 +120,10 @@ class CreatureAI:
                 )
                 return True  # consumed turn opening door
             return False  # can't open
+
+        from game.helpers import is_diagonal_blocked
+        if is_diagonal_blocked(gm, owner.x, owner.y, nx - owner.x, ny - owner.y):
+            return False
 
         if gm.is_walkable(nx, ny) and not gm.get_blocking_entity(nx, ny):
             owner.x = nx
@@ -188,11 +208,14 @@ class CreatureAI:
     def _wander(self, owner: Entity, engine: Engine) -> None:
         if not self._can_spend_move(owner, engine):
             return
+        from game.helpers import is_diagonal_blocked
         game_map = engine.game_map
         directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1),
                       (0, 1), (1, -1), (1, 0), (1, 1)]
         random.shuffle(directions)
         for dx, dy in directions:
+            if is_diagonal_blocked(game_map, owner.x, owner.y, dx, dy):
+                continue
             nx, ny = owner.x + dx, owner.y + dy
             if game_map.is_walkable(nx, ny) and not game_map.get_blocking_entity(nx, ny):
                 owner.x = nx
@@ -332,6 +355,7 @@ class CreatureAI:
     def _simple_chase(
         self, owner: Entity, engine: Engine, goal: Tuple[int, int],
     ) -> None:
+        from game.helpers import is_diagonal_blocked
         dx = goal[0] - owner.x
         dy = goal[1] - owner.y
         step_x = (1 if dx > 0 else -1) if dx != 0 else 0
@@ -339,6 +363,8 @@ class CreatureAI:
         gm = engine.game_map
         for sx, sy in [(step_x, step_y), (step_x, 0), (0, step_y)]:
             if sx == 0 and sy == 0:
+                continue
+            if is_diagonal_blocked(gm, owner.x, owner.y, sx, sy):
                 continue
             nx, ny = owner.x + sx, owner.y + sy
             if gm.is_walkable(nx, ny) and not gm.get_blocking_entity(nx, ny):

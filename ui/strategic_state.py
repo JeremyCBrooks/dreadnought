@@ -51,6 +51,12 @@ class StrategicState(State):
                     )
                 return True
 
+        from ui.keys import is_action
+        if is_action("cargo", key):
+            from ui.cargo_state import CargoState
+            engine.push_state(CargoState())
+            return True
+
         if key in confirm_keys():
             if not system.locations:
                 return True
@@ -113,7 +119,7 @@ class StrategicState(State):
 
         console.print(
             x=2, y=ctrl_y,
-            string="[UP/DOWN] Select  [LEFT/RIGHT] System  [ENTER] Dock  [ESC] Quit",
+            string="[UP/DOWN] Select  [LEFT/RIGHT] System  [ENTER] Dock  [C] Cargo  [ESC] Quit",
             fg=(80, 80, 80),
         )
 

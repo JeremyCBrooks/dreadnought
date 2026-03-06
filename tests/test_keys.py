@@ -72,7 +72,7 @@ def test_cancel_keys_contains_escape():
 
 def test_action_keys_has_expected_actions():
     ak = action_keys()
-    expected = {"look", "fire", "inventory", "scan", "interact", "get", "wait", "quit"}
+    expected = {"look", "fire", "inventory", "scan", "interact", "get", "wait", "quit", "cargo"}
     assert expected == set(ak.keys())
 
 

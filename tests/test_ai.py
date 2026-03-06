@@ -743,3 +743,135 @@ class TestMoveSpeed:
         assert distance_moved <= 2, (
             f"Creature moved {distance_moved} steps, expected at most 2"
         )
+
+
+# ---------------------------------------------------------------------------
+# Door blocking — creatures must not attack through closed doors
+# ---------------------------------------------------------------------------
+
+class TestDoorBlocking:
+
+    def test_rat_cannot_attack_through_closed_door(self):
+        """A rat on the other side of a closed door should not damage the player.
+
+        Layout: @+r in a corridor — player at (1,1), door at (2,1), rat at (3,1).
+        Walls surround to prevent any diagonal bypass.
+        """
+        gm = make_arena(5, 3)
+        # Build corridor: walls everywhere except the corridor row
+        for x in range(5):
+            for y in range(3):
+                gm.tiles[x, y] = tile_types.wall
+        gm.tiles[1, 1] = tile_types.floor
+        gm.tiles[2, 1] = tile_types.door_closed
+        gm.tiles[3, 1] = tile_types.floor
+
+        player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        creature = _make_creature(3, 1)
+        creature.ai_state = "hunting"
+        creature.ai_target = (1, 1)
+        gm.entities.append(creature)
+        engine = MockEngine(gm, player)
+
+        creature.ai.perform(creature, engine)
+
+        assert player.fighter.hp == 10, (
+            "Rat should not damage player through a closed door"
+        )
+        assert creature.x == 3 and creature.y == 1, (
+            "Rat should not move — door is blocking"
+        )
+
+    def test_rat_cannot_cut_corner_past_door(self):
+        """A rat should not move diagonally past a closed door.
+
+        Layout:
+          #####
+          #@+r#
+          #...#
+          #####
+        Player at (1,1), door at (2,1), rat at (3,1).
+        Open floor below at y=2.  Rat should NOT be able to
+        cut diagonally from (3,1) to (2,2) and then to (1,1).
+        It should go (3,1)->(3,2)->(2,2)->(1,2)->(1,1), not
+        cut the corner at (2,1)/(3,1).
+        """
+        gm = make_arena(5, 5)
+        for x in range(5):
+            for y in range(5):
+                gm.tiles[x, y] = tile_types.wall
+        # corridor at y=1 with a door
+        gm.tiles[1, 1] = tile_types.floor
+        gm.tiles[2, 1] = tile_types.door_closed
+        gm.tiles[3, 1] = tile_types.floor
+        # open floor below
+        gm.tiles[1, 2] = tile_types.floor
+        gm.tiles[2, 2] = tile_types.floor
+        gm.tiles[3, 2] = tile_types.floor
+
+        player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        creature = _make_creature(3, 1, config={"move_speed": 4})  # 1 move per turn
+        creature.ai_state = "hunting"
+        creature.ai_target = (1, 1)
+        gm.entities.append(creature)
+        engine = MockEngine(gm, player)
+
+        creature.ai.perform(creature, engine)
+
+        # Rat should NOT have cut the corner to (2, 0) or (2, 2) diagonally
+        # past the closed door at (2, 1). It should go down to (3, 2) first.
+        assert not (creature.x == 2 and creature.y == 2), (
+            "Rat should not cut corner diagonally past a closed door"
+        )
+        # With 1 move, rat should have moved to (3, 2) — the only valid step
+        assert creature.x == 3 and creature.y == 2, (
+            f"Expected rat at (3,2), got ({creature.x},{creature.y})"
+        )
+
+    def test_diagonal_past_wall_still_allowed(self):
+        """Diagonal movement past a wall corner is fine — only doors block.
+
+        Layout:
+          #####
+          ##.@#
+          #r..#
+          #####
+        Rat at (1,2), player at (3,1).  Wall at (1,1) and (2,1).
+        Rat should be able to move diagonally from (1,2) to (2,1)... no,
+        (2,1) is a wall.  Let's use:
+          #####
+          #.@.#
+          #r#.#
+          #####
+        Rat at (1,2), wall at (2,2), player at (2,1).
+        Rat should move diag from (1,2) to (2,1) — wall at (2,2) doesn't
+        block because it's a wall, not a door.
+        """
+        gm = make_arena(5, 4)
+        for x in range(5):
+            for y in range(4):
+                gm.tiles[x, y] = tile_types.wall
+        gm.tiles[1, 1] = tile_types.floor
+        gm.tiles[2, 1] = tile_types.floor
+        gm.tiles[3, 1] = tile_types.floor
+        gm.tiles[1, 2] = tile_types.floor
+        # (2,2) stays wall
+        gm.tiles[3, 2] = tile_types.floor
+
+        player = Entity(x=2, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        creature = _make_creature(1, 2, config={"move_speed": 4})
+        creature.ai_state = "hunting"
+        creature.ai_target = (2, 1)
+        gm.entities.append(creature)
+        engine = MockEngine(gm, player)
+
+        creature.ai.perform(creature, engine)
+
+        # Rat should have attacked the player (adjacent after diagonal move
+        # past wall corner, or moved to (1,1) cardinally then attacked)
+        assert player.fighter.hp < 10, (
+            "Rat should be able to move diagonally past a wall corner"
+        )

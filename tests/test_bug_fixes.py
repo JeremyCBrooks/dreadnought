@@ -374,3 +374,39 @@ def test_respawn_creatures():
     respawn_creatures(game_map, rooms, max_enemies=2, seed=100)
     non_ai_after = [e for e in game_map.entities if not e.ai]
     assert len(non_ai_before) == len(non_ai_after)
+
+
+# --- Fix: Inventory lost when returning to ship and visiting new location ---
+
+
+def test_inventory_persists_across_missions():
+    """Items in player inventory should persist across tactical exits and re-entries."""
+    from ui.tactical_state import TacticalState
+    from game.ship import Ship
+    from world.galaxy import Location
+
+    engine = Engine()
+    engine.ship = Ship()
+    loc = Location("Wreck", "derelict", environment={})
+
+    # First visit: enter then exit with items
+    state = TacticalState(location=loc, depth=0)
+    state.on_enter(engine)
+    item = Entity(name="Medkit", item={"type": "consumable"})
+    engine.player.inventory.append(item)
+    state.on_exit(engine)
+
+    # Items should stay with player (in _saved_player), NOT go to cargo
+    assert len(engine.ship.cargo) == 0
+    sp = engine._saved_player
+    inv_names = [e.name for e in sp["inventory"]]
+    assert "Medkit" in inv_names
+
+    # Second visit: items should come back with the player
+    engine.mission_loadout = []
+    loc2 = Location("Asteroid", "asteroid", environment={})
+    state2 = TacticalState(location=loc2, depth=0)
+    state2.on_enter(engine)
+
+    inv_names = [e.name for e in engine.player.inventory]
+    assert "Medkit" in inv_names

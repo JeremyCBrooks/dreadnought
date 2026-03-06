@@ -19,6 +19,9 @@ class Fighter:
         self.base_power = power
 
 
+PLAYER_MAX_INVENTORY = 10
+
+
 class Entity:
     """Generic game object: player, enemy, item, interactable, etc."""
 
@@ -35,6 +38,7 @@ class Entity:
         item: Optional[dict] = None,
         interactable: Optional[dict] = None,
         organic: bool = True,
+        max_inventory: Optional[int] = None,
     ) -> None:
         self.x = x
         self.y = y
@@ -47,6 +51,7 @@ class Entity:
         self.item = item
         self.interactable = interactable  # {kind, hazard?: {type, severity, damage, equipment_damage}, loot?, scanned?}
         self.organic = organic
+        self.max_inventory = max_inventory
         self.inventory: List[Entity] = []
         self.loadout: Optional[Loadout] = None
         self.drifting: bool = False
@@ -59,3 +64,10 @@ class Entity:
         self.ai_target: Optional[Tuple[int, int]] = None
         self.ai_turns_since_seen: int = 0
         self.ai_energy: int = 0
+
+    def can_carry(self) -> bool:
+        """Return True if inventory + loadout has room (or is unlimited)."""
+        if self.max_inventory is None:
+            return True
+        loadout_count = len(self.loadout.all_items()) if self.loadout else 0
+        return len(self.inventory) + loadout_count < self.max_inventory

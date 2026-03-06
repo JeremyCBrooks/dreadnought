@@ -45,3 +45,9 @@ def build_debug_inventory():
             item=item_data,
         ))
     return result
+
+
+def seed_ship_cargo(engine):
+    """Place debug starting items into ship cargo."""
+    for item in build_debug_inventory():
+        engine.ship.add_cargo(item)

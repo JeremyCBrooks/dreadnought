@@ -1,4 +1,4 @@
-"""Tests for the InventoryState (two-section: EQUIPPED + INVENTORY)."""
+"""Tests for InventoryState (single combined list with equipped status)."""
 import tcod.event
 
 from game.entity import Entity, Fighter
@@ -17,48 +17,76 @@ def _press(state, engine, sym):
     return state.ev_keydown(engine, FakeEvent(sym))
 
 
-# --- Equipped section ---
+# --- Combined list ---
 
-def test_equipped_section_shows_slots():
+def test_combined_list_equipped_first():
+    """Equipped items appear first with is_equipped=True, then inventory."""
     engine = make_engine()
     weapon = Entity(name="Baton", item={"type": "weapon", "value": 3})
-    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "value": 1})
-    engine.player.loadout = Loadout(slot1=weapon, slot2=scanner)
+    medkit = Entity(name="Med-kit", item={"type": "heal", "value": 5})
+    engine.player.loadout = Loadout(slot1=weapon)
+    engine.player.inventory.append(medkit)
 
     state = InventoryState()
-    slots = state._equipped_slots(engine)
-    assert len(slots) == 2
-    assert slots[0] == ("S1", weapon)
-    assert slots[1] == ("S2", scanner)
+    combined = state._combined_items(engine)
+    assert len(combined) == 2
+    assert combined[0] == (weapon, True)
+    assert combined[1] == (medkit, False)
 
 
-def test_unequip_via_equipped():
+def test_combined_list_empty():
+    engine = make_engine()
+    engine.player.loadout = Loadout()
+    state = InventoryState()
+    assert state._combined_items(engine) == []
+
+
+# --- Equip / Unequip via ENTER ---
+
+def test_unequip_via_enter():
     engine = make_engine()
     weapon = Entity(name="Baton", item={"type": "weapon", "value": 3})
     engine.player.loadout = Loadout(slot1=weapon)
 
     state = InventoryState()
-    state.selected = 0  # S1 slot
-    _press(state, engine, tcod.event.KeySym.RETURN)
+    state.selected = 0  # equipped weapon
+    _press(state, engine, tcod.event.KeySym.e)
 
     assert engine.player.loadout.slot1 is None
     assert weapon in engine.player.inventory
 
 
-def test_equip_from_inventory():
+def test_equip_via_enter():
     engine = make_engine()
     engine.player.loadout = Loadout()
     weapon = Entity(name="Baton", item={"type": "weapon", "value": 3})
     engine.player.inventory.append(weapon)
 
     state = InventoryState()
-    state._section = 1  # inventory
     state.selected = 0
-    _press(state, engine, tcod.event.KeySym.RETURN)
+    _press(state, engine, tcod.event.KeySym.e)
 
     assert engine.player.loadout.slot1 is weapon
     assert weapon not in engine.player.inventory
 
+
+def test_equip_shows_equipped_tag():
+    """After equipping, combined list should show the item as equipped."""
+    engine = make_engine()
+    engine.player.loadout = Loadout()
+    weapon = Entity(name="Baton", item={"type": "weapon", "value": 3})
+    engine.player.inventory.append(weapon)
+
+    state = InventoryState()
+    state.selected = 0
+    _press(state, engine, tcod.event.KeySym.e)
+
+    combined = state._combined_items(engine)
+    assert len(combined) == 1
+    assert combined[0] == (weapon, True)
+
+
+# --- Consumables via ENTER ---
 
 def test_use_consumable_from_inventory():
     engine = make_engine()
@@ -68,9 +96,8 @@ def test_use_consumable_from_inventory():
     engine.player.inventory.append(heal)
 
     state = InventoryState()
-    state._section = 1  # inventory
     state.selected = 0
-    _press(state, engine, tcod.event.KeySym.RETURN)
+    _press(state, engine, tcod.event.KeySym.e)
 
     assert engine.player.fighter.hp == 8
     assert heal not in engine.player.inventory
@@ -84,9 +111,8 @@ def test_heal_caps_at_max():
     engine.player.inventory.append(heal)
 
     state = InventoryState()
-    state._section = 1
     state.selected = 0
-    _press(state, engine, tcod.event.KeySym.RETURN)
+    _press(state, engine, tcod.event.KeySym.e)
 
     assert engine.player.fighter.hp == 10
 
@@ -99,9 +125,9 @@ def test_repair_via_inventory():
     engine.player.inventory.append(repair)
 
     state = InventoryState()
-    state._section = 1
-    state.selected = 0
-    _press(state, engine, tcod.event.KeySym.RETURN)
+    # repair is at index 1 (weapon equipped at 0)
+    state.selected = 1
+    _press(state, engine, tcod.event.KeySym.e)
 
     assert weapon.item["durability"] == 5
     assert repair not in engine.player.inventory
@@ -114,9 +140,8 @@ def test_repair_not_consumed_when_nothing_to_repair():
     engine.player.inventory.append(repair)
 
     state = InventoryState()
-    state._section = 1
     state.selected = 0
-    _press(state, engine, tcod.event.KeySym.RETURN)
+    _press(state, engine, tcod.event.KeySym.e)
 
     assert repair in engine.player.inventory
     msgs = [m[0] for m in engine.message_log.messages]
@@ -132,9 +157,8 @@ def test_o2_via_inventory():
     engine.player.inventory.append(o2)
 
     state = InventoryState()
-    state._section = 1
     state.selected = 0
-    _press(state, engine, tcod.event.KeySym.RETURN)
+    _press(state, engine, tcod.event.KeySym.e)
 
     assert engine.suit.current_pools["vacuum"] == 40
     assert o2 not in engine.player.inventory
@@ -148,9 +172,8 @@ def test_o2_not_consumed_when_no_suit():
     engine.player.inventory.append(o2)
 
     state = InventoryState()
-    state._section = 1
     state.selected = 0
-    _press(state, engine, tcod.event.KeySym.RETURN)
+    _press(state, engine, tcod.event.KeySym.e)
 
     assert o2 in engine.player.inventory
     msgs = [m[0] for m in engine.message_log.messages]
@@ -167,11 +190,10 @@ def test_equip_when_full():
     engine.player.inventory.append(w3)
 
     state = InventoryState()
-    state._section = 1
-    state.selected = 0
-    _press(state, engine, tcod.event.KeySym.RETURN)
+    # w1=0(eq), w2=1(eq), w3=2(inv)
+    state.selected = 2
+    _press(state, engine, tcod.event.KeySym.e)
 
-    # Slots full, item stays in inventory
     assert w3 in engine.player.inventory
     msgs = [m[0] for m in engine.message_log.messages]
     assert any("full" in m.lower() for m in msgs)
@@ -181,10 +203,11 @@ def test_equip_when_full():
 
 def test_navigation_up_down():
     engine = make_engine()
-    engine.player.loadout = Loadout(
-        slot1=Entity(name="W", item={"type": "weapon", "value": 1}),
-        slot2=Entity(name="T", item={"type": "scanner", "scanner_tier": 1, "value": 1}),
-    )
+    weapon = Entity(name="W", item={"type": "weapon", "value": 1})
+    scanner = Entity(name="T", item={"type": "scanner", "scanner_tier": 1, "value": 1})
+    medkit = Entity(name="M", item={"type": "heal", "value": 5})
+    engine.player.loadout = Loadout(slot1=weapon, slot2=scanner)
+    engine.player.inventory.append(medkit)
 
     state = InventoryState()
     assert state.selected == 0
@@ -192,50 +215,30 @@ def test_navigation_up_down():
     _press(state, engine, tcod.event.KeySym.DOWN)
     assert state.selected == 1
 
-    # Can't go past 2 slots
     _press(state, engine, tcod.event.KeySym.DOWN)
-    assert state.selected == 1
+    assert state.selected == 2
+
+    # Can't go past end
+    _press(state, engine, tcod.event.KeySym.DOWN)
+    assert state.selected == 2
 
     _press(state, engine, tcod.event.KeySym.UP)
-    assert state.selected == 0
-
-
-# --- Tab switching ---
-
-def test_tab_switches_section():
-    engine = make_engine()
-    engine.player.loadout = Loadout()
-
-    state = InventoryState()
-    assert state._section == 0
-
-    _press(state, engine, tcod.event.KeySym.RIGHT)
-    assert state._section == 1
-    assert state.selected == 0
-
-    _press(state, engine, tcod.event.KeySym.LEFT)
-    assert state._section == 0
-
-
-# --- Inventory navigation ---
-
-def test_inventory_navigation():
-    engine = make_engine()
-    engine.player.loadout = Loadout()
-    engine.player.inventory.extend([
-        Entity(name="A", item={"type": "weapon", "value": 1}),
-        Entity(name="B", item={"type": "heal", "value": 5}),
-    ])
-
-    state = InventoryState()
-    _press(state, engine, tcod.event.KeySym.RIGHT)  # switch to inventory
-    assert state.selected == 0
-
-    _press(state, engine, tcod.event.KeySym.DOWN)
     assert state.selected == 1
 
-    _press(state, engine, tcod.event.KeySym.UP)
-    assert state.selected == 0
+
+def test_selected_clamps_after_unequip():
+    """After unequipping the last item, selected should clamp."""
+    engine = make_engine()
+    weapon = Entity(name="Baton", item={"type": "weapon", "value": 3})
+    engine.player.loadout = Loadout(slot1=weapon)
+
+    state = InventoryState()
+    state.selected = 0
+    _press(state, engine, tcod.event.KeySym.e)  # unequip
+
+    # Now weapon is in inventory at index 0, selected should be valid
+    combined = state._combined_items(engine)
+    assert state.selected < len(combined)
 
 
 # --- ESC pops ---

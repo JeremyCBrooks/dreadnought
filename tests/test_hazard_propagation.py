@@ -281,6 +281,142 @@ class TestEnemyHazardTick:
         apply_environment_tick_entity(engine, enemy)
         assert enemy.fighter.hp == 3
 
+    def test_rat_behind_closed_door_survives_airlock(self):
+        """Rat in sealed room should NOT take vacuum damage when airlock
+        opens in an adjacent room.
+
+        Layout:
+          Room A (rat):  (1,1) with closed door at (3,1)
+          Room B (player): (4,1)-(6,1) with airlock exterior at (8,1)
+          Space: (9,1)+
+        """
+        #  0123456789A
+        # 0###########
+        # 1#R.+..=E  .  (R=rat, +=closed door, ==airlock floor, E=ext door)
+        # 2###########
+        height = 3
+        width = 11
+        gm = GameMap(width, height)
+        # Fill with walls
+        for x in range(width):
+            for y in range(height):
+                gm.tiles[x, y] = tile_types.wall
+        # Room A (rat room): floor at (1,1), (2,1); closed door at (3,1)
+        gm.tiles[1, 1] = tile_types.floor
+        gm.tiles[2, 1] = tile_types.floor
+        gm.tiles[3, 1] = tile_types.door_closed
+        # Room B (player room): floor at (4,1), (5,1)
+        gm.tiles[4, 1] = tile_types.floor
+        gm.tiles[5, 1] = tile_types.floor
+        # Airlock: chamber at (6,1), exterior door at (7,1)
+        gm.tiles[6, 1] = tile_types.airlock_floor
+        gm.tiles[7, 1] = tile_types.airlock_ext_open  # OPEN exterior door
+        # Space beyond
+        for x in range(8, width):
+            gm.tiles[x, 1] = tile_types.space
+        gm.has_space = True
+
+        rat = Entity(x=1, y=1, name="Rat", fighter=Fighter(3, 3, 0, 1), organic=True)
+        gm.entities.append(rat)
+        player = Entity(x=5, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        engine = MockEngine(gm, player, environment={"vacuum": 1},
+                            suit=Suit("Test", {"vacuum": 50}))
+
+        # Recalculate: vacuum floods from open airlock through room B,
+        # but should STOP at the closed door (3,1).
+        gm.recalculate_hazards()
+
+        # Verify vacuum overlay
+        overlay = gm.hazard_overlays.get("vacuum")
+        assert overlay is not None
+        assert overlay[5, 1]  # player room = vacuum
+        assert not overlay[1, 1]  # rat room = pressurised
+
+        # Rat should take no damage
+        apply_environment_tick_entity(engine, rat)
+        assert rat.fighter.hp == 3
+
+    def test_rat_takes_damage_through_open_passage(self):
+        """Rat in a room connected to breach via open passage (no door) takes
+        vacuum damage — vacuum spreads through doorless connections.
+
+        This is the most likely explanation for 'rats dying behind closed
+        doors': they're actually reachable via an open passage elsewhere.
+        """
+        # Two rooms sharing a corridor with no door between them:
+        #  ##########
+        #  #...#...X   (breach at 8,1 connects to right room)
+        #  #.......##  (open corridor at row 2 connects both rooms)
+        #  ##########
+        layout = [
+            "##########",
+            "#...#...X ",
+            "#.......##",
+            "##########",
+        ]
+        gm = _make_map(layout)
+        rat = Entity(x=1, y=1, name="Rat", fighter=Fighter(3, 3, 0, 1), organic=True)
+        gm.entities.append(rat)
+        player = Entity(x=1, y=2, name="Player", fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        engine = MockEngine(gm, player, environment={"vacuum": 1},
+                            suit=Suit("Test", {"vacuum": 50}))
+        gm.recalculate_hazards()
+
+        overlay = gm.hazard_overlays.get("vacuum")
+        assert overlay is not None
+        assert overlay[1, 2]  # open corridor has vacuum
+        assert overlay[1, 1]  # rat's room has vacuum (connected via passage)
+
+        apply_environment_tick_entity(engine, rat)
+        assert rat.fighter.hp == 2  # took 1 damage from vacuum
+
+    def test_rat_takes_damage_after_door_opens(self):
+        """Once the door to the rat's room is opened, vacuum floods in and
+        the rat should take damage on the next tick."""
+        height = 3
+        width = 11
+        gm = GameMap(width, height)
+        for x in range(width):
+            for y in range(height):
+                gm.tiles[x, y] = tile_types.wall
+        gm.tiles[1, 1] = tile_types.floor
+        gm.tiles[2, 1] = tile_types.floor
+        gm.tiles[3, 1] = tile_types.door_closed
+        gm.tiles[4, 1] = tile_types.floor
+        gm.tiles[5, 1] = tile_types.floor
+        gm.tiles[6, 1] = tile_types.airlock_floor
+        gm.tiles[7, 1] = tile_types.airlock_ext_open
+        for x in range(8, width):
+            gm.tiles[x, 1] = tile_types.space
+        gm.has_space = True
+
+        rat = Entity(x=1, y=1, name="Rat", fighter=Fighter(3, 3, 0, 1), organic=True)
+        gm.entities.append(rat)
+        player = Entity(x=5, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        engine = MockEngine(gm, player, environment={"vacuum": 1},
+                            suit=Suit("Test", {"vacuum": 50}))
+        gm.recalculate_hazards()
+
+        # No damage while door is closed
+        apply_environment_tick_entity(engine, rat)
+        assert rat.fighter.hp == 3
+
+        # Now open the door
+        gm.tiles[3, 1] = tile_types.door_open
+        gm._hazards_dirty = True
+        gm.recalculate_hazards()
+
+        # Vacuum should now reach the rat
+        overlay = gm.hazard_overlays.get("vacuum")
+        assert overlay[1, 1]
+
+        # Rat takes damage
+        apply_environment_tick_entity(engine, rat)
+        assert rat.fighter.hp == 2
+
 
 # -------------------------------------------------------------------
 # Low gravity remains global
@@ -416,6 +552,25 @@ class TestAirlockVacuumSource:
         # But interior and airlock tiles do NOT
         assert not overlay[1, 1]  # interior floor
         assert not overlay[3, 1]  # airlock floor
+
+    def test_vacuum_overlay_cleared_when_airlock_closes(self):
+        """When the airlock closes and there are no other vacuum sources,
+        interior tiles should no longer be marked as vacuum."""
+        gm = self._make_airlock_map(ext_open=True)
+        gm.recalculate_hazards()
+        overlay = gm.hazard_overlays["vacuum"]
+        assert overlay[1, 1]  # vacuum while open
+
+        # Close the airlock
+        gm.tiles[4, 1] = tile_types.airlock_ext_closed
+        gm._hazards_dirty = True
+        gm.recalculate_hazards()
+
+        overlay = gm.hazard_overlays.get("vacuum")
+        # Interior should be safe now
+        if overlay is not None:
+            assert not overlay[1, 1]
+            assert not overlay[3, 1]
 
 
 # -------------------------------------------------------------------

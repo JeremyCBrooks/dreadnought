@@ -55,6 +55,7 @@ class Engine:
         self.area_cache: Dict[Tuple[str, int], dict] = {}
         self.scan_results: Any = None
         self.scan_glow: Optional[dict] = None
+        self.mission_loadout: List[Entity] = []
 
     @property
     def current_state(self) -> Optional[State]:

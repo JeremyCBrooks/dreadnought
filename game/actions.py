@@ -58,6 +58,9 @@ class MovementAction(Action):
         dest_y = entity.y + self.dy
         if not engine.game_map.is_walkable(dest_x, dest_y):
             return 0
+        from game.helpers import is_diagonal_blocked
+        if is_diagonal_blocked(engine.game_map, entity.x, entity.y, self.dx, self.dy):
+            return 0
         if engine.game_map.get_blocking_entity(dest_x, dest_y):
             return 0
         if engine.game_map.get_interactable_at(dest_x, dest_y):
@@ -101,6 +104,11 @@ class BumpAction(Action):
     def perform(self, engine: Engine, entity: Entity) -> int:
         dest_x = entity.x + self.dx
         dest_y = entity.y + self.dy
+
+        from game.helpers import is_diagonal_blocked
+        if is_diagonal_blocked(engine.game_map, entity.x, entity.y, self.dx, self.dy):
+            return 0
+
         target = engine.game_map.get_blocking_entity(dest_x, dest_y)
         if target and target.fighter:
             return MeleeAction(target).perform(engine, entity)
@@ -139,6 +147,9 @@ class PickupAction(Action):
             engine.message_log.add_message("Nothing to pick up.", (100, 100, 100))
             return 0
         item = items[0]
+        if not entity.can_carry():
+            engine.message_log.add_message("Inventory full.", (255, 200, 100))
+            return 0
         entity.inventory.append(item)
         engine.game_map.entities.remove(item)
         if entity is engine.player:
@@ -214,19 +225,22 @@ class InteractAction(Action):
         # Loot
         loot = ih.get("loot")
         if loot and isinstance(loot, dict) and all(k in loot for k in ("char", "color", "name")):
-            from game.entity import Entity as E
-            from data import db
-            item_data = db.build_item_data(loot)
-            item_ent = E(
-                x=entity.x, y=entity.y,
-                char=loot["char"], color=loot["color"], name=loot["name"],
-                blocks_movement=False,
-                item=item_data,
-            )
-            entity.inventory.append(item_ent)
-            engine.message_log.add_message(
-                f"You search the {name}... Found {loot['name']}!", (200, 255, 200)
-            )
+            if not entity.can_carry():
+                engine.message_log.add_message("Inventory full.", (255, 200, 100))
+            else:
+                from game.entity import Entity as E
+                from data import db
+                item_data = db.build_item_data(loot)
+                item_ent = E(
+                    x=entity.x, y=entity.y,
+                    char=loot["char"], color=loot["color"], name=loot["name"],
+                    blocks_movement=False,
+                    item=item_data,
+                )
+                entity.inventory.append(item_ent)
+                engine.message_log.add_message(
+                    f"You search the {name}... Found {loot['name']}!", (200, 255, 200)
+                )
         else:
             engine.message_log.add_message(
                 f"You search the {name}. Nothing useful.", (150, 150, 150)

@@ -64,3 +64,4 @@ class MockEngine:
         self.ship = None
         self.scan_results = None
         self.scan_glow = None
+        self.mission_loadout = []

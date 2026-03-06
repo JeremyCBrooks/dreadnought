@@ -48,3 +48,14 @@ def get_door_tile_ids() -> Tuple[int, int]:
         int(tile_types.door_closed["tile_id"]),
         int(tile_types.door_open["tile_id"]),
     )
+
+
+def is_diagonal_blocked(game_map: object, x: int, y: int, dx: int, dy: int) -> bool:
+    """Return True if diagonal movement from (x,y) by (dx,dy) is blocked by a closed door.
+
+    Only closed doors block diagonal movement — walls do not, so players
+    and creatures can still squeeze past wall corners as normal.
+    """
+    if dx == 0 or dy == 0:
+        return False  # cardinal movement, not diagonal
+    return is_door_closed(game_map, x + dx, y) or is_door_closed(game_map, x, y + dy)

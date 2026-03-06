@@ -145,7 +145,7 @@ def test_scan_then_interact_full_flow():
     ScanAction().perform(engine, engine.player)
     InteractAction().perform(engine, engine.player)
     assert engine.player.fighter.hp == 10  # No damage
-    # Loot goes to collection tank
+    # Loot goes to player inventory
     assert len(engine.player.inventory) == 1
     assert engine.player.inventory[0].name == "Med-kit"
 
