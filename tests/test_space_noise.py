@@ -98,3 +98,107 @@ class TestNebulaClustering:
         # Random scatter at 2% density would have ~0.08 avg neighbors
         # Clustered nebula should have >> 1 avg neighbor
         assert avg_neighbors > 1.0, f"Nebula not clustered: avg neighbors={avg_neighbors:.2f}"
+
+
+class TestNebulaMorphologyVariation:
+    """Nebulae should have varied shapes — not all uniform blobs."""
+
+    @staticmethod
+    def _nebula_mask_for_seed(seed, size=200):
+        """Render a large region and return the nebula boolean mask."""
+        from tests.test_viewport_renderer import FakeConsole
+        from ui.viewport_renderer import render_starfield_bg
+
+        c = FakeConsole(size, size)
+        render_starfield_bg(c, 0, 0, size, size, seed, t=0.0)
+        vp = c.rgb["bg"][0:size, 0:size]
+        return np.max(vp, axis=-1) > 8
+
+    @staticmethod
+    def _label_components(mask):
+        """Simple flood-fill connected component labeling (no scipy needed)."""
+        labeled = np.zeros_like(mask, dtype=int)
+        label_id = 0
+        h, w = mask.shape
+        for sy in range(h):
+            for sx in range(w):
+                if mask[sy, sx] and labeled[sy, sx] == 0:
+                    label_id += 1
+                    stack = [(sy, sx)]
+                    while stack:
+                        cy, cx = stack.pop()
+                        if (cy < 0 or cy >= h or cx < 0 or cx >= w
+                                or labeled[cy, cx] != 0 or not mask[cy, cx]):
+                            continue
+                        labeled[cy, cx] = label_id
+                        stack.extend([(cy-1, cx), (cy+1, cx),
+                                      (cy, cx-1), (cy, cx+1)])
+        return labeled, label_id
+
+    def test_nebula_regions_have_varied_sizes(self):
+        """Across several seeds, nebula connected components should have a
+        wide range of sizes — not all similarly-sized blobs."""
+        all_areas = []
+        for seed in [10, 42, 77, 123, 200, 333, 500, 999]:
+            neb = self._nebula_mask_for_seed(seed, size=250)
+            if np.sum(neb) < 5:
+                continue
+            labeled, n_features = self._label_components(neb)
+            for i in range(1, n_features + 1):
+                all_areas.append(np.sum(labeled == i))
+
+        assert len(all_areas) >= 3, "Not enough nebula regions to test"
+        all_areas = np.array(all_areas)
+        ratio = all_areas.max() / max(all_areas.min(), 1)
+        assert ratio > 10, (
+            f"Nebula regions lack size variation: max/min ratio={ratio:.1f}"
+        )
+
+    def test_some_nebulae_are_elongated(self):
+        """At least some nebula regions should be elongated (filament-like),
+        not all roughly circular blobs."""
+        aspect_ratios = []
+        for seed in [10, 42, 77, 123, 200, 333, 500, 999]:
+            neb = self._nebula_mask_for_seed(seed, size=250)
+            if np.sum(neb) < 5:
+                continue
+            labeled, n_features = self._label_components(neb)
+            for i in range(1, n_features + 1):
+                component = labeled == i
+                area = np.sum(component)
+                if area < 20:
+                    continue
+                ys_c, xs_c = np.where(component)
+                if len(ys_c) == 0:
+                    continue
+                h = ys_c.max() - ys_c.min() + 1
+                w = xs_c.max() - xs_c.min() + 1
+                aspect = max(h, w) / max(min(h, w), 1)
+                aspect_ratios.append(aspect)
+
+        assert len(aspect_ratios) >= 3, "Not enough regions to test aspect ratio"
+        max_aspect = max(aspect_ratios)
+        assert max_aspect > 3.0, (
+            f"No elongated nebulae found: max aspect ratio={max_aspect:.1f}"
+        )
+
+    def test_nebula_density_varies_across_space(self):
+        """Different quadrants of a large region should have meaningfully
+        different nebula coverage — not uniform density everywhere."""
+        neb = self._nebula_mask_for_seed(42, size=400)
+        # Split into 4 quadrants
+        q_size = 200
+        quadrant_densities = []
+        for qx in range(2):
+            for qy in range(2):
+                quad = neb[qx * q_size:(qx + 1) * q_size,
+                           qy * q_size:(qy + 1) * q_size]
+                quadrant_densities.append(np.mean(quad))
+        densities = np.array(quadrant_densities)
+        # The densities should vary — std should be meaningful
+        # (uniform coverage across all quadrants implies no variation)
+        density_range = densities.max() - densities.min()
+        assert density_range > 0.05, (
+            f"Nebula density too uniform across quadrants: range={density_range:.3f}, "
+            f"densities={densities}"
+        )

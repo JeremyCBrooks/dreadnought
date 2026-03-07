@@ -63,10 +63,36 @@ def render_starfield_bg(
     ys = np.arange(coord_y, coord_y + vp_h)
     noise = coord_fractal_noise(seed, xs, ys, octaves=3, base_period=10)
 
-    # Nebula: multiply two noise fields at different scales for varied shapes
-    neb_base = coord_fractal_noise(seed + 1, xs, ys, octaves=3, base_period=18)
+    # Nebula: blend multiple morphologies for varied shapes
+    # Large-scale presence field — determines WHERE nebulae exist at all
+    neb_presence = coord_fractal_noise(seed + 1, xs, ys, octaves=2, base_period=60)
+    # Morphology selector — smoothly varies which shape type dominates
+    neb_morph = coord_fractal_noise(seed + 4, xs, ys, octaves=2, base_period=40)
+
+    # Layer 1: Blobs (original style, varying scale)
+    neb_blob = coord_fractal_noise(seed + 5, xs, ys, octaves=3, base_period=18)
+    # Layer 2: Filaments via ridge noise (sharp linear features)
+    neb_ridge_raw = coord_fractal_noise(seed + 6, xs, ys, octaves=3, base_period=24)
+    neb_filament = 1.0 - 2.0 * np.abs(neb_ridge_raw - 0.5)
+    neb_filament = np.clip(neb_filament, 0, 1) ** 0.7
+    # Layer 3: Large diffuse clouds
+    neb_cloud = coord_fractal_noise(seed + 7, xs, ys, octaves=2, base_period=50)
+    # Layer 4: Fine detail / texture
     neb_detail = coord_fractal_noise(seed + 3, xs, ys, octaves=2, base_period=7)
-    nebula_density = neb_base * (0.5 + 0.5 * neb_detail)
+
+    # Blend morphologies based on morph selector:
+    #   morph < 0.33 → blobs,  0.33-0.66 → filaments,  > 0.66 → large clouds
+    blob_weight = np.clip(1.0 - 3.0 * neb_morph, 0, 1)
+    filament_weight = np.clip(1.0 - np.abs(neb_morph - 0.5) * 4.0, 0, 1)
+    cloud_weight = np.clip(3.0 * neb_morph - 2.0, 0, 1)
+    total_w = blob_weight + filament_weight + cloud_weight + 1e-8
+    nebula_shape = (
+        blob_weight * neb_blob
+        + filament_weight * neb_filament
+        + cloud_weight * neb_cloud
+    ) / total_w
+    # Modulate with detail and presence
+    nebula_density = nebula_shape * (0.5 + 0.5 * neb_detail) * neb_presence
     nebula_hue = coord_fractal_noise(seed + 2, xs, ys, octaves=2, base_period=8)
 
     bg_slice = console.rgb[vp_x : vp_x + vp_w, vp_y : vp_y + vp_h]
@@ -84,7 +110,7 @@ def render_starfield_bg(
 
     # Nebula clouds — attenuated near star glow if present
     glow_atten = glow if glow is not None else np.zeros((vp_w, vp_h))
-    nebula_threshold = 0.5
+    nebula_threshold = 0.18
     nebula_mask = nebula_density > nebula_threshold
     if cell_mask is not None:
         nebula_mask &= cell_mask
@@ -97,6 +123,7 @@ def render_starfield_bg(
         neb_intensity *= (1.0 - glow_atten)
         nebula_mask = nebula_mask & (neb_intensity > 0.001)
         n_pal = len(_NEBULA_PALETTES)
+        neb_brightness = 1.25 + ((seed * 2654435761) & 0xFFFF) / 0xFFFF * 1.75
         for ch in range(3):
             idx_f = nebula_hue * (n_pal - 1)
             idx_lo = np.clip(idx_f.astype(int), 0, n_pal - 2)
@@ -104,7 +131,7 @@ def render_starfield_bg(
             frac = idx_f - idx_lo
             pal_arr = np.array([p[ch] for p in _NEBULA_PALETTES], dtype=np.float64)
             nebula_color = pal_arr[idx_lo] * (1 - frac) + pal_arr[idx_hi] * frac
-            addition = (nebula_color * neb_intensity * 1.25).astype(np.int16)
+            addition = (nebula_color * neb_intensity * neb_brightness).astype(np.int16)
             current = bg_slice["bg"][..., ch].astype(np.int16)
             current[nebula_mask] += addition[nebula_mask]
             np.clip(current, 0, 255, out=current)
