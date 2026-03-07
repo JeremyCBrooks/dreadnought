@@ -61,10 +61,20 @@ class StrategicState(State):
 
     def ev_keydown(self, engine: Engine, event: Any) -> bool:
         import tcod.event
-        from ui.keys import move_keys, confirm_keys
+        from ui.keys import move_keys, confirm_keys, is_action
 
         key = event.sym
         system = self.galaxy.systems[self.galaxy.current_system]
+
+        # Message log scrolling
+        if self._handle_log_scroll(engine, key):
+            return True
+
+        # Quit confirmation
+        if key == tcod.event.KeySym.ESCAPE or is_action("quit", key):
+            from ui.confirm_quit_state import ConfirmQuitState
+            engine.push_state(ConfirmQuitState())
+            return True
 
         # Tab toggles focus
         if key == tcod.event.KeySym.TAB:
@@ -72,10 +82,14 @@ class StrategicState(State):
             return True
 
         # Cargo works in either focus
-        from ui.keys import is_action
         if is_action("cargo", key):
             from ui.cargo_state import CargoState
             engine.push_state(CargoState())
+            return True
+
+        if key == tcod.event.KeySym.m:
+            from ui.galaxy_map_state import GalaxyMapState
+            engine.push_state(GalaxyMapState(self.galaxy))
             return True
 
         direction = move_keys().get(key)
@@ -131,7 +145,10 @@ class StrategicState(State):
 
         # Header
         star_type_name = STAR_TYPES[system.star_type].name if system.star_type in STAR_TYPES else system.star_type
-        console.print(x=2, y=1, string=f"STAR SYSTEM: {system.name} ({star_type_name})", fg=(255, 255, 100))
+        is_home = system.name == self.galaxy.home_system
+        home_tag = " (home)" if is_home else ""
+        header_color = (100, 255, 100) if is_home else (255, 255, 100)
+        console.print(x=2, y=1, string=f"{system.name} ({star_type_name}){home_tag}", fg=header_color)
         from ui.colors import HEADER_SEP
         console.print(x=2, y=2, string="=" * text_width, fg=HEADER_SEP)
 
@@ -170,9 +187,9 @@ class StrategicState(State):
 
         # Controls
         if self.focus == "locations":
-            ctrl = "[UP/DOWN] Select  [ENTER] Dock  [TAB] Star Map  [C] Cargo  [ESC] Quit"
+            ctrl = "[ESC] Quit [C] Cargo [M] Galaxy [TAB] Star Map [UP/DOWN] Select [ENTER] Dock"
         else:
-            ctrl = "[ARROWS] Navigate  [TAB] Locations  [C] Cargo  [ESC] Quit"
+            ctrl = "[ESC] Quit [C] Cargo [M] Galaxy [TAB] Locations [ARROWS] Navigate"
         console.print(x=2, y=ctrl_y, string=ctrl, fg=(80, 80, 80))
 
         # Viewport: star + starfield

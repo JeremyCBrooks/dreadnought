@@ -277,11 +277,7 @@ class TacticalState(State):
             engine.push_state(ConfirmQuitState())
             return True
 
-        if key == tcod.event.KeySym.PAGEUP:
-            engine.message_log.scroll(1)
-            return True
-        if key == tcod.event.KeySym.PAGEDOWN:
-            engine.message_log.scroll(-1)
+        if self._handle_log_scroll(engine, key):
             return True
 
         if is_action("inventory", key):

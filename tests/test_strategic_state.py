@@ -37,6 +37,7 @@ def _make_galaxy(num_locations=3, connections=None):
     galaxy = SimpleNamespace(
         systems={"TestSystem": system},
         current_system="TestSystem",
+        home_system="TestSystem",
         arrive_at=lambda name: None,
     )
     return galaxy
@@ -150,6 +151,42 @@ class TestStrategicNavigation:
         assert len(pushed) == 1
         from ui.cargo_state import CargoState
         assert isinstance(pushed[0], CargoState)
+
+
+    def test_escape_pushes_confirm_quit(self):
+        galaxy = _make_galaxy()
+        state = StrategicState(galaxy)
+        engine = _make_strategic_engine(galaxy)
+        pushed = []
+        engine.push_state = lambda s: pushed.append(s)
+        state.ev_keydown(engine, FakeEvent(_sym("ESCAPE")))
+        assert len(pushed) == 1
+        from ui.confirm_quit_state import ConfirmQuitState
+        assert isinstance(pushed[0], ConfirmQuitState)
+
+    def test_pageup_scrolls_message_log(self):
+        galaxy = _make_galaxy()
+        state = StrategicState(galaxy)
+        engine = _make_strategic_engine(galaxy)
+        # Add enough messages to scroll
+        for i in range(20):
+            engine.message_log.add_message(f"msg {i}")
+        assert engine.message_log._scroll == 0
+        state.ev_keydown(engine, FakeEvent(_sym("PAGEUP")))
+        assert engine.message_log._scroll == 1
+        state.ev_keydown(engine, FakeEvent(_sym("PAGEDOWN")))
+        assert engine.message_log._scroll == 0
+
+    def test_shift_q_pushes_confirm_quit(self):
+        galaxy = _make_galaxy()
+        state = StrategicState(galaxy)
+        engine = _make_strategic_engine(galaxy)
+        pushed = []
+        engine.push_state = lambda s: pushed.append(s)
+        state.ev_keydown(engine, FakeEvent(_sym("Q")))
+        assert len(pushed) == 1
+        from ui.confirm_quit_state import ConfirmQuitState
+        assert isinstance(pushed[0], ConfirmQuitState)
 
 
 class TestStrategicRender:

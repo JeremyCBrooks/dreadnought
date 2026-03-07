@@ -1,7 +1,6 @@
 """Procedural on-demand galaxy with star systems and locations."""
 from __future__ import annotations
 
-import math
 import random
 from typing import Dict, List, Optional
 
@@ -50,10 +49,6 @@ def _direction(ax: int, ay: int, bx: int, by: int) -> tuple[int, int]:
     dx = bx - ax
     dy = by - ay
     return ((dx > 0) - (dx < 0), (dy > 0) - (dy < 0))
-
-
-def _euclidean(ax: int, ay: int, bx: int, by: int) -> float:
-    return math.sqrt((bx - ax) ** 2 + (by - ay) ** 2)
 
 
 def _unique_location_name(rng: random.Random, type_words: dict,
@@ -203,37 +198,31 @@ class Galaxy:
             if new_exits <= 0:
                 break
 
-            # Try 1-2 cell distances in this direction
-            for scale in [1, 2]:
-                tx = sys.gx + d[0] * scale
-                ty = sys.gy + d[1] * scale
-                target_pos = (tx, ty)
+            tx = sys.gx + d[0]
+            ty = sys.gy + d[1]
+            target_pos = (tx, ty)
 
-                if target_pos in self._occupied_positions:
-                    # Existing system - try to connect as cycle
-                    existing_name = self._occupied_positions[target_pos]
-                    existing_sys = self.systems[existing_name]
-                    reverse_dir = _direction(tx, ty, sys.gx, sys.gy)
-                    reverse_used = self._used_directions(existing_name)
-                    if reverse_dir not in reverse_used and rng.random() < 0.20:
-                        dist = _euclidean(sys.gx, sys.gy, tx, ty)
-                        fuel = max(base_fuel, int(dist * fuel_per_dist))
-                        sys.connections[existing_name] = fuel
-                        existing_sys.connections[system_name] = fuel
-                        new_exits -= 1
-                        used_dirs.add(d)
-                        break
-                else:
-                    # Empty position - generate new system
-                    new_sys = self._generate_system(tx, ty)
-                    self._unexplored_frontier.add(new_sys.name)
-                    dist = _euclidean(sys.gx, sys.gy, tx, ty)
-                    fuel = max(base_fuel, int(dist * fuel_per_dist))
-                    sys.connections[new_sys.name] = fuel
-                    new_sys.connections[system_name] = fuel
+            if target_pos in self._occupied_positions:
+                # Existing system - try to connect as cycle
+                existing_name = self._occupied_positions[target_pos]
+                existing_sys = self.systems[existing_name]
+                reverse_dir = _direction(tx, ty, sys.gx, sys.gy)
+                reverse_used = self._used_directions(existing_name)
+                if reverse_dir not in reverse_used and rng.random() < 0.20:
+                    fuel = base_fuel
+                    sys.connections[existing_name] = fuel
+                    existing_sys.connections[system_name] = fuel
                     new_exits -= 1
                     used_dirs.add(d)
-                    break
+            else:
+                # Empty position - generate new system
+                new_sys = self._generate_system(tx, ty)
+                self._unexplored_frontier.add(new_sys.name)
+                fuel = base_fuel
+                sys.connections[new_sys.name] = fuel
+                new_sys.connections[system_name] = fuel
+                new_exits -= 1
+                used_dirs.add(d)
 
         return len(sys.connections) > existing_count
 

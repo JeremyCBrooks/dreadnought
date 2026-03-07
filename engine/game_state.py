@@ -27,6 +27,18 @@ class State:
         """Handle keydown. Return True if the event was consumed."""
         return False
 
+    @staticmethod
+    def _handle_log_scroll(engine: Engine, key: Any) -> bool:
+        """Handle PageUp/PageDown for message log scrolling. Returns True if consumed."""
+        import tcod.event
+        if key == tcod.event.KeySym.PAGEUP:
+            engine.message_log.scroll(1)
+            return True
+        if key == tcod.event.KeySym.PAGEDOWN:
+            engine.message_log.scroll(-1)
+            return True
+        return False
+
     def on_render(self, console: tcod.console.Console, engine: Engine) -> None:
         pass
 
