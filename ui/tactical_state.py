@@ -91,6 +91,9 @@ class TacticalState(State):
         self._death_cause: Optional[str] = None
         self._death_fade_start: float = 0.0
 
+    def _max_enemies(self) -> int:
+        return min(max(1, 1 + self.depth), 3)
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -103,7 +106,7 @@ class TacticalState(State):
         loc_name = self.location.name if self.location else "the dungeon"
         key = _area_key(self.location, self.depth)
         seed = _area_seed(loc_name, self.depth)
-        max_enemies = max(1, 1 + self.depth)
+        max_enemies = self._max_enemies()
 
         # Environment and suit: from location data (galaxy sets vacuum for
         # derelicts/asteroids; starbases are pressurised unless breached).

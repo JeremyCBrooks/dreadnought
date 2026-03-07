@@ -384,3 +384,23 @@ class TestScanInput:
         state._scan_pending = [make_scanner()]
         state.ev_keydown(engine, FakeEvent(_sym("ESCAPE")))
         assert state._scan_pending is None
+
+
+class TestEnemyScaling:
+    """max_enemies per room should cap at 3 regardless of depth."""
+
+    def test_depth_zero_gives_one(self):
+        state = TacticalState(depth=0)
+        assert state._max_enemies() == 1
+
+    def test_depth_two_gives_three(self):
+        state = TacticalState(depth=2)
+        assert state._max_enemies() == 3
+
+    def test_depth_ten_caps_at_three(self):
+        state = TacticalState(depth=10)
+        assert state._max_enemies() == 3
+
+    def test_depth_100_caps_at_three(self):
+        state = TacticalState(depth=100)
+        assert state._max_enemies() == 3

@@ -1817,3 +1817,48 @@ def test_dock_center_is_exact():
             f"seed={seed}: center not vertically centered: top={top}, bottom={bottom}"
         )
         assert exit_pos == (cx, cy)
+
+
+def test_per_room_enemy_cap():
+    """No room should ever have more than 3 enemies even with high max_enemies."""
+    for seed in range(20):
+        game_map, rooms, _ = generate_dungeon(
+            seed=seed, max_rooms=8, max_enemies=10, max_total_enemies=999,
+        )
+        for room in rooms[1:]:
+            x1, y1 = room.x1 + 1, room.y1 + 1
+            x2, y2 = room.x2, room.y2
+            count = sum(
+                1 for e in game_map.entities
+                if e.ai and x1 <= e.x <= x2 and y1 <= e.y <= y2
+            )
+            assert count <= 3, f"seed={seed}: room has {count} enemies (max 3)"
+
+
+def test_total_enemy_cap():
+    """Total enemies across the level should not exceed max_total_enemies."""
+    for seed in range(20):
+        game_map, rooms, _ = generate_dungeon(
+            seed=seed, max_rooms=12, max_enemies=3, max_total_enemies=12,
+        )
+        total = sum(1 for e in game_map.entities if e.ai)
+        assert total <= 12, f"seed={seed}: {total} enemies exceeds cap of 12"
+
+
+def test_total_enemy_cap_low():
+    """A very low total cap should limit enemies accordingly."""
+    for seed in range(20):
+        game_map, rooms, _ = generate_dungeon(
+            seed=seed, max_rooms=8, max_enemies=3, max_total_enemies=3,
+        )
+        total = sum(1 for e in game_map.entities if e.ai)
+        assert total <= 3, f"seed={seed}: {total} enemies exceeds cap of 3"
+
+
+def test_respawn_creatures_respects_total_cap():
+    """respawn_creatures should also respect the total enemy cap."""
+    from world.dungeon_gen import respawn_creatures
+    game_map, rooms, _ = generate_dungeon(seed=42, max_rooms=8, max_enemies=3, max_total_enemies=5)
+    respawn_creatures(game_map, rooms, max_enemies=3, max_total_enemies=5, seed=99)
+    total = sum(1 for e in game_map.entities if e.ai)
+    assert total <= 5

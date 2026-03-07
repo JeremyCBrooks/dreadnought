@@ -174,11 +174,20 @@ def _random_room_pos(room: RectRoom, rng: random.Random) -> Tuple[int, int]:
     return x, y
 
 
+MAX_ENEMIES_PER_ROOM = 3
+MAX_ENEMIES_PER_LEVEL = 12
+
+
 def _spawn_enemies(
     room: RectRoom, game_map: GameMap, rng: random.Random, max_enemies: int = 2,
     exit_pos: Optional[Tuple[int, int]] = None,
-) -> None:
-    for _ in range(rng.randint(0, max_enemies)):
+    remaining: Optional[int] = None,
+) -> int:
+    capped = min(max_enemies, MAX_ENEMIES_PER_ROOM)
+    if remaining is not None:
+        capped = min(capped, remaining)
+    spawned = 0
+    for _ in range(rng.randint(0, capped)):
         x, y = _random_room_pos(room, rng)
         if not game_map.in_bounds(x, y) or not game_map.tiles["walkable"][x, y]:
             continue
@@ -205,6 +214,8 @@ def _spawn_enemies(
         entity.ai_config = ai_config
         entity.ai_state = ai_config.get("ai_initial_state", "wandering")
         game_map.entities.append(entity)
+        spawned += 1
+    return spawned
 
 
 def _spawn_items(
@@ -2753,6 +2764,7 @@ def generate_dungeon(
     max_enemies: int = 2,
     max_items: int = 1,
     loc_type: str = "derelict",
+    max_total_enemies: int = MAX_ENEMIES_PER_LEVEL,
 ) -> Tuple[GameMap, List[RectRoom], Optional[Tuple[int, int]]]:
     """Returns (game_map, rooms, exit_pos)."""
     rng = random.Random(seed)
@@ -2784,8 +2796,14 @@ def generate_dungeon(
         if game_map.in_bounds(exit_pos[0], exit_pos[1]):
             game_map.tiles[exit_pos[0], exit_pos[1]] = tile_types.exit_tile
 
+    total_spawned = 0
     for room in rooms[1:]:
-        _spawn_enemies(room, game_map, rng, max_enemies, exit_pos=exit_pos)
+        remaining = max_total_enemies - total_spawned
+        if remaining > 0:
+            total_spawned += _spawn_enemies(
+                room, game_map, rng, max_enemies,
+                exit_pos=exit_pos, remaining=remaining,
+            )
         _spawn_items(room, game_map, rng, max_items, exit_pos=exit_pos)
 
     # 1–3 interactables in random rooms (ship rooms get themed dressing instead,
@@ -2883,11 +2901,16 @@ def respawn_creatures(
     rooms: List[RectRoom],
     max_enemies: int = 2,
     seed: Optional[int] = None,
+    max_total_enemies: int = MAX_ENEMIES_PER_LEVEL,
 ) -> None:
     """Remove all entities with AI (creatures) and spawn new ones in rooms[1:].
     Does not touch items or the map. Uses seed for deterministic placement if given.
     """
     game_map.entities[:] = [e for e in game_map.entities if not e.ai]
     rng = random.Random(seed)
+    total_spawned = 0
     for room in rooms[1:]:
-        _spawn_enemies(room, game_map, rng, max_enemies)
+        remaining = max_total_enemies - total_spawned
+        if remaining <= 0:
+            break
+        total_spawned += _spawn_enemies(room, game_map, rng, max_enemies, remaining=remaining)
