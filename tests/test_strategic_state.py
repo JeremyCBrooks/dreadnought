@@ -37,6 +37,7 @@ def _make_galaxy(num_locations=3, connections=None):
     galaxy = SimpleNamespace(
         systems={"TestSystem": system},
         current_system="TestSystem",
+        arrive_at=lambda name: None,
     )
     return galaxy
 

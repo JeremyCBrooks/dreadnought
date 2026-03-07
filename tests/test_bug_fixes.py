@@ -210,7 +210,7 @@ def test_strategic_navigate_all_systems():
     from world.galaxy import Galaxy
     from ui.strategic_state import StrategicState
 
-    galaxy = Galaxy(num_systems=3, seed=42)
+    galaxy = Galaxy(seed=42)
     state = StrategicState(galaxy)
 
     import tcod.event

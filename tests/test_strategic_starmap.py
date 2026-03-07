@@ -54,6 +54,7 @@ def _make_graph_galaxy():
         systems={"A": a, "B": b, "C": c},
         current_system="A",
         home_system="A",
+        arrive_at=lambda name: None,
     )
     return galaxy
 
@@ -176,6 +177,7 @@ class TestNavigationFocus:
             systems={"A": a, "D": d},
             current_system="A",
             home_system="A",
+            arrive_at=lambda name: None,
         )
         state = StrategicState(galaxy)
         engine = _make_engine(galaxy)

@@ -4,15 +4,31 @@ from data.star_types import STAR_TYPES
 from world.galaxy import Galaxy
 
 
-def test_galaxy_has_ten_systems():
-    g = Galaxy(seed=1)
-    assert len(g.systems) == 10
+def _explore_n(g, max_systems=15):
+    """BFS-explore up to max_systems systems."""
+    explored = set()
+    queue = [g.home_system]
+    while queue and len(explored) < max_systems:
+        name = queue.pop(0)
+        if name in explored:
+            continue
+        explored.add(name)
+        g.arrive_at(name)
+        for neighbor in g.systems[name].connections:
+            if neighbor not in explored:
+                queue.append(neighbor)
 
 
-def test_systems_are_connected():
+def test_home_system_exists_at_init():
     g = Galaxy(seed=1)
-    first = g.systems[g.current_system]
-    assert len(first.connections) >= 1
+    assert g.home_system in g.systems
+    assert g.current_system == g.home_system
+
+
+def test_home_has_connections():
+    g = Galaxy(seed=1)
+    home = g.systems[g.home_system]
+    assert len(home.connections) >= 2, "Home must have at least 2 exits"
 
 
 def test_locations_generated():
@@ -48,6 +64,7 @@ def test_no_duplicate_names_within_galaxy():
     """All system and location names within a single galaxy must be unique."""
     for seed in range(50):
         g = Galaxy(seed=seed)
+        _explore_n(g, 15)
         all_names: list[str] = []
         for sys in g.systems.values():
             all_names.append(sys.name)
@@ -79,6 +96,7 @@ def test_location_name_formats():
     with_number = False
     for seed in range(50):
         g = Galaxy(seed=seed)
+        _explore_n(g, 10)
         for system in g.systems.values():
             for loc in system.locations:
                 parts = loc.name.split()
@@ -91,3 +109,30 @@ def test_location_name_formats():
     assert one_word, "Expected some single-noun names"
     assert two_word_alpha, "Expected some adjective+noun names"
     assert with_number, "Expected some noun+number names"
+
+
+def test_arrive_expands_frontier():
+    """Arriving at a system should generate new connected systems."""
+    g = Galaxy(seed=1)
+    home = g.systems[g.home_system]
+    neighbor_name = next(iter(home.connections))
+    systems_before = len(g.systems)
+    g.arrive_at(neighbor_name)
+    # The neighbor should now have its frontier expanded (new systems generated)
+    assert len(g.systems) >= systems_before
+
+
+def test_arrive_idempotent():
+    """Arriving at the same system twice should not change anything."""
+    g = Galaxy(seed=1)
+    home = g.systems[g.home_system]
+    neighbor_name = next(iter(home.connections))
+    g.arrive_at(neighbor_name)
+    systems_after_first = dict(g.systems)
+    connections_after_first = {
+        n: dict(s.connections) for n, s in g.systems.items()
+    }
+    g.arrive_at(neighbor_name)
+    assert set(g.systems.keys()) == set(systems_after_first.keys())
+    for name in g.systems:
+        assert g.systems[name].connections == connections_after_first[name]

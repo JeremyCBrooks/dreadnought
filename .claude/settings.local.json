@@ -12,7 +12,8 @@
       "Bash(source:*)",
       "Bash(python3:*)",
       "Bash(done)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(taskkill:*)"
     ]
   }
 }

@@ -104,6 +104,7 @@ class StrategicState(State):
                 if direction in conn_map:
                     dest_name = conn_map[direction]
                     self.galaxy.current_system = dest_name
+                    self.galaxy.arrive_at(dest_name)
                     self.selected = 0
                     engine.message_log.add_message(
                         f"Traveling to {dest_name}.", (100, 200, 255)
