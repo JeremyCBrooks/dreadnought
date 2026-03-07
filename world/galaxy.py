@@ -21,7 +21,8 @@ _CONNECTION_WEIGHTS = [(1, 5), (2, 30), (3, 40), (4, 20), (5, 5)]
 
 
 class Location:
-    def __init__(self, name: str, loc_type: str, environment: Optional[dict] = None) -> None:
+    def __init__(self, name: str, loc_type: str, environment: Optional[dict] = None,
+                 system_name: str = "") -> None:
         self.name = name
         self.loc_type = loc_type
         env = environment or {}
@@ -30,6 +31,7 @@ class Location:
         self.environment = env
         self.scanned = False
         self.visited = False
+        self.system_name = system_name
 
 
 class StarSystem:
@@ -122,7 +124,8 @@ class Galaxy:
             env = {"vacuum": 1} if lt in ("derelict", "asteroid") else {}
             if lt in ("asteroid", "derelict") and rng.random() < 0.7:
                 env["low_gravity"] = 1
-            locations.append(Location(loc_name, lt, environment=env or None))
+            locations.append(Location(loc_name, lt, environment=env or None,
+                                      system_name=name))
 
         system = StarSystem(name, locations, depth=0,
                            star_type=pick_star_type(rng), gx=gx, gy=gy)

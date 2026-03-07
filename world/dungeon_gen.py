@@ -2763,6 +2763,8 @@ def generate_dungeon(
     game_map = GameMap(width, height, fill_tile=wall_tile)
     game_map.fully_lit = profile.fully_lit
     game_map.fov_radius = profile.fov_radius
+    from debug import VISIBLE_ALL
+    game_map.debug_visible_all = VISIBLE_ALL
     gen_fn = _GENERATORS.get(profile.generator)
     if gen_fn:
         rooms = gen_fn(game_map, rng, profile, wall_tile, floor_tile)

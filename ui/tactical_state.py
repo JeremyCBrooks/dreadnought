@@ -159,6 +159,11 @@ class TacticalState(State):
             player.loadout = sp.get("loadout")
         game_map.entities.append(player)
 
+        # Seed for space starfield — matches strategic viewport when available
+        system_name = getattr(self.location, "system_name", "") if self.location else ""
+        if system_name:
+            game_map.space_seed = hash(system_name) & 0xFFFFFFFF
+
         engine.game_map = game_map
         engine.player = player
 

@@ -6,7 +6,7 @@ import time
 import numpy as np
 
 from data.star_types import STAR_TYPES
-from world.noise import fractal_noise
+from world.noise import coord_fractal_noise
 
 
 # Background star color tints: (r_mult, g_mult, b_mult)
@@ -32,6 +32,134 @@ _NEBULA_PALETTES = [
 ]
 
 
+def render_starfield_bg(
+    console,
+    vp_x: int,
+    vp_y: int,
+    vp_w: int,
+    vp_h: int,
+    seed: int,
+    t: float,
+    coord_x: int = 0,
+    coord_y: int = 0,
+    glow: np.ndarray | None = None,
+    cell_mask: np.ndarray | None = None,
+    skip_positions: set | None = None,
+) -> None:
+    """Render starfield background: noise bg, nebula clouds, and background stars.
+
+    Uses coordinate-based noise so that the same (seed, coord_x, coord_y)
+    always produces the same starfield, regardless of viewport dimensions.
+
+    Args:
+        seed: system seed for deterministic noise and star hashing.
+        coord_x/y: world-space origin — noise and star hashes are computed
+            at (coord_x + lx, coord_y + ly) so overlapping regions match.
+        glow: (vp_w, vp_h) star glow intensity to attenuate nebula/stars. None = no glow.
+        cell_mask: (vp_w, vp_h) bool mask limiting which cells to render. None = all.
+        skip_positions: set of (lx, ly) local coords to skip for star characters.
+    """
+    xs = np.arange(coord_x, coord_x + vp_w)
+    ys = np.arange(coord_y, coord_y + vp_h)
+    noise = coord_fractal_noise(seed, xs, ys, octaves=3, base_period=10)
+
+    # Nebula: multiply two noise fields at different scales for varied shapes
+    neb_base = coord_fractal_noise(seed + 1, xs, ys, octaves=3, base_period=18)
+    neb_detail = coord_fractal_noise(seed + 3, xs, ys, octaves=2, base_period=7)
+    nebula_density = neb_base * (0.5 + 0.5 * neb_detail)
+    nebula_hue = coord_fractal_noise(seed + 2, xs, ys, octaves=2, base_period=8)
+
+    bg_slice = console.rgb[vp_x : vp_x + vp_w, vp_y : vp_y + vp_h]
+
+    # Fill bg with noise-modulated near-black
+    base_bg = 2 + (noise * 6).astype(np.uint8)
+    if cell_mask is not None:
+        bg_slice["bg"][..., 0][cell_mask] = (base_bg // 2)[cell_mask]
+        bg_slice["bg"][..., 1][cell_mask] = (base_bg // 3)[cell_mask]
+        bg_slice["bg"][..., 2][cell_mask] = base_bg[cell_mask]
+    else:
+        bg_slice["bg"][..., 0] = base_bg // 2
+        bg_slice["bg"][..., 1] = base_bg // 3
+        bg_slice["bg"][..., 2] = base_bg
+
+    # Nebula clouds — attenuated near star glow if present
+    glow_atten = glow if glow is not None else np.zeros((vp_w, vp_h))
+    nebula_threshold = 0.5
+    nebula_mask = nebula_density > nebula_threshold
+    if cell_mask is not None:
+        nebula_mask &= cell_mask
+    if np.any(nebula_mask):
+        neb_intensity = np.zeros_like(nebula_density)
+        neb_intensity[nebula_mask] = (
+            (nebula_density[nebula_mask] - nebula_threshold) / (1.0 - nebula_threshold)
+        )
+        neb_intensity *= neb_intensity
+        neb_intensity *= (1.0 - glow_atten)
+        nebula_mask = nebula_mask & (neb_intensity > 0.001)
+        n_pal = len(_NEBULA_PALETTES)
+        for ch in range(3):
+            idx_f = nebula_hue * (n_pal - 1)
+            idx_lo = np.clip(idx_f.astype(int), 0, n_pal - 2)
+            idx_hi = idx_lo + 1
+            frac = idx_f - idx_lo
+            pal_arr = np.array([p[ch] for p in _NEBULA_PALETTES], dtype=np.float64)
+            nebula_color = pal_arr[idx_lo] * (1 - frac) + pal_arr[idx_hi] * frac
+            addition = (nebula_color * neb_intensity * 1.25).astype(np.int16)
+            current = bg_slice["bg"][..., ch].astype(np.int16)
+            current[nebula_mask] += addition[nebula_mask]
+            np.clip(current, 0, 255, out=current)
+            bg_slice["bg"][..., ch] = current.astype(np.uint8)
+
+    # Background stars
+    star_brightness = np.clip((noise - 0.20) / 0.60, 0, 1) ** 5
+
+    for lx in range(vp_w):
+        for ly in range(vp_h):
+            if cell_mask is not None and not cell_mask[lx, ly]:
+                continue
+            if glow is not None and glow[lx, ly] > 0.05:
+                continue
+            if skip_positions and (lx, ly) in skip_positions:
+                continue
+
+            hx = coord_x + lx
+            hy = coord_y + ly
+            h = ((hx + seed) * 7919 + hy * 104729) & 0xFFFF
+            kind = h % 100
+
+            if kind < 80:
+                continue
+
+            noise_val = star_brightness[lx, ly]
+            tint = _STAR_TINTS[_TINT_INDEX[(h >> 8) % 100]]
+
+            # Per-star smooth brightness modulation
+            phase = ((h >> 4) & 0xFF) / 256.0
+            speed = 0.3 + (h % 13) * 0.015
+            fade = 0.5 + 0.5 * np.sin(t * speed + phase * 6.283)
+
+            if kind < 93:
+                brightness = int(255 * noise_val * (0.1 + 0.4 * fade))
+                char = "."
+            else:
+                brightness = int(255 * noise_val * (0.5 + 0.5 * fade))
+                chars = "*+x*."
+                char_phase = ((h >> 3) & 0xFF) / 64.0
+                char_speed = 0.25 + (h % 11) * 0.01
+                char = chars[int((t * char_speed + char_phase) % len(chars))]
+
+            sx = vp_x + lx
+            sy = vp_y + ly
+            fg = (min(int(brightness * tint[0]), 255),
+                  min(int(brightness * tint[1]), 255),
+                  min(int(brightness * tint[2]), 255))
+            # Skip if star fg is dimmer than the bg (avoids dark outlines in nebulae)
+            bg_cell = bg_slice["bg"][lx, ly]
+            if max(fg) < max(int(bg_cell[0]), int(bg_cell[1]), int(bg_cell[2])):
+                continue
+            console.print(x=sx, y=sy, string=char, fg=fg)
+
+
 def render_viewport(
     console,
     vp_x: int,
@@ -46,18 +174,7 @@ def render_viewport(
     st = STAR_TYPES[star_type_key]
     t = time_override if time_override is not None else time.time()
 
-    # Fractal noise fields (seeded per system)
-    np_rng = np.random.RandomState(system_seed & 0x7FFFFFFF)
-    noise = fractal_noise(np_rng, vp_w, vp_h, octaves=3, base_radius=10)
-    nebula_density = fractal_noise(np_rng, vp_w, vp_h, octaves=2, base_radius=14)
-    nebula_hue = fractal_noise(np_rng, vp_w, vp_h, octaves=2, base_radius=8)
-
-    # Fill viewport bg with noise-modulated near-black
     bg_slice = console.rgb[vp_x : vp_x + vp_w, vp_y : vp_y + vp_h]
-    base_bg = 2 + (noise * 6).astype(np.uint8)
-    bg_slice["bg"][..., 0] = base_bg // 2
-    bg_slice["bg"][..., 1] = base_bg // 3
-    bg_slice["bg"][..., 2] = base_bg
 
     # --- Precompute star glow field (needed to attenuate nebula near star) ---
     cx = vp_x + vp_w - 2
@@ -82,32 +199,12 @@ def render_viewport(
     glow[outside] = np.exp(-decay_k * falloff_dist)
     glow_mask = glow > 0.01
 
-    # Nebula clouds — attenuated near star so glow overpowers nebula
-    nebula_threshold = 0.5
-    nebula_mask = nebula_density > nebula_threshold
-    if np.any(nebula_mask):
-        neb_intensity = np.zeros_like(nebula_density)
-        neb_intensity[nebula_mask] = (
-            (nebula_density[nebula_mask] - nebula_threshold) / (1.0 - nebula_threshold)
-        )
-        neb_intensity *= neb_intensity
-        # Suppress nebula where star glow is strong
-        neb_intensity *= (1.0 - glow)
-        # Re-threshold after suppression
-        nebula_mask = nebula_mask & (neb_intensity > 0.001)
-        n_pal = len(_NEBULA_PALETTES)
-        for ch in range(3):
-            idx_f = nebula_hue * (n_pal - 1)
-            idx_lo = np.clip(idx_f.astype(int), 0, n_pal - 2)
-            idx_hi = idx_lo + 1
-            frac = idx_f - idx_lo
-            pal_arr = np.array([p[ch] for p in _NEBULA_PALETTES], dtype=np.float64)
-            nebula_color = pal_arr[idx_lo] * (1 - frac) + pal_arr[idx_hi] * frac
-            addition = (nebula_color * neb_intensity * 3.5).astype(np.int16)
-            current = bg_slice["bg"][..., ch].astype(np.int16)
-            current[nebula_mask] += addition[nebula_mask]
-            np.clip(current, 0, 255, out=current)
-            bg_slice["bg"][..., ch] = current.astype(np.uint8)
+    # Render starfield background (bg fill, nebula clouds, background stars)
+    render_starfield_bg(
+        console, vp_x, vp_y, vp_w, vp_h,
+        seed=system_seed, t=t,
+        glow=glow,
+    )
 
     # Apply star color to bg additively, blended by glow intensity
     if np.any(glow_mask):
@@ -266,46 +363,3 @@ def render_viewport(
             np.clip(region, 0, 255, out=region)
             bg_slice["bg"][x0:x1, y0:y1, ch] = region.astype(np.uint8)
 
-    # Precompute star brightness field: aggressive curve pushes most stars
-    # toward black while a few rare bright ones punch through hard
-    star_brightness = np.clip((noise - 0.20) / 0.60, 0, 1) ** 5
-
-    # Render background stars
-    for lx in range(vp_w):
-        for ly in range(vp_h):
-            if glow[lx, ly] > 0.05:
-                continue
-            sx = vp_x + lx
-            sy = vp_y + ly
-
-            noise_val = star_brightness[lx, ly]
-
-            h = ((sx + system_seed) * 7919 + sy * 104729) & 0xFFFF
-            kind = h % 100
-
-            if kind < 80:
-                continue
-
-            # Star color tint from hash
-            tint = _STAR_TINTS[_TINT_INDEX[(h >> 8) % 100]]
-
-            if kind < 93:
-                phase = ((h >> 4) & 0xFF) / 256.0
-                speed = 0.4 + (h % 13) * 0.02
-                cycle = (t * speed + phase) % 1.0
-                if cycle < 0.5:
-                    brightness = int(255 * noise_val)
-                    console.print(x=sx, y=sy, string=".",
-                                  fg=(min(int(brightness * tint[0]), 255),
-                                      min(int(brightness * tint[1]), 255),
-                                      min(int(brightness * tint[2]), 255)))
-            else:
-                chars = "*+x*."
-                phase = ((h >> 3) & 0xFF) / 64.0
-                speed = 0.25 + (h % 11) * 0.01
-                idx = int((t * speed + phase) % len(chars))
-                brightness = int(255 * noise_val)
-                console.print(x=sx, y=sy, string=chars[idx],
-                              fg=(min(int(brightness * tint[0]), 255),
-                                  min(int(brightness * tint[1]), 255),
-                                  min(int(brightness * tint[2]), 255)))

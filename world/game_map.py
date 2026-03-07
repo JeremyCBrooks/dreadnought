@@ -11,18 +11,6 @@ from world import tile_types
 if TYPE_CHECKING:
     from game.entity import Entity
 
-# Background star color tints: (r_mult, g_mult, b_mult)
-_STAR_TINTS = [
-    (1.0, 1.0, 1.0),    # white
-    (0.9, 0.9, 1.0),    # blue-white
-    (0.85, 0.85, 1.0),  # blue
-    (1.0, 1.0, 0.7),    # yellow
-    (1.0, 0.8, 0.5),    # orange
-    (1.0, 0.6, 0.5),    # red
-]
-_STAR_TINT_INDEX = [0]*30 + [1]*30 + [2]*20 + [3]*12 + [4]*5 + [5]*3
-
-
 class GameMap:
     def __init__(self, width: int, height: int, fill_tile: np.ndarray | None = None) -> None:
         self.width = width
@@ -41,13 +29,12 @@ class GameMap:
         self.hazard_overlays: dict[str, np.ndarray] = {}
         self._hazards_dirty: bool = True
         self.hull_breaches: list[tuple[int, int]] = []
-        self._space_noise: np.ndarray | None = None
-        self._nebula_density: np.ndarray | None = None
-        self._nebula_hue: np.ndarray | None = None
+        self.space_seed: int = 0
         self._pending_decompression: dict | None = None
         self._pull_directions: dict[tuple[int, int], tuple[int, int]] | None = None
         self._vacuum_baseline_set: bool = False
         self.biome: str | None = None
+        self.debug_visible_all: bool = False
         # Lighting
         self.light_sources: list = []
         self._light_map: np.ndarray | None = None
@@ -208,6 +195,12 @@ class GameMap:
         self.explored |= mask
 
     def update_fov(self, x: int, y: int, radius: int | None = None) -> None:
+        if self.debug_visible_all:
+            self.visible[:] = True
+            self.lit[:] = True
+            self.explored[:] = True
+            return
+
         import tcod.map
 
         if radius is None:
@@ -399,6 +392,8 @@ class GameMap:
         vis = self.visible[ms]
         is_space = self.tiles["tile_id"][ms] == space_tid
         mask = vis & is_space
+        if not np.any(mask):
+            return
 
         # Exclude space tiles occupied by visible entities
         entity_positions = set()
@@ -408,107 +403,11 @@ class GameMap:
                 if 0 <= ex < rw and 0 <= ey < rh:
                     entity_positions.add((ex, ey))
 
-        xs, ys = np.where(mask)
-        if len(xs) == 0:
-            return
-
-        # Lazy-init fractal noise for brightness + nebula
-        if self._space_noise is None:
-            from world.noise import fractal_noise
-            np_rng = np.random.RandomState(self.width * 1000 + self.height)
-            self._space_noise = fractal_noise(np_rng, self.width, self.height,
-                                              octaves=3, base_radius=10)
-            self._nebula_density = fractal_noise(np_rng, self.width, self.height,
-                                                 octaves=2, base_radius=14)
-            self._nebula_hue = fractal_noise(np_rng, self.width, self.height,
-                                             octaves=2, base_radius=8)
-
-        t = time.time()
-
-        # Nebula clouds via numpy bulk ops on visible space tiles
-        _NEBULA_PALETTES = [
-            (20, 5, 35),   # purple
-            (6, 18, 35),   # blue
-            (28, 10, 18),  # warm
-            (8, 22, 28),   # teal
-            (24, 6, 28),   # magenta
-        ]
-        neb_thresh = 0.5
-        neb_slice = self._nebula_density[ms]
-        neb_mask = mask & (neb_slice > neb_thresh)
-        if np.any(neb_mask):
-            neb_intensity = np.zeros((rw, rh), dtype=np.float64)
-            neb_intensity[neb_mask] = (neb_slice[neb_mask] - neb_thresh) / (1.0 - neb_thresh)
-            neb_intensity *= neb_intensity  # squared: diffuse=faint, dense=bright
-            hue_slice = self._nebula_hue[ms]
-            n_pal = len(_NEBULA_PALETTES)
-            for ch in range(3):
-                idx_f = hue_slice * (n_pal - 1)
-                idx_lo = np.clip(idx_f.astype(int), 0, n_pal - 2)
-                idx_hi = idx_lo + 1
-                frac = idx_f - idx_lo
-                pal_arr = np.array([p[ch] for p in _NEBULA_PALETTES], dtype=np.float64)
-                nebula_color = pal_arr[idx_lo] * (1 - frac) + pal_arr[idx_hi] * frac
-                addition = (nebula_color * neb_intensity * 3.5).astype(np.int16)
-                nxs, nys = np.where(neb_mask)
-                for j in range(len(nxs)):
-                    scx = vp_x + nxs[j]
-                    scy = vp_y + nys[j]
-                    old = int(console.rgb[scx, scy]["bg"][ch])
-                    console.rgb[scx, scy]["bg"][ch] = min(old + int(addition[nxs[j], nys[j]]), 255)
-
-        for i in range(len(xs)):
-            mx = xs[i] + cam_x  # map coords
-            my = ys[i] + cam_y
-            sx = vp_x + xs[i]   # screen coords
-            sy = vp_y + ys[i]
-
-            # Skip tiles with entities so they don't flicker
-            if (xs[i], ys[i]) in entity_positions:
-                continue
-
-            # Aggressive contrast: clip to narrow band then cube
-            raw = self._space_noise[mx, my]
-            noise_val = max(0.0, min(1.0, (raw - 0.25) / 0.55))
-            noise_val = noise_val * noise_val * noise_val
-
-            # Deterministic hash for stable star placement
-            h = (mx * 7919 + my * 104729) & 0xFFFF
-            kind = h % 100
-
-            if kind < 80:
-                # Empty void — near-black background, tinted by noise
-                nbg = int(noise_val * 10)
-                if nbg > 2:
-                    console.rgb[sx, sy]["bg"] = (nbg // 2, nbg // 3, nbg)
-                continue
-
-            # Star color tint from hash
-            tint = _STAR_TINTS[_STAR_TINT_INDEX[(h >> 8) % 100]]
-
-            if kind < 93:
-                # Dim star — twinkle on/off
-                phase = ((h >> 4) & 0xFF) / 256.0
-                speed = 0.4 + (h % 13) * 0.02  # 0.40–0.64
-                cycle = (t * speed + phase) % 1.0
-                if cycle < 0.5:
-                    brightness = int(10 + 245 * noise_val)
-                    console.print(
-                        x=sx, y=sy, string=".",
-                        fg=(min(int(brightness * tint[0]), 255),
-                            min(int(brightness * tint[1]), 255),
-                            min(int(brightness * tint[2]), 255)),
-                    )
-            else:
-                # Bright star — cycle characters
-                chars = "*+x*."
-                phase = ((h >> 3) & 0xFF) / 64.0
-                speed = 0.25 + (h % 11) * 0.01  # 0.25–0.35
-                idx = int((t * speed + phase) % len(chars))
-                brightness = int(20 + 235 * noise_val)
-                console.print(
-                    x=sx, y=sy, string=chars[idx],
-                    fg=(min(int(brightness * tint[0]), 255),
-                        min(int(brightness * tint[1]), 255),
-                        min(int(brightness * tint[2]), 255)),
-                )
+        from ui.viewport_renderer import render_starfield_bg
+        render_starfield_bg(
+            console, vp_x, vp_y, rw, rh,
+            seed=self.space_seed, t=time.time(),
+            coord_x=cam_x, coord_y=cam_y,
+            cell_mask=mask,
+            skip_positions=entity_positions,
+        )
