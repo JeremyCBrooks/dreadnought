@@ -1,6 +1,9 @@
 """Tests for reactor core pickup and fuel conversion."""
+import numpy as np
+
 from tests.conftest import make_arena, make_engine, MockEngine
 from world import tile_types
+from world.game_map import GameMap
 from game.entity import Entity, Fighter
 from game.actions import TakeReactorCoreAction
 
@@ -129,6 +132,65 @@ def test_reactor_core_no_conversion_without_ship():
     # Core stays in inventory, no crash
     saved_inv = engine._saved_player["inventory"]
     assert any(i.item.get("type") == "reactor_core" for i in saved_inv)
+
+
+def test_take_reactor_core_marks_hazards_dirty():
+    """Extracting reactor core should trigger vacuum recalculation.
+
+    A reactor_core tile (walkable=False) blocks vacuum propagation.
+    When extracted and replaced with floor (walkable=True), vacuum must
+    propagate through the now-open tile.
+    """
+    # Build a small map: space | breach wall | reactor | player room
+    #   #######
+    #   # .R.##
+    #   #  .+X
+    #   # ..###
+    #   #######
+    # R = reactor_core at (2,1), X = hull breach at (5,2)
+    # Door at (4,2) is closed, sealing the room.
+    # Once reactor is extracted -> floor, and door opened, vacuum floods.
+    # But even with the door open, the key point is:
+    # reactor blocks vacuum while present; after extraction vacuum propagates.
+
+    # Layout: reactor sits between the open corridor and a breach
+    #   ######
+    #   #.R.X
+    #   ######
+    # Player at (1,1), reactor at (2,1), floor at (3,1), breach at (4,1)
+    width, height = 6, 3
+    gm = GameMap(width, height)
+    for x in range(width):
+        for y in range(height):
+            gm.tiles[x, y] = tile_types.wall
+    gm.tiles[1, 1] = tile_types.floor       # player
+    gm.tiles[2, 1] = tile_types.reactor_core # blocks vacuum
+    gm.tiles[3, 1] = tile_types.floor
+    gm.tiles[4, 1] = tile_types.hull_breach
+    gm.hull_breaches.append((4, 1))
+    gm.has_space = True
+    gm.add_light_source(2, 1, radius=4, color=(180, 80, 255), intensity=0.8)
+
+    player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
+    gm.entities.append(player)
+    engine = MockEngine(gm, player)
+
+    # Before extraction: reactor blocks vacuum from reaching player tile
+    gm.recalculate_hazards()
+    vacuum = gm.hazard_overlays["vacuum"]
+    assert vacuum[4, 1], "breach should be vacuum"
+    assert vacuum[3, 1], "tile adjacent to breach should be vacuum"
+    assert not vacuum[1, 1], "player tile shielded by reactor should NOT be vacuum"
+
+    # Extract reactor (player at (1,1), reactor at (2,1) -> dx=1, dy=0)
+    result = TakeReactorCoreAction(1, 0).perform(engine, player)
+    assert result == 1
+
+    # After extraction: hazards must be recalculated; vacuum now floods through
+    gm.recalculate_hazards()  # only recalcs if _hazards_dirty
+    vacuum = gm.hazard_overlays["vacuum"]
+    assert vacuum[2, 1], "former reactor tile should now be vacuum"
+    assert vacuum[1, 1], "player tile should now be vacuum (no longer shielded)"
 
 
 def test_adjacent_interact_dirs_finds_reactor():

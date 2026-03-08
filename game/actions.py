@@ -409,6 +409,7 @@ class TakeReactorCoreAction(Action):
 
         # Replace tile with floor
         engine.game_map.tiles[tx, ty] = tile_types.floor
+        engine.game_map._hazards_dirty = True
 
         # Remove light source at that position
         engine.game_map.light_sources = [
