@@ -12,8 +12,8 @@ class Ship:
 
     def __init__(
         self,
-        fuel: int = 100,
-        max_fuel: int = 100,
+        fuel: int = 5,
+        max_fuel: int = 10,
         scanner_quality: int = 1,
     ) -> None:
         self.fuel = fuel

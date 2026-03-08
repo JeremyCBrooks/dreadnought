@@ -34,11 +34,14 @@ def _make_galaxy(num_locations=3, connections=None):
         depth=0,
         star_type="yellow_dwarf",
     )
+    frontier = set()
     galaxy = SimpleNamespace(
         systems={"TestSystem": system},
         current_system="TestSystem",
         home_system="TestSystem",
         arrive_at=lambda name: None,
+        _unexplored_frontier=frontier,
+        travel_cost=lambda dest: 3 if dest in frontier else 1,
     )
     return galaxy
 
@@ -187,6 +190,91 @@ class TestStrategicNavigation:
         assert len(pushed) == 1
         from ui.confirm_quit_state import ConfirmQuitState
         assert isinstance(pushed[0], ConfirmQuitState)
+
+
+class TestStrategicFuel:
+    def _make_two_system_galaxy(self, dest_frontier=True):
+        """Build a galaxy with two connected systems."""
+        locs = [SimpleNamespace(name="Loc_0", loc_type="derelict",
+                                visited=False, environment={"vacuum": 1})]
+        system = SimpleNamespace(
+            name="TestSystem", gx=0, gy=0, locations=locs,
+            connections={"OtherSystem": 30}, depth=0, star_type="yellow_dwarf",
+        )
+        other = SimpleNamespace(
+            name="OtherSystem", gx=1, gy=0, locations=[],
+            connections={"TestSystem": 30}, depth=1, star_type="red_dwarf",
+        )
+        frontier = {"OtherSystem"} if dest_frontier else set()
+        galaxy = SimpleNamespace(
+            systems={"TestSystem": system, "OtherSystem": other},
+            current_system="TestSystem",
+            home_system="TestSystem",
+            arrive_at=lambda name: None,
+            _unexplored_frontier=frontier,
+            travel_cost=lambda dest: 3 if dest in frontier else 1,
+        )
+        return galaxy
+
+    def test_travel_deducts_fuel(self):
+        galaxy = self._make_two_system_galaxy(dest_frontier=False)
+        state = StrategicState(galaxy)
+        engine = _make_strategic_engine(galaxy)
+        engine.ship.fuel = 5
+        state.ev_keydown(engine, FakeEvent(_sym("TAB")))
+        state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+        assert engine.ship.fuel == 4  # explored costs 1
+
+    def test_travel_frontier_costs_3(self):
+        galaxy = self._make_two_system_galaxy(dest_frontier=True)
+        state = StrategicState(galaxy)
+        engine = _make_strategic_engine(galaxy)
+        engine.ship.fuel = 10
+        state.ev_keydown(engine, FakeEvent(_sym("TAB")))
+        state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+        assert engine.ship.fuel == 7  # frontier costs 3
+        assert galaxy.current_system == "OtherSystem"
+
+    def test_travel_explored_costs_1(self):
+        galaxy = self._make_two_system_galaxy(dest_frontier=False)
+        state = StrategicState(galaxy)
+        engine = _make_strategic_engine(galaxy)
+        engine.ship.fuel = 10
+        state.ev_keydown(engine, FakeEvent(_sym("TAB")))
+        state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+        assert engine.ship.fuel == 9  # explored costs 1
+        assert galaxy.current_system == "OtherSystem"
+
+    def test_travel_blocked_insufficient_fuel(self):
+        galaxy = self._make_two_system_galaxy(dest_frontier=True)
+        state = StrategicState(galaxy)
+        engine = _make_strategic_engine(galaxy)
+        engine.ship.fuel = 2  # need 3 for frontier
+        state.ev_keydown(engine, FakeEvent(_sym("TAB")))
+        state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+        assert galaxy.current_system == "TestSystem"  # didn't move
+        assert engine.ship.fuel == 2  # not deducted
+        assert any("fuel" in m[0].lower() for m in engine.message_log.messages)
+
+    def test_fuel_gauge_rendered(self):
+        galaxy = _make_galaxy()
+        state = StrategicState(galaxy)
+        engine = _make_strategic_engine(galaxy)
+        engine.ship.fuel = 7
+        engine.ship.max_fuel = 10
+        engine.CONSOLE_WIDTH = 160
+        engine.CONSOLE_HEIGHT = 50
+        printed = []
+        console = SimpleNamespace(
+            width=160, height=50,
+            rgb=np.zeros((160, 50), dtype=[("ch", np.int32),
+                         ("fg", "3u1"), ("bg", "3u1")]),
+        )
+        original_print = lambda *, x, y, string, fg=(255, 255, 255): printed.append(string)
+        console.print = original_print
+        console.draw_rect = lambda *a, **kw: None
+        state.on_render(console, engine)
+        assert any("FUEL: 7/10" in s for s in printed)
 
 
 class TestStrategicRender:

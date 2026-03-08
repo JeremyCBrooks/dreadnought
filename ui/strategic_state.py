@@ -117,6 +117,13 @@ class StrategicState(State):
                 conn_map = self._connection_by_direction()
                 if direction in conn_map:
                     dest_name = conn_map[direction]
+                    cost = self.galaxy.travel_cost(dest_name)
+                    if engine.ship.fuel < cost:
+                        engine.message_log.add_message(
+                            "Not enough fuel.", (255, 80, 80)
+                        )
+                        return True
+                    engine.ship.fuel -= cost
                     self.galaxy.current_system = dest_name
                     self.galaxy.arrive_at(dest_name)
                     self.selected = 0
@@ -151,6 +158,18 @@ class StrategicState(State):
         console.print(x=2, y=1, string=f"{system.name} ({star_type_name}){home_tag}", fg=header_color)
         from ui.colors import HEADER_SEP
         console.print(x=2, y=2, string="=" * text_width, fg=HEADER_SEP)
+
+        # Fuel gauge
+        fuel = engine.ship.fuel
+        max_fuel = engine.ship.max_fuel
+        if fuel > 5:
+            fuel_color = (0, 255, 0)
+        elif fuel >= 3:
+            fuel_color = (255, 255, 0)
+        else:
+            fuel_color = (255, 0, 0)
+        fuel_str = f"FUEL: {fuel}/{max_fuel}"
+        console.print(x=left_w - len(fuel_str) - 2, y=1, string=fuel_str, fg=fuel_color)
 
         # Star map section (fixed position at top)
         nav_active = self.focus == "navigation"
@@ -234,7 +253,7 @@ class StrategicState(State):
 
         # Draw active connections
         for d, neighbor_name in conn_map.items():
-            fuel = system.connections[neighbor_name]
+            fuel = self.galaxy.travel_cost(neighbor_name)
             char = _ROSE_CHARS.get(d, "*")
             cells = _ROSE_LINES.get(d, [])
             for dx, dy in cells:

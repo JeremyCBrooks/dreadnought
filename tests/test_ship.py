@@ -5,8 +5,8 @@ from game.entity import Entity
 
 def test_ship_defaults():
     ship = Ship()
-    assert ship.fuel == 100
-    assert ship.max_fuel == 100
+    assert ship.fuel == 5
+    assert ship.max_fuel == 10
     assert ship.cargo == []
     assert ship.scanner_quality == 1
 

@@ -219,7 +219,9 @@ def test_strategic_navigate_all_systems():
         def __init__(self, sym):
             self.sym = sym
 
+    from game.ship import Ship
     engine = Engine()
+    engine.ship = Ship()
 
     # All systems should be reachable via BFS
     visited = {galaxy.home_system}

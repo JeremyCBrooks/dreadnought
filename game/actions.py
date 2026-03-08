@@ -392,6 +392,53 @@ class RangedAction(Action):
         return 1
 
 
+class TakeReactorCoreAction(Action):
+    """Extract a reactor core from an adjacent tile."""
+
+    def __init__(self, dx: int, dy: int) -> None:
+        self.dx = dx
+        self.dy = dy
+
+    def perform(self, engine: Engine, entity: Entity) -> int:
+        from world import tile_types
+
+        tx, ty = entity.x + self.dx, entity.y + self.dy
+        if not engine.game_map.in_bounds(tx, ty):
+            return 0
+
+        tile_id = int(engine.game_map.tiles["tile_id"][tx, ty])
+        if tile_id != int(tile_types.reactor_core["tile_id"]):
+            return 0
+
+        if not entity.can_carry():
+            engine.message_log.add_message("Inventory full.", WARNING)
+            return 0
+
+        # Replace tile with floor
+        engine.game_map.tiles[tx, ty] = tile_types.floor
+
+        # Remove light source at that position
+        engine.game_map.light_sources = [
+            ls for ls in engine.game_map.light_sources
+            if (ls.x, ls.y) != (tx, ty)
+        ]
+        engine.game_map.invalidate_lights()
+
+        # Create reactor core item
+        from game.entity import Entity as _Entity
+        core = _Entity(
+            x=entity.x, y=entity.y,
+            char="\xea", color=(180, 80, 255), name="Reactor Core",
+            blocks_movement=False,
+            item={"type": "reactor_core", "value": 5},
+        )
+        entity.inventory.append(core)
+        engine.message_log.add_message(
+            "You extract the reactor core.", (180, 80, 255)
+        )
+        return 1
+
+
 class ToggleSwitchAction(Action):
     """Toggle an airlock switch, opening or closing the linked exterior door."""
 

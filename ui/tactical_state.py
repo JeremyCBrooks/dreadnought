@@ -229,6 +229,20 @@ class TacticalState(State):
                 "inventory": saved_inventory,
                 "loadout": saved_loadout,
             }
+            # Convert reactor cores to fuel
+            if engine.ship is not None:
+                cores = [i for i in saved_inventory if i.item and i.item.get("type") == "reactor_core"]
+                for core in cores:
+                    added = min(core.item["value"], engine.ship.max_fuel - engine.ship.fuel)
+                    if added > 0:
+                        engine.ship.fuel += added
+                        engine.message_log.add_message(
+                            f"Reactor core converted to fuel. (+{added} fuel)",
+                            (100, 255, 100),
+                        )
+                    saved_inventory.remove(core)
+                engine._saved_player["inventory"] = saved_inventory
+
             key = _area_key(self.location, self.depth)
             if engine.player in engine.game_map.entities:
                 engine.game_map.entities.remove(engine.player)
@@ -318,6 +332,9 @@ class TacticalState(State):
                 elif kind == "switch":
                     from game.actions import ToggleSwitchAction
                     consumed = ToggleSwitchAction(dx, dy).perform(engine, engine.player)
+                elif kind == "reactor":
+                    from game.actions import TakeReactorCoreAction
+                    consumed = TakeReactorCoreAction(dx, dy).perform(engine, engine.player)
                 else:
                     from game.actions import InteractAction
                     consumed = InteractAction(dx, dy).perform(engine, engine.player)
@@ -621,6 +638,7 @@ class TacticalState(State):
             int(tt.airlock_switch_off["tile_id"]),
             int(tt.airlock_switch_on["tile_id"]),
         }
+        reactor_core_id = int(tt.reactor_core["tile_id"])
         px, py = engine.player.x, engine.player.y
         dirs: List[Tuple[int, int, str]] = []
         for dx in (-1, 0, 1):
@@ -635,6 +653,8 @@ class TacticalState(State):
                     dirs.append((dx, dy, "door"))
                 elif tid in switch_ids:
                     dirs.append((dx, dy, "switch"))
+                elif tid == reactor_core_id:
+                    dirs.append((dx, dy, "reactor"))
                 elif engine.game_map.get_interactable_at(nx, ny):
                     dirs.append((dx, dy, "entity"))
         return dirs
@@ -662,6 +682,9 @@ class TacticalState(State):
             elif kind == "switch":
                 from game.actions import ToggleSwitchAction
                 consumed = ToggleSwitchAction(dx, dy).perform(engine, engine.player)
+            elif kind == "reactor":
+                from game.actions import TakeReactorCoreAction
+                consumed = TakeReactorCoreAction(dx, dy).perform(engine, engine.player)
             elif kind == "entity":
                 from game.actions import InteractAction
                 consumed = InteractAction(dx, dy).perform(engine, engine.player)

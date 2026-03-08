@@ -50,11 +50,14 @@ def _make_graph_galaxy():
     a = _make_system("A", 0, 0, {"B": 30}, [_make_location("A1"), _make_location("A2")])
     b = _make_system("B", 1, 0, {"A": 30, "C": 40}, [_make_location("B1")])
     c = _make_system("C", 1, 1, {"B": 40}, [_make_location("C1")])
+    frontier = set()
     galaxy = SimpleNamespace(
         systems={"A": a, "B": b, "C": c},
         current_system="A",
         home_system="A",
         arrive_at=lambda name: None,
+        _unexplored_frontier=frontier,
+        travel_cost=lambda dest: 3 if dest in frontier else 1,
     )
     return galaxy
 
@@ -173,11 +176,14 @@ class TestNavigationFocus:
         """Diagonal keys should navigate to diagonally-connected systems."""
         a = _make_system("A", 0, 0, {"D": 30}, [_make_location("A1")])
         d = _make_system("D", 1, 1, {"A": 30}, [_make_location("D1")])
+        frontier = set()
         galaxy = SimpleNamespace(
             systems={"A": a, "D": d},
             current_system="A",
             home_system="A",
             arrive_at=lambda name: None,
+            _unexplored_frontier=frontier,
+            travel_cost=lambda dest: 3 if dest in frontier else 1,
         )
         state = StrategicState(galaxy)
         engine = _make_engine(galaxy)
@@ -218,8 +224,11 @@ class TestLabelPositioning:
             systems[name] = _make_system(name, 3 + dx, 3 + dy, {"Center": 30})
         center = _make_system("Center", 3, 3, conns, [_make_location()])
         systems["Center"] = center
+        frontier = set()
         galaxy = SimpleNamespace(
             systems=systems, current_system="Center", home_system="Center",
+            _unexplored_frontier=frontier,
+            travel_cost=lambda dest: 3 if dest in frontier else 1,
         )
         state = StrategicState(galaxy)
         engine = _make_engine(galaxy)
@@ -262,9 +271,12 @@ class TestLabelPositioning:
         long_name = "Wolf-Rayet Proxima Centauri"
         a = _make_system("Center", 3, 3, {long_name: 99}, [_make_location()])
         b = _make_system(long_name, 4, 3, {"Center": 99})
+        frontier = set()
         galaxy = SimpleNamespace(
             systems={"Center": a, long_name: b},
             current_system="Center", home_system="Center",
+            _unexplored_frontier=frontier,
+            travel_cost=lambda dest: 3 if dest in frontier else 1,
         )
         state = StrategicState(galaxy)
         engine = _make_engine(galaxy)
