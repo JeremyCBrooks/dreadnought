@@ -230,8 +230,8 @@ class Galaxy:
         return len(sys.connections) > existing_count
 
     def travel_cost(self, destination: str) -> int:
-        """Return fuel cost to travel to *destination*: 3 if frontier, 1 if explored."""
-        return 3 if destination in self._unexplored_frontier else 1
+        """Return fuel cost to travel to *destination*: 2 if frontier, 1 if explored."""
+        return 2 if destination in self._unexplored_frontier else 1
 
     def arrive_at(self, system_name: str) -> None:
         """Called when the player arrives at a system. Expands its frontier."""

@@ -97,7 +97,7 @@ def make_scanner(name="Scanner", tier=1, scan_range=8):
         char="~", color=(100, 200, 255), name=name,
         blocks_movement=False,
         item={"type": "scanner", "scanner_tier": tier, "range": scan_range,
-              "value": tier},
+              "value": tier, "uses": 99},
     )
 
 

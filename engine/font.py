@@ -16,4 +16,4 @@ def load_tileset():
         return tcod.tileset.load_tilesheet(
             str(FONT_FILE), 16, 16, tcod.tileset.CHARMAP_CP437
         )
-    return tcod.tileset.get_default()
+    return None

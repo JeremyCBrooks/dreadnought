@@ -54,7 +54,7 @@ def test_interact_nothing_nearby():
 def test_scan_tier1():
     """Area scan finds adjacent container and marks it scanned."""
     engine = _make_engine()
-    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8})
+    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8, "uses": 99})
     engine.player.loadout = Loadout(slot1=scanner)
     hazard = {"type": "electric", "damage": 2, "equipment_damage": False}
     inter = Entity(
@@ -73,7 +73,7 @@ def test_scan_tier1():
 def test_scan_tier2():
     """Tier 2 area scan shows hazard type in label."""
     engine = _make_engine()
-    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 2, "range": 8})
+    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 2, "range": 8, "uses": 99})
     engine.player.loadout = Loadout(slot1=scanner)
     hazard = {"type": "radiation", "damage": 1, "severity": "moderate", "equipment_damage": False}
     inter = Entity(
@@ -89,7 +89,7 @@ def test_scan_tier2():
 def test_scan_safe():
     """Area scan with no hazards reports all clear or finds container."""
     engine = _make_engine()
-    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8})
+    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8, "uses": 99})
     engine.player.loadout = Loadout(slot1=scanner)
     inter = Entity(
         x=6, y=5, name="Console", blocks_movement=False,
@@ -103,7 +103,7 @@ def test_scan_safe():
 def test_scan_mitigates_hazard():
     """After scanning, interacting should NOT trigger the hazard."""
     engine = _make_engine()
-    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8})
+    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8, "uses": 99})
     engine.player.loadout = Loadout(slot1=scanner)
     hazard = {"type": "electric", "damage": 2, "equipment_damage": False}
     inter = Entity(
@@ -133,7 +133,7 @@ def test_unscanned_still_triggers():
 def test_scan_then_interact_full_flow():
     """Full flow: scan reveals hazard, interact bypasses it and gets loot."""
     engine = _make_engine()
-    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 2, "range": 8})
+    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 2, "range": 8, "uses": 99})
     engine.player.loadout = Loadout(slot1=scanner)
     loot = {"char": "!", "color": (0, 255, 100), "name": "Med-kit", "type": "heal", "value": 5}
     hazard = {"type": "radiation", "damage": 1, "severity": "moderate", "equipment_damage": False}
@@ -199,7 +199,7 @@ def test_interact_directed_misses():
 def test_scan_directed():
     """ScanAction (area scan) finds diagonal container."""
     engine = _make_engine()
-    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8})
+    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8, "uses": 99})
     engine.player.loadout = Loadout(slot1=scanner)
     hazard = {"type": "electric", "damage": 2, "equipment_damage": False}
     inter = Entity(

@@ -1,6 +1,7 @@
 """Strategic (star system navigation) state with compass rose starmap."""
 from __future__ import annotations
 
+import random
 from typing import TYPE_CHECKING, Any, Dict, Tuple
 
 from engine.game_state import State
@@ -119,9 +120,12 @@ class StrategicState(State):
                     dest_name = conn_map[direction]
                     cost = self.galaxy.travel_cost(dest_name)
                     if engine.ship.fuel < cost:
-                        engine.message_log.add_message(
-                            "Not enough fuel.", (255, 80, 80)
-                        )
+                        if engine.ship.fuel == 0:
+                            self._drift(engine)
+                        else:
+                            engine.message_log.add_message(
+                                "Not enough fuel.", (255, 80, 80)
+                            )
                         return True
                     engine.ship.fuel -= cost
                     self.galaxy.current_system = dest_name
@@ -135,6 +139,39 @@ class StrategicState(State):
                 return True
 
         return False
+
+    def _drift_destination(self, galaxy: Any) -> str:
+        """Pick a weighted-random neighbor, preferring systems with unvisited derelicts."""
+        system = galaxy.systems[galaxy.current_system]
+        neighbors = list(system.connections.keys())
+        weights = []
+        for name in neighbors:
+            sys = galaxy.systems[name]
+            has_derelict = any(
+                getattr(loc, "loc_type", "") == "derelict" and not getattr(loc, "visited", True)
+                for loc in getattr(sys, "locations", [])
+            )
+            weights.append(5 if has_derelict else 1)
+        return random.choices(neighbors, weights=weights, k=1)[0]
+
+    def _drift(self, engine: Engine) -> None:
+        """Execute adrift travel: random neighbor, jettison cargo, desperate messages."""
+        dest_name = self._drift_destination(self.galaxy)
+        engine.message_log.add_message(
+            "Engines dead. The ship drifts on momentum...", (200, 100, 100)
+        )
+        if engine.ship.cargo:
+            item = random.choice(engine.ship.cargo)
+            engine.ship.cargo.remove(item)
+            engine.message_log.add_message(
+                f"A crate tumbles into the void — {item.name} lost.", (255, 80, 80)
+            )
+        engine.message_log.add_message(
+            f"Drifting into {dest_name}...", (200, 100, 100)
+        )
+        self.galaxy.current_system = dest_name
+        self.galaxy.arrive_at(dest_name)
+        self.selected = 0
 
     def on_render(self, console: Any, engine: Engine) -> None:
         from data.star_types import STAR_TYPES

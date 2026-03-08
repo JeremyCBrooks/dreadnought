@@ -57,7 +57,7 @@ def _make_graph_galaxy():
         home_system="A",
         arrive_at=lambda name: None,
         _unexplored_frontier=frontier,
-        travel_cost=lambda dest: 3 if dest in frontier else 1,
+        travel_cost=lambda dest: 2 if dest in frontier else 1,
     )
     return galaxy
 
@@ -183,7 +183,7 @@ class TestNavigationFocus:
             home_system="A",
             arrive_at=lambda name: None,
             _unexplored_frontier=frontier,
-            travel_cost=lambda dest: 3 if dest in frontier else 1,
+            travel_cost=lambda dest: 2 if dest in frontier else 1,
         )
         state = StrategicState(galaxy)
         engine = _make_engine(galaxy)
@@ -228,7 +228,7 @@ class TestLabelPositioning:
         galaxy = SimpleNamespace(
             systems=systems, current_system="Center", home_system="Center",
             _unexplored_frontier=frontier,
-            travel_cost=lambda dest: 3 if dest in frontier else 1,
+            travel_cost=lambda dest: 2 if dest in frontier else 1,
         )
         state = StrategicState(galaxy)
         engine = _make_engine(galaxy)
@@ -276,7 +276,7 @@ class TestLabelPositioning:
             systems={"Center": a, long_name: b},
             current_system="Center", home_system="Center",
             _unexplored_frontier=frontier,
-            travel_cost=lambda dest: 3 if dest in frontier else 1,
+            travel_cost=lambda dest: 2 if dest in frontier else 1,
         )
         state = StrategicState(galaxy)
         engine = _make_engine(galaxy)

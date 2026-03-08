@@ -150,6 +150,17 @@ def perform_area_scan(engine: Engine, entity: Entity, *, scanner: Optional[Entit
         engine.message_log.add_message("You need a scanner in your loadout.", (150, 150, 150))
         return None
 
+    # Check remaining uses
+    uses = scanner.item.get("uses", 0)
+    if uses <= 0:
+        engine.message_log.add_message(
+            f"The {scanner.name} is disabled junk.", (150, 150, 150)
+        )
+        return None
+
+    # Consume one use
+    scanner.item["uses"] = uses - 1
+
     scan_range = scanner.item.get("range", 8)
     tier = scanner.item.get("scanner_tier", 1)
     px, py = entity.x, entity.y
@@ -190,6 +201,13 @@ def perform_area_scan(engine: Engine, entity: Entity, *, scanner: Optional[Entit
             entries.append(ScanEntry(best_x, best_y, best_dist, "hazard", char, color, label))
 
     entries.sort(key=lambda e: e.distance)
+
+    # Warn player if the scanner just burned out
+    if scanner.item.get("uses", 0) <= 0:
+        engine.message_log.add_message(
+            f"The {scanner.name} gives out and is now junk.", (255, 180, 50)
+        )
+
     return ScanResults(entries=entries, scanner_range=scan_range)
 
 

@@ -93,16 +93,24 @@ def all_loot() -> List[Dict[str, Any]]:
     return result
 
 
-def build_item_data(definition: Dict[str, Any]) -> Dict[str, Any]:
+def build_item_data(definition: Dict[str, Any], *, rng: Any = None) -> Dict[str, Any]:
     """Extract Entity.item dict from a loot/item definition.
 
     Pulls ``type``, ``value``, and any type-specific keys (durability,
     max_durability, scanner_tier) — replaces scattered conditionals.
+
+    For scanners, assigns random ``uses`` (1-3) via *rng* (defaults to
+    ``random`` module if not provided).
     """
+    import random as _random
     result: Dict[str, Any] = {"type": definition["type"], "value": definition["value"]}
     for key in _ITEM_EXTRA_KEYS:
         if key in definition:
             result[key] = definition[key]
+    # Scanners get random limited uses (hidden from player)
+    if definition.get("type") == "scanner" and "uses" not in result:
+        r = rng if rng is not None else _random
+        result["uses"] = r.randint(1, 3)
     return result
 
 

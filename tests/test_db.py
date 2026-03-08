@@ -199,10 +199,14 @@ class TestBuildItemData:
                           "range": 5, "ammo": 20, "max_ammo": 20}
 
     def test_scanner_item(self):
+        import random
         defn = {"type": "scanner", "value": 1, "scanner_tier": 1,
                 "char": "]", "color": (100, 200, 255), "name": "Basic Scanner"}
-        result = db.build_item_data(defn)
-        assert result == {"type": "scanner", "value": 1, "scanner_tier": 1}
+        result = db.build_item_data(defn, rng=random.Random(0))
+        assert result["type"] == "scanner"
+        assert result["value"] == 1
+        assert result["scanner_tier"] == 1
+        assert 1 <= result["uses"] <= 3
 
     def test_repair_item(self):
         defn = {"type": "repair", "value": 5, "char": "#", "color": (180, 140, 80), "name": "Repair Kit"}

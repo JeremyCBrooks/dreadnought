@@ -41,7 +41,7 @@ def _make_galaxy(num_locations=3, connections=None):
         home_system="TestSystem",
         arrive_at=lambda name: None,
         _unexplored_frontier=frontier,
-        travel_cost=lambda dest: 3 if dest in frontier else 1,
+        travel_cost=lambda dest: 2 if dest in frontier else 1,
     )
     return galaxy
 
@@ -212,7 +212,7 @@ class TestStrategicFuel:
             home_system="TestSystem",
             arrive_at=lambda name: None,
             _unexplored_frontier=frontier,
-            travel_cost=lambda dest: 3 if dest in frontier else 1,
+            travel_cost=lambda dest: 2 if dest in frontier else 1,
         )
         return galaxy
 
@@ -225,14 +225,14 @@ class TestStrategicFuel:
         state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
         assert engine.ship.fuel == 4  # explored costs 1
 
-    def test_travel_frontier_costs_3(self):
+    def test_travel_frontier_costs_2(self):
         galaxy = self._make_two_system_galaxy(dest_frontier=True)
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
         engine.ship.fuel = 10
         state.ev_keydown(engine, FakeEvent(_sym("TAB")))
         state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
-        assert engine.ship.fuel == 7  # frontier costs 3
+        assert engine.ship.fuel == 8  # frontier costs 2
         assert galaxy.current_system == "OtherSystem"
 
     def test_travel_explored_costs_1(self):
@@ -249,11 +249,11 @@ class TestStrategicFuel:
         galaxy = self._make_two_system_galaxy(dest_frontier=True)
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
-        engine.ship.fuel = 2  # need 3 for frontier
+        engine.ship.fuel = 1  # need 2 for frontier
         state.ev_keydown(engine, FakeEvent(_sym("TAB")))
         state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
         assert galaxy.current_system == "TestSystem"  # didn't move
-        assert engine.ship.fuel == 2  # not deducted
+        assert engine.ship.fuel == 1  # not deducted
         assert any("fuel" in m[0].lower() for m in engine.message_log.messages)
 
     def test_fuel_gauge_rendered(self):

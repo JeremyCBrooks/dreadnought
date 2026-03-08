@@ -16,7 +16,7 @@ from tests.conftest import make_engine, make_arena, MockEngine
 
 def test_scan_tier3_shows_details():
     engine = make_engine()
-    scanner = Entity(name="Military Scanner", item={"type": "scanner", "scanner_tier": 3, "range": 8})
+    scanner = Entity(name="Military Scanner", item={"type": "scanner", "scanner_tier": 3, "range": 8, "uses": 99})
     engine.player.loadout = Loadout(slot1=scanner)
     hazard = {"type": "electric", "damage": 3, "severity": "severe", "equipment_damage": True}
     inter = Entity(
@@ -34,7 +34,7 @@ def test_scan_tier3_shows_details():
 def test_scan_nothing_nearby():
     """Area scan with nothing in range returns 1 (costs turn) and logs all clear."""
     engine = make_engine()
-    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8})
+    scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8, "uses": 99})
     engine.player.loadout = Loadout(slot1=scanner)
     result = ScanAction().perform(engine, engine.player)
     assert result == 1
