@@ -2711,6 +2711,28 @@ def _place_airlocks(
         placed += 1
 
 
+def _enforce_airlock_walls(game_map: GameMap, wall_tile: np.ndarray) -> None:
+    """Restore wall tiles around airlock corridors.
+
+    Hull cleanup passes may convert perpendicular walls to space, creating
+    diagonal gaps that allow movement around airlocks.  This re-stamps
+    wall tiles on both perpendicular sides of every airlock tile.
+    """
+    space_tid = int(tile_types.space["tile_id"])
+    for al in game_map.airlocks:
+        dx, dy = al["direction"]
+        ix, iy = al["interior_door"]
+        perps = [(1, 0), (-1, 0)] if dx == 0 else [(0, 1), (0, -1)]
+        for i in range(3):
+            px, py = ix + i * dx, iy + i * dy
+            for pdx, pdy in perps:
+                nx, ny = px + pdx, py + pdy
+                if not game_map.in_bounds(nx, ny):
+                    continue
+                if int(game_map.tiles["tile_id"][nx, ny]) == space_tid:
+                    game_map.tiles[nx, ny] = wall_tile
+
+
 def _place_hull_breaches(
     game_map: GameMap, rng: random.Random, wall_tile: np.ndarray,
 ) -> None:
@@ -2987,6 +3009,9 @@ def generate_dungeon(
             bx, by = ex + dx, ey + dy
             if game_map.in_bounds(bx, by):
                 game_map.tiles[bx, by] = tile_types.space
+        # Re-enforce walls around airlock corridors (hull cleanup may
+        # have converted them to space, creating diagonal gaps).
+        _enforce_airlock_walls(game_map, wall_tile)
         # Hull breaches — starbases only have a 20% chance
         if profile.loc_type != "starbase" or rng.random() < 0.2:
             _place_hull_breaches(game_map, rng, wall_tile)

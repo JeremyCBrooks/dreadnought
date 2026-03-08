@@ -257,6 +257,37 @@ def test_enemy_drift_out_of_bounds_removed():
     assert enemy not in gm.entities
 
 
+def test_airlock_corridor_walls_intact():
+    """Wall tiles perpendicular to the airlock corridor must be solid (not space).
+
+    This prevents diagonal movement through gaps next to airlocks.
+    """
+    wall_tid = int(tile_types.wall["tile_id"])
+    space_tid = int(tile_types.space["tile_id"])
+    for seed in range(20):
+        game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        for al in game_map.airlocks:
+            dx, dy = al["direction"]
+            ix, iy = al["interior_door"]
+            # The 3 airlock positions: interior door, floor, exterior door
+            positions = [(ix + i * dx, iy + i * dy) for i in range(3)]
+            # Perpendicular directions
+            if dx == 0:
+                perps = [(1, 0), (-1, 0)]
+            else:
+                perps = [(0, 1), (0, -1)]
+            for px, py in positions:
+                for pdx, pdy in perps:
+                    nx, ny = px + pdx, py + pdy
+                    if not game_map.in_bounds(nx, ny):
+                        continue
+                    tid = int(game_map.tiles["tile_id"][nx, ny])
+                    assert tid != space_tid, (
+                        f"seed={seed}: airlock wall at ({nx},{ny}) next to "
+                        f"({px},{py}) is space — diagonal leak!"
+                    )
+
+
 def test_airlock_floor_tile_properties():
     """Airlock floor should be walkable and transparent."""
     assert bool(tile_types.airlock_floor["walkable"])

@@ -1131,9 +1131,22 @@ def test_no_window_corner_ears():
     space_tid = int(tile_types.space["tile_id"])
     for seed in range(20):
         gm, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        # Airlock corridor walls are intentionally preserved even if they
+        # look like "ears" — skip them.
+        airlock_wall_pos: set = set()
+        for al in gm.airlocks:
+            adx, ady = al["direction"]
+            ix, iy = al["interior_door"]
+            perps = [(1, 0), (-1, 0)] if adx == 0 else [(0, 1), (0, -1)]
+            for i in range(3):
+                px, py = ix + i * adx, iy + i * ady
+                for pdx, pdy in perps:
+                    airlock_wall_pos.add((px + pdx, py + pdy))
         for x in range(1, gm.width - 1):
             for y in range(1, gm.height - 1):
                 if int(gm.tiles["tile_id"][x, y]) != wall_tid:
+                    continue
+                if (x, y) in airlock_wall_pos:
                     continue
                 # Check if this wall is only diagonally adjacent to windows
                 cardinal_interesting = False
