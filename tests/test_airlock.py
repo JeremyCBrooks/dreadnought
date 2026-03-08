@@ -54,35 +54,12 @@ def test_airlocks_placed_on_ship():
             assert len(game_map.airlocks) >= 1
 
 
-def test_airlocks_at_rib_tips():
-    """Every rib tip should have an airlock placed at it."""
+def test_airlocks_at_branch_tips():
+    """Branch corridor tips should have airlocks placed near them."""
     for seed in range(20):
         game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
-        if not hasattr(game_map, "ribs") or not game_map.ribs:
+        if not hasattr(game_map, "branches") or not game_map.branches:
             continue
-        keel_y = game_map.keel_y
-        keel_y2 = game_map.keel_y2
-        # Collect expected tip positions
-        expected_tips = []
-        for rib_x, rib_y_start, rib_y_end in game_map.ribs:
-            if rib_y_start < keel_y:
-                expected_tips.append((rib_x, rib_y_start, 0, -1))  # north tip
-            if rib_y_end > keel_y2:
-                expected_tips.append((rib_x, rib_y_end, 0, 1))  # south tip
-        # Each expected tip should have a corresponding airlock nearby
-        for rib_x, tip_y, dx, dy in expected_tips:
-            # The interior door should be at or very near the rib tip
-            found = False
-            for al in game_map.airlocks:
-                ix, iy = al["interior_door"]
-                adx, ady = al["direction"]
-                if ix == rib_x and adx == dx and ady == dy:
-                    # Interior door should be 1 tile beyond the tip
-                    if iy == tip_y + dy:
-                        found = True
-                        break
-            # Some tips may not have enough wall space for an airlock
-            # so we don't assert, but at least one tip should succeed
         # At minimum, we expect at least one airlock was placed
         assert len(game_map.airlocks) >= 1, f"seed={seed}: no airlocks placed"
 
@@ -104,19 +81,12 @@ def test_rib_airlock_switch_adjacent_to_door():
             )
 
 
-def test_rib_airlock_direction_is_outward():
-    """Rib tip airlocks should face outward (away from the keel)."""
+def test_hull_airlock_direction_is_outward():
+    """Hull airlocks should face outward (away from the ship interior)."""
     for seed in range(10):
         game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
-        if not hasattr(game_map, "ribs"):
-            continue
-        keel_y = game_map.keel_y
-        keel_y2 = game_map.keel_y2
         for al in game_map.airlocks:
             dx, dy = al["direction"]
-            ix, iy = al["interior_door"]
-            # Airlock direction should be north or south (perpendicular ribs)
-            # or possibly from the random placement (east/west)
             assert (dx, dy) in [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
 

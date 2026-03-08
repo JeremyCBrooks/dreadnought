@@ -373,27 +373,27 @@ _ROOM_DRESSING = {
 
 def _place_ship_corridor_lights(
     game_map: GameMap,
-    keel_x1: int, keel_x2: int, keel_y: int, keel_y2: int,
-    ribs: List[Tuple[int, int, int]],
+    spine_x1: int, spine_x2: int, spine_y: int, spine_y2: int,
+    branches: List[Tuple[int, int, int]],
     rng: random.Random,
 ) -> None:
-    """Place warm white lights along keel and rib corridors."""
+    """Place warm white lights along spine and branch corridors."""
     color = (200, 190, 170)
     radius = 4
     intensity = 0.5
     spacing = rng.randint(6, 8)
 
-    # Along the keel
-    for x in range(keel_x1, keel_x2 + 1, spacing):
-        y = keel_y
+    # Along the spine
+    for x in range(spine_x1, spine_x2 + 1, spacing):
+        y = spine_y
         if game_map.in_bounds(x, y):
             game_map.add_light_source(x, y, radius=radius, color=color, intensity=intensity)
 
-    # Along each rib
-    for rib_x, rib_y_start, rib_y_end in ribs:
-        for y in range(rib_y_start, rib_y_end + 1, spacing):
-            if game_map.in_bounds(rib_x, y):
-                game_map.add_light_source(rib_x, y, radius=radius, color=color, intensity=intensity)
+    # Along each branch
+    for br_x, br_y_start, br_y_end in branches:
+        for y in range(br_y_start, br_y_end + 1, spacing):
+            if game_map.in_bounds(br_x, y):
+                game_map.add_light_source(br_x, y, radius=radius, color=color, intensity=intensity)
 
 
 def _dress_ship_room(
@@ -524,102 +524,249 @@ def _required_specs(profile: LocationProfile) -> List[RoomSpec]:
 # Generator functions
 # -------------------------------------------------------------------
 
-def _build_ship_skeleton(
+def _load_hull_profile(
+    rng: random.Random,
+    map_width: int,
+) -> Tuple[List[int], List[Tuple[int, int, str | None]], int]:
+    """Pick random hull sections and concatenate into a full profile.
+
+    Returns (profile, section_bounds, margin_x) where section_bounds is a list
+    of (start_x_in_profile, end_x_in_profile, room_type) tuples.
+    """
+    from data.hull_templates import get_random_hull
+
+    bow, mid, stern = get_random_hull(rng)
+    profile = bow.profile + mid.profile + stern.profile
+    margin_x = (map_width - len(profile)) // 2
+
+    bow_end = len(bow.profile)
+    mid_end = bow_end + len(mid.profile)
+    stern_end = mid_end + len(stern.profile)
+
+    section_bounds = [
+        (0, bow_end, bow.room_type),
+        (bow_end, mid_end, mid.room_type),
+        (mid_end, stern_end, stern.room_type),
+    ]
+    return profile, section_bounds, margin_x
+
+
+def _rasterize_hull(
+    game_map: GameMap,
+    profile: List[int],
+    margin_x: int,
+    center_y: int,
+    wall_tile: np.ndarray,
+) -> None:
+    """Fill hull interior with wall tiles based on the profile.
+
+    Hull is symmetric around center_y: top = center_y - half_w,
+    bottom = center_y + half_w.
+    """
+    for i, half_w in enumerate(profile):
+        x = margin_x + i
+        if not game_map.in_bounds(x, 0):
+            continue
+        y_top = max(0, center_y - half_w)
+        y_bot = min(game_map.height - 1, center_y + half_w)
+        game_map.tiles[x, y_top:y_bot + 1] = wall_tile
+
+
+def _carve_spine(
+    game_map: GameMap,
+    profile: List[int],
+    margin_x: int,
+    center_y: int,
+    floor_tile: np.ndarray,
+) -> Tuple[int, int, int]:
+    """Carve a 3-tile-wide central spine corridor centered on center_y.
+
+    Returns (spine_x1, spine_x2, spine_y) where spine_y is center_y - 1
+    (the top row of the 3-wide corridor).
+    """
+    # Find first and last x where profile >= 3 (corridor + wall margin on each side)
+    spine_x1 = None
+    spine_x2 = None
+    for i, half_w in enumerate(profile):
+        if half_w >= 3:
+            if spine_x1 is None:
+                spine_x1 = margin_x + i
+            spine_x2 = margin_x + i
+    if spine_x1 is None:
+        spine_x1 = margin_x
+        spine_x2 = margin_x + len(profile) - 1
+
+    # 3-wide: center_y - 1, center_y, center_y + 1
+    for dy in (-1, 0, 1):
+        _carve_h_tunnel(game_map, spine_x1, spine_x2, center_y + dy, floor_tile)
+    return spine_x1, spine_x2, center_y - 1
+
+
+def _place_rooms_in_hull(
     game_map: GameMap,
     rng: random.Random,
+    profile_obj: "LocationProfile",
+    hull_profile: List[int],
+    section_bounds: List[Tuple[int, int, str | None]],
+    margin_x: int,
+    center_y: int,
+    spine_y: int,
     floor_tile: np.ndarray,
-) -> Tuple[int, int, int, int, List[Tuple[int, int, int]]]:
-    """Build the ship's corridor skeleton: a wide keel + perpendicular ribs.
+) -> List[RectRoom]:
+    """Place rooms inside the hull, respecting hull bounds with margin.
 
-    Returns (keel_x1, keel_x2, keel_y, keel_y2, ribs) where each rib is
-    (rib_x, rib_y_start, rib_y_end).
+    Bridge/engine rooms are placed inline with the spine at the bow/stern.
+    Mid rooms are placed in symmetric pairs above and below the spine.
+    Returns list of placed rooms.
     """
-    w, h = game_map.width, game_map.height
-    zone_w = w // 3
+    rooms: List[RectRoom] = []
+    label_counts: dict[str, int] = {}
+    h = game_map.height
 
-    keel_y = h // 2
-    # Keel doesn't span full map — leave margins
-    keel_x1 = max(2, zone_w // 2)
-    keel_x2 = min(w - 3, 2 * zone_w + zone_w // 2)
-    keel_y2 = keel_y + 1  # 2-tile wide
+    def _room_fits_hull(room: RectRoom) -> bool:
+        """Check every column of the room is inside hull with 1-tile margin."""
+        for x in range(room.x1, room.x2 + 1):
+            xi = x - margin_x
+            if xi < 0 or xi >= len(hull_profile):
+                return False
+            half_w = hull_profile[xi]
+            if room.y1 < center_y - half_w + 1:
+                return False
+            if room.y2 > center_y + half_w - 1:
+                return False
+        return True
 
-    _carve_wide_h_tunnel(game_map, keel_x1, keel_x2, keel_y, floor_tile)
+    def _try_place_inline(spec, x_lo, x_hi):
+        """Place a room centered on spine midpoint (inline) in x range."""
+        for _ in range(50):
+            rw = rng.randint(spec.min_w, spec.max_w)
+            rh = rng.randint(spec.min_h, spec.max_h)
+            rx = _safe_randint(rng, max(1, x_lo), max(1, min(x_hi - rw, game_map.width - rw - 2)))
+            if rx is None:
+                continue
+            ry = center_y - rh // 2
+            room = RectRoom(rx, ry, rw, rh, label=spec.label)
+            if any(room.intersects(r) for r in rooms):
+                continue
+            if not _room_fits_hull(room):
+                continue
+            return room
+        return None
 
-    # Cross-corridors (ribs) branching perpendicular from the keel
-    keel_len = keel_x2 - keel_x1
-    num_ribs = rng.randint(2, 4)
-    ribs: List[Tuple[int, int, int]] = []
+    def _try_place_above(spec, x_lo, x_hi):
+        """Place a room above the spine."""
+        for _ in range(50):
+            rw = rng.randint(spec.min_w, spec.max_w)
+            rh = rng.randint(spec.min_h, spec.max_h)
+            rx = _safe_randint(rng, max(1, x_lo), max(1, min(x_hi - rw, game_map.width - rw - 2)))
+            if rx is None:
+                continue
+            xi = max(0, min(rx - margin_x, len(hull_profile) - 1))
+            half_w = hull_profile[xi]
+            ry = _safe_randint(rng,
+                               max(1, center_y - half_w + 1),
+                               max(1, center_y - 1 - rh))
+            if ry is None:
+                continue
+            room = RectRoom(rx, ry, rw, rh, label=spec.label)
+            if any(room.intersects(r) for r in rooms):
+                continue
+            if not _room_fits_hull(room):
+                continue
+            return room
+        return None
 
-    for i in range(num_ribs):
-        # Evenly spaced along keel with jitter
-        base_x = keel_x1 + (i + 1) * keel_len // (num_ribs + 1)
-        rib_x = base_x + rng.randint(-2, 2)
-        rib_x = max(keel_x1 + 1, min(rib_x, keel_x2 - 1))
+    def _mirror_room(room: RectRoom) -> Optional[RectRoom]:
+        """Create a mirrored copy of a room below the spine."""
+        mirror_y1 = 2 * center_y - room.y2
+        rw = room.x2 - room.x1
+        rh = room.y2 - room.y1
+        mirror = RectRoom(room.x1, mirror_y1, rw, rh, label=room.label)
+        if any(mirror.intersects(r) for r in rooms):
+            return None
+        if not _room_fits_hull(mirror):
+            return None
+        return mirror
 
-        extent_up = rng.randint(4, 10)
-        extent_down = rng.randint(4, 10)
+    # Place required rooms inline with spine at section termini
+    for sec_start, sec_end, room_type in section_bounds:
+        if room_type is None:
+            continue
+        spec = next((s for s in profile_obj.room_specs if s.label == room_type), None)
+        if spec is None:
+            continue
+        if label_counts.get(room_type, 0) >= 1:
+            continue
+        x_lo = margin_x + sec_start
+        x_hi = margin_x + sec_end
+        room = _try_place_inline(spec, x_lo, x_hi)
+        if room:
+            game_map.tiles[room.inner] = floor_tile
+            rooms.append(room)
+            label_counts[room_type] = 1
 
-        # Decide direction: both, up only, or down only
-        direction = rng.random()
-        if direction < 0.5:
-            # Both directions
-            rib_y_start = max(1, keel_y - extent_up)
-            rib_y_end = min(h - 2, keel_y2 + extent_down)
-        elif direction < 0.75:
-            # Up only (port)
-            rib_y_start = max(1, keel_y - extent_up)
-            rib_y_end = keel_y2
-        else:
-            # Down only (starboard)
-            rib_y_start = keel_y
-            rib_y_end = min(h - 2, keel_y2 + extent_down)
+    # Place remaining rooms in symmetric pairs in the mid section
+    fill_specs = [s for s in profile_obj.room_specs if not s.required]
+    mid_start, mid_end, _ = section_bounds[1]
+    x_lo = margin_x + mid_start
+    x_hi = margin_x + mid_end
 
-        _carve_v_tunnel(game_map, rib_y_start, rib_y_end, rib_x, floor_tile)
-        ribs.append((rib_x, rib_y_start, rib_y_end))
+    # Guarantee one of each non-required room type first (as symmetric pairs)
+    for spec in fill_specs:
+        if len(rooms) >= profile_obj.max_rooms:
+            break
+        above = _try_place_above(spec, x_lo, x_hi)
+        if above:
+            game_map.tiles[above.inner] = floor_tile
+            rooms.append(above)
+            label_counts[spec.label] = label_counts.get(spec.label, 0) + 1
+            # Mirror below
+            if len(rooms) < profile_obj.max_rooms:
+                below = _mirror_room(above)
+                if below:
+                    game_map.tiles[below.inner] = floor_tile
+                    rooms.append(below)
+                    label_counts[spec.label] = label_counts.get(spec.label, 0) + 1
 
-    return keel_x1, keel_x2, keel_y, keel_y2, ribs
+    # Fill remaining up to max (symmetric pairs)
+    for _ in range(profile_obj.max_rooms * 3):
+        if len(rooms) >= profile_obj.max_rooms:
+            break
+        spec = _pick_room_spec(rng, profile_obj, label_counts, allowed_specs=fill_specs)
+        above = _try_place_above(spec, x_lo, x_hi)
+        if above:
+            game_map.tiles[above.inner] = floor_tile
+            rooms.append(above)
+            label_counts[spec.label] = label_counts.get(spec.label, 0) + 1
+            if len(rooms) < profile_obj.max_rooms:
+                below = _mirror_room(above)
+                if below:
+                    game_map.tiles[below.inner] = floor_tile
+                    rooms.append(below)
+                    label_counts[spec.label] = label_counts.get(spec.label, 0) + 1
 
-
-def _nearest_skeleton_point(
-    cx: int, cy: int,
-    keel_x1: int, keel_x2: int, keel_y: int, keel_y2: int,
-    ribs: List[Tuple[int, int, int]],
-) -> Tuple[int, int]:
-    """Find the closest point on the skeleton (keel or any rib) to (cx, cy)."""
-    best = (keel_x1, keel_y)
-    best_dist = abs(cx - keel_x1) + abs(cy - keel_y)
-
-    # Check keel — closest x on keel, y is keel_y or keel_y2
-    clamped_x = max(keel_x1, min(cx, keel_x2))
-    for ky in (keel_y, keel_y2):
-        d = abs(cx - clamped_x) + abs(cy - ky)
-        if d < best_dist:
-            best_dist = d
-            best = (clamped_x, ky)
-
-    # Check ribs
-    for rib_x, rib_y_start, rib_y_end in ribs:
-        clamped_y = max(rib_y_start, min(cy, rib_y_end))
-        d = abs(cx - rib_x) + abs(cy - clamped_y)
-        if d < best_dist:
-            best_dist = d
-            best = (rib_x, clamped_y)
-
-    return best
+    return rooms
 
 
-def _connect_room_to_skeleton(
+def _connect_room_to_spine(
     game_map: GameMap,
     room: RectRoom,
-    keel_x1: int, keel_x2: int, keel_y: int, keel_y2: int,
-    ribs: List[Tuple[int, int, int]],
+    spine_x1: int, spine_x2: int, spine_y: int,
     floor_tile: np.ndarray,
-) -> None:
-    """Connect a room to the nearest skeleton point via an L-shaped corridor."""
+) -> Optional[Tuple[int, int, int]]:
+    """Connect a room to the spine via an L-shaped corridor.
+
+    Returns (x, y_start, y_end) describing the vertical branch, or None.
+    """
     cx, cy = room.center
-    sx, sy = _nearest_skeleton_point(cx, cy, keel_x1, keel_x2, keel_y, keel_y2, ribs)
+    sx = max(spine_x1, min(cx, spine_x2))
+    # Horizontal from room center to spine x
     _carve_h_tunnel(game_map, cx, sx, cy, floor_tile)
-    _carve_v_tunnel(game_map, cy, sy, sx, floor_tile)
+    # Vertical from room cy to spine (3-wide: spine_y to spine_y+2)
+    _carve_v_tunnel(game_map, cy, spine_y + 1, sx, floor_tile)
+    y_start = min(cy, spine_y)
+    y_end = max(cy, spine_y + 2)
+    return (sx, y_start, y_end)
 
 
 def _generate_ship(
@@ -629,113 +776,48 @@ def _generate_ship(
     wall_tile: np.ndarray,
     floor_tile: np.ndarray,
 ) -> List[RectRoom]:
-    """Skeleton-based ship layout for derelicts.
+    """Hull-profile-based ship layout for derelicts.
 
-    Builds a wide keel corridor with perpendicular ribs, places required rooms
-    in their zones, attaches middle rooms to the skeleton, and adds occasional
-    room-to-room connections for tactical loops.
+    Defines an intentional ship-shaped hull first (bow + mid + stern),
+    rasterizes it as solid wall, then carves spine corridor and rooms inside.
     """
     w, h = game_map.width, game_map.height
-    rooms: List[RectRoom] = []
-    label_counts: dict[str, int] = {}
-    zone_w = w // 3
+    center_y = h // 2
 
-    # Step 1-2: Build skeleton (keel + ribs)
-    keel_x1, keel_x2, keel_y, keel_y2, ribs = _build_ship_skeleton(
-        game_map, rng, floor_tile,
+    # Step 1: Load hull profile
+    hull_profile, section_bounds, margin_x = _load_hull_profile(rng, w)
+
+    # Step 2: Rasterize hull as solid wall
+    _rasterize_hull(game_map, hull_profile, margin_x, center_y, wall_tile)
+
+    # Step 3: Carve central spine corridor
+    spine_x1, spine_x2, spine_y = _carve_spine(
+        game_map, hull_profile, margin_x, center_y, floor_tile,
     )
-    skel = (keel_x1, keel_x2, keel_y, keel_y2, ribs)
-    # Store skeleton info for rib-tip airlock placement
-    game_map.ribs = ribs
-    game_map.keel_y = keel_y
-    game_map.keel_y2 = keel_y2
 
-    # Step 3: Place bridge in left zone
-    bridge_spec = next((s for s in profile.room_specs if s.label == "bridge"), None)
-    if bridge_spec:
-        bw = rng.randint(bridge_spec.min_w, bridge_spec.max_w)
-        bh = rng.randint(bridge_spec.min_h, bridge_spec.max_h)
-        bx = rng.randint(1, max(1, zone_w - bw - 1))
-        by = max(1, keel_y - bh // 2)
-        by = min(by, h - bh - 2)
-        room = RectRoom(bx, by, bw, bh, label="bridge")
-        game_map.tiles[room.inner] = floor_tile
-        _connect_room_to_skeleton(game_map, room, *skel, floor_tile)
-        rooms.append(room)
-        label_counts["bridge"] = 1
+    # Store hull info on game_map for airlock placement and lights
+    game_map.spine_y = spine_y
+    game_map.hull_profile = hull_profile
+    game_map.hull_margin_x = margin_x
 
-    # Place engine room in right zone
-    engine_spec = next((s for s in profile.room_specs if s.label == "engine_room"), None)
-    if engine_spec:
-        for _attempt in range(10):
-            ew = rng.randint(engine_spec.min_w, engine_spec.max_w)
-            eh = rng.randint(engine_spec.min_h, engine_spec.max_h)
-            engine_lo = max(1, 2 * zone_w)
-            engine_hi = max(engine_lo, w - ew - 2)
-            ex = rng.randint(engine_lo, engine_hi)
-            ey = max(1, keel_y - eh // 2)
-            ey = min(ey, h - eh - 2)
-            room = RectRoom(ex, ey, ew, eh, label="engine_room")
-            if not any(room.intersects(r) for r in rooms):
-                game_map.tiles[room.inner] = floor_tile
-                _connect_room_to_skeleton(game_map, room, *skel, floor_tile)
-                rooms.append(room)
-                label_counts["engine_room"] = 1
-                break
+    # Step 4: Place rooms inside hull bounds
+    rooms = _place_rooms_in_hull(
+        game_map, rng, profile, hull_profile, section_bounds,
+        margin_x, center_y, spine_y, floor_tile,
+    )
 
-    # Step 4: Place middle rooms along skeleton
-    fill_specs = [s for s in profile.room_specs if not s.required]
+    # Step 5: Connect rooms to spine, collect branch corridors
+    branches: List[Tuple[int, int, int]] = []
+    for room in rooms:
+        branch = _connect_room_to_spine(
+            game_map, room, spine_x1, spine_x2, spine_y, floor_tile,
+        )
+        if branch:
+            branches.append(branch)
 
-    # Guarantee one of each non-required room type first
-    for spec in fill_specs:
-        if len(rooms) >= profile.max_rooms:
-            break
-        for _ in range(profile.max_rooms * 3):
-            rw = rng.randint(spec.min_w, spec.max_w)
-            rh = rng.randint(spec.min_h, spec.max_h)
-            # Rooms can go anywhere along the ship length (not just middle zone)
-            rx = _safe_randint(rng, max(1, keel_x1 - 3), max(1, keel_x2 - rw))
-            if rx is None:
-                continue
-            if rng.random() < 0.5:
-                ry = _safe_randint(rng, 1, max(1, keel_y - rh - 1))
-            else:
-                ry = _safe_randint(rng, min(keel_y2 + 2, h - rh - 2), max(keel_y2 + 2, h - rh - 2))
-            if ry is None:
-                continue
-            room = RectRoom(rx, ry, rw, rh, label=spec.label)
-            if not any(room.intersects(r) for r in rooms):
-                game_map.tiles[room.inner] = floor_tile
-                _connect_room_to_skeleton(game_map, room, *skel, floor_tile)
-                rooms.append(room)
-                label_counts[spec.label] = label_counts.get(spec.label, 0) + 1
-                break
+    game_map.branches = branches
 
-    # Fill remaining rooms
-    for _ in range(profile.max_rooms * 3):
-        if len(rooms) >= profile.max_rooms:
-            break
-        spec = _pick_room_spec(rng, profile, label_counts, allowed_specs=fill_specs)
-        rw = rng.randint(spec.min_w, spec.max_w)
-        rh = rng.randint(spec.min_h, spec.max_h)
-        rx = _safe_randint(rng, max(1, keel_x1 - 3), max(1, keel_x2 - rw))
-        if rx is None:
-            continue
-        if rng.random() < 0.5:
-            ry = _safe_randint(rng, 1, max(1, keel_y - rh - 1))
-        else:
-            ry = _safe_randint(rng, min(keel_y2 + 2, h - rh - 2), max(keel_y2 + 2, h - rh - 2))
-        if ry is None:
-            continue
-        room = RectRoom(rx, ry, rw, rh, label=spec.label)
-        if any(room.intersects(r) for r in rooms):
-            continue
-        game_map.tiles[room.inner] = floor_tile
-        _connect_room_to_skeleton(game_map, room, *skel, floor_tile)
-        rooms.append(room)
-        label_counts[spec.label] = label_counts.get(spec.label, 0) + 1
-
-    # Step 5: Room-to-room connections (~30% chance for close pairs)
+    # Step 6: Room-to-room connections (~30% chance for close pairs)
     for i in range(len(rooms)):
         for j in range(i + 1, len(rooms)):
             ci = rooms[i].center
@@ -745,7 +827,7 @@ def _generate_ship(
                 _carve_h_tunnel(game_map, ci[0], cj[0], ci[1], floor_tile)
                 _carve_v_tunnel(game_map, ci[1], cj[1], cj[0], floor_tile)
 
-    # Step 6: Place windows on room walls facing corridors
+    # Step 7: Place windows on room walls facing corridors
     corridor_tid = int(floor_tile["tile_id"])
     for room in rooms:
         _place_building_windows(
@@ -753,16 +835,18 @@ def _generate_ship(
             outside_tid=corridor_tid,
         )
 
-    # Step 7: Place windows on hull-facing walls (exterior)
+    # Step 8: Place windows on hull-facing walls (exterior)
     _place_ship_exterior_windows(game_map, rng, rooms, wall_tile, floor_tile)
 
-    # Step 8: Room-specific dressing for all rooms
+    # Step 9: Room-specific dressing for all rooms
     exit_pos = rooms[0].center if rooms else None
     for room in rooms:
         _dress_ship_room(room, game_map, rng, exit_pos=exit_pos)
 
-    # Step 9: Corridor lights along skeleton
-    _place_ship_corridor_lights(game_map, *skel, rng)
+    # Step 10: Corridor lights along spine and branches
+    _place_ship_corridor_lights(
+        game_map, spine_x1, spine_x2, spine_y, spine_y + 2, branches, rng,
+    )
 
     return rooms
 
@@ -2405,9 +2489,12 @@ def _place_doors(
 
     # Place doors with minimum spacing
     placed: List[Tuple[int, int]] = []
+    entity_positions = {(e.x, e.y) for e in game_map.entities}
     rng.shuffle(candidates)
     for x, y in candidates:
         if rng.random() >= door_chance:
+            continue
+        if (x, y) in entity_positions:
             continue
         # Enforce minimum spacing from already-placed doors
         too_close = False
@@ -2434,134 +2521,6 @@ _GENERATORS = {
 # -------------------------------------------------------------------
 # Space conversion — replace outer hull walls with space tiles
 # -------------------------------------------------------------------
-
-def _find_rib_tip(
-    game_map: GameMap, rib_x: int, start_y: int, dy: int, wall_tid: int,
-) -> int | None:
-    """Walk along a rib column from *start_y* in direction *dy* to find the
-    outermost walkable tile that has a wall tile immediately beyond it.
-
-    Returns the y-coordinate of that walkable tip, or ``None`` if no clear
-    hull-adjacent tip exists on this end of the rib.
-    """
-    y = start_y
-    # Walk outward along the rib looking for the last walkable tile
-    while game_map.in_bounds(rib_x, y) and game_map.tiles["walkable"][rib_x, y]:
-        y += dy
-    # Back up one — that's the last walkable tile
-    tip_y = y - dy
-    # The tile at y must be a wall (the hull boundary)
-    if not game_map.in_bounds(rib_x, y):
-        return None
-    if int(game_map.tiles["tile_id"][rib_x, y]) != wall_tid:
-        return None
-    return tip_y
-
-
-def _place_rib_airlocks(
-    game_map: GameMap,
-    wall_tile: np.ndarray,
-) -> None:
-    """Place an airlock at each rib tip (the end away from the keel).
-
-    Each airlock extends outward from the tip:
-    [interior_door] [airlock_floor] [exterior_door]
-    Must be called before _convert_hull_to_space().
-    """
-    wall_tid = int(wall_tile["tile_id"])
-    ribs = game_map.ribs
-    keel_y = game_map.keel_y
-    keel_y2 = game_map.keel_y2
-    used_positions: set = set()
-
-    # Collect rib tips: (rib_x, start_y, dy) where dy is outward direction
-    tip_searches = []
-    for rib_x, rib_y_start, rib_y_end in ribs:
-        if rib_y_start < keel_y:
-            tip_searches.append((rib_x, rib_y_start, -1))  # north tip
-        if rib_y_end > keel_y2:
-            tip_searches.append((rib_x, rib_y_end, 1))  # south tip
-
-    for rib_x, start_y, dy in tip_searches:
-        tip_y = _find_rib_tip(game_map, rib_x, start_y, dy, wall_tid)
-        if tip_y is None:
-            continue
-
-        dx = 0
-        # Interior door goes 1 tile beyond the tip, then airlock floor, then exterior
-        positions = [(rib_x, tip_y + (i + 1) * dy) for i in range(3)]
-
-        # All 3 positions must be in bounds and currently wall
-        valid = True
-        for px, py in positions:
-            if not game_map.in_bounds(px, py):
-                valid = False
-                break
-            if int(game_map.tiles["tile_id"][px, py]) != wall_tid:
-                valid = False
-                break
-            if (px, py) in used_positions:
-                valid = False
-                break
-        if not valid:
-            continue
-
-        # Beyond tile (past exterior door) must be in bounds and wall
-        bx, by = rib_x, tip_y + 4 * dy
-        if not game_map.in_bounds(bx, by):
-            continue
-        if int(game_map.tiles["tile_id"][bx, by]) != wall_tid:
-            continue
-
-        # Check perpendicular neighbors are wall (chamber walls)
-        perp = [(-1, 0), (1, 0)]  # ribs are vertical, so perp is east/west
-        walls_ok = True
-        for px, py in positions:
-            for pdx, pdy in perp:
-                nx, ny = px + pdx, py + pdy
-                if not game_map.in_bounds(nx, ny):
-                    walls_ok = False
-                    break
-                if int(game_map.tiles["tile_id"][nx, ny]) != wall_tid:
-                    walls_ok = False
-                    break
-            if not walls_ok:
-                break
-        if not walls_ok:
-            continue
-
-        # Carve the airlock
-        game_map.tiles[positions[0][0], positions[0][1]] = tile_types.door_closed
-        game_map.tiles[positions[1][0], positions[1][1]] = tile_types.airlock_floor
-        game_map.tiles[positions[2][0], positions[2][1]] = tile_types.airlock_ext_closed
-
-        for px, py in positions:
-            used_positions.add((px, py))
-
-        # Place switch on a perpendicular wall tile next to the interior door
-        door_x, door_y = positions[0]
-        switch_pos = None
-        for pdx, _ in perp:
-            sx, sy = door_x + pdx, door_y
-            if not game_map.in_bounds(sx, sy):
-                continue
-            if (sx, sy) in used_positions:
-                continue
-            if int(game_map.tiles["tile_id"][sx, sy]) != wall_tid:
-                continue
-            switch_pos = (sx, sy)
-            break
-
-        if switch_pos:
-            game_map.tiles[switch_pos[0], switch_pos[1]] = tile_types.airlock_switch_off
-            used_positions.add(switch_pos)
-
-        game_map.airlocks.append({
-            "interior_door": positions[0],
-            "exterior_door": positions[2],
-            "direction": (dx, dy),
-            "switch": switch_pos,
-        })
 
 
 def _place_airlocks(
@@ -2691,40 +2650,20 @@ def _place_airlocks(
         for px, py in positions:
             used_positions.add((px, py))
 
-        # Place switch on a wall tile adjacent to the interior walkable tile
-        ix, iy = wx - dx, wy - dy  # interior walkable tile
+        # Place switch on a wall tile cardinally adjacent to the interior door
+        door_x, door_y = positions[0]
         switch_pos = None
-        # Search wall tiles adjacent to (ix, iy) that are also adjacent to
-        # a walkable tile (so the player can reach them)
-        for sdx in (-1, 0, 1):
-            for sdy in (-1, 0, 1):
-                if sdx == 0 and sdy == 0:
-                    continue
-                sx, sy = ix + sdx, iy + sdy
-                if not game_map.in_bounds(sx, sy):
-                    continue
-                if (sx, sy) in used_positions:
-                    continue
-                stid = int(game_map.tiles["tile_id"][sx, sy])
-                if stid != wall_tid:
-                    continue
-                # Must be adjacent to at least one walkable tile
-                has_walkable_neighbor = False
-                for ndx in (-1, 0, 1):
-                    for ndy in (-1, 0, 1):
-                        if ndx == 0 and ndy == 0:
-                            continue
-                        nnx, nny = sx + ndx, sy + ndy
-                        if game_map.in_bounds(nnx, nny) and walkable_mask[nnx, nny]:
-                            has_walkable_neighbor = True
-                            break
-                    if has_walkable_neighbor:
-                        break
-                if has_walkable_neighbor:
-                    switch_pos = (sx, sy)
-                    break
-            if switch_pos:
-                break
+        for sdx, sdy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            sx, sy = door_x + sdx, door_y + sdy
+            if not game_map.in_bounds(sx, sy):
+                continue
+            if (sx, sy) in used_positions:
+                continue
+            stid = int(game_map.tiles["tile_id"][sx, sy])
+            if stid != wall_tid:
+                continue
+            switch_pos = (sx, sy)
+            break
 
         if switch_pos:
             game_map.tiles[switch_pos[0], switch_pos[1]] = tile_types.airlock_switch_off
@@ -2772,6 +2711,10 @@ def _place_hull_breaches(
     if not candidates:
         return
 
+    entity_positions = {(e.x, e.y) for e in game_map.entities}
+    candidates = [(x, y) for x, y in candidates if (x, y) not in entity_positions]
+    if not candidates:
+        return
     count = min(rng.randint(1, 3), len(candidates))
     chosen = rng.sample(candidates, count)
     for bx, by in chosen:
@@ -2882,6 +2825,40 @@ def _convert_hull_to_space(game_map: GameMap, wall_tile: np.ndarray) -> None:
     hull_filler = is_wall_now & adj_window & ~adj_walkable
     game_map.tiles[hull_filler] = tile_types.space
 
+    # Second cleanup: walls only diagonally adjacent to a window (corner "ears")
+    # that are not cardinally adjacent to any walkable or window tile.
+    is_wall_now2 = game_map.tiles["tile_id"] == wall_tid
+    is_window_now2 = game_map.tiles["tile_id"] == window_tid
+    is_walkable2 = game_map.tiles["walkable"].copy()
+    cardinal_interesting = np.zeros_like(is_wall_now2)
+    cardinal_interesting[1:, :] |= (is_walkable2 | is_window_now2)[:-1, :]
+    cardinal_interesting[:-1, :] |= (is_walkable2 | is_window_now2)[1:, :]
+    cardinal_interesting[:, 1:] |= (is_walkable2 | is_window_now2)[:, :-1]
+    cardinal_interesting[:, :-1] |= (is_walkable2 | is_window_now2)[:, 1:]
+    diag_window = np.zeros_like(is_wall_now2)
+    diag_window[1:, 1:] |= is_window_now2[:-1, :-1]
+    diag_window[1:, :-1] |= is_window_now2[:-1, 1:]
+    diag_window[:-1, 1:] |= is_window_now2[1:, :-1]
+    diag_window[:-1, :-1] |= is_window_now2[1:, 1:]
+    corner_ears = is_wall_now2 & diag_window & ~cardinal_interesting
+    game_map.tiles[corner_ears] = tile_types.space
+
+    # Third cleanup: iteratively remove wall stubs (wall tiles with 3+ space
+    # cardinal neighbors) until none remain.
+    space_tid = int(tile_types.space["tile_id"])
+    for _ in range(5):
+        is_wall_pass = game_map.tiles["tile_id"] == wall_tid
+        is_space = game_map.tiles["tile_id"] == space_tid
+        space_neighbors = np.zeros(game_map.tiles.shape, dtype=int)
+        space_neighbors[1:, :] += is_space[:-1, :]
+        space_neighbors[:-1, :] += is_space[1:, :]
+        space_neighbors[:, 1:] += is_space[:, :-1]
+        space_neighbors[:, :-1] += is_space[:, 1:]
+        stubs = is_wall_pass & (space_neighbors >= 3)
+        if not np.any(stubs):
+            break
+        game_map.tiles[stubs] = tile_types.space
+
 
 # -------------------------------------------------------------------
 # Public API
@@ -2963,9 +2940,7 @@ def generate_dungeon(
                 )
 
     # Place airlocks before hull conversion (need wall tiles to identify hull)
-    if profile.generator == "ship" and hasattr(game_map, "ribs"):
-        _place_rib_airlocks(game_map, wall_tile)
-    elif profile.generator in ("ship", "standard"):
+    if profile.generator in ("ship", "standard"):
         _place_airlocks(game_map, rng, rooms, wall_tile, floor_tile)
 
     # Convert outer hull walls to space tiles for ship/starbase maps

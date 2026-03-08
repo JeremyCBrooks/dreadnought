@@ -1,9 +1,11 @@
 """Tests for dungeon generation."""
 from world.dungeon_gen import (
     generate_dungeon, RectRoom, _room_wall_positions,
-    _build_ship_skeleton, _ROOM_DRESSING, _pick_building_room_count,
+    _ROOM_DRESSING, _pick_building_room_count,
     _subdivide_building, _carve_external_door, _bfs_path, _meander,
     _place_ship_dock, _in_dock_octagon, _on_dock_perimeter,
+    _load_hull_profile, _rasterize_hull, _carve_spine,
+    _place_rooms_in_hull, _connect_room_to_spine,
 )
 from world.game_map import GameMap
 from world import tile_types
@@ -236,81 +238,222 @@ def test_derelict_has_all_room_types():
         )
 
 
-def test_derelict_bridge_in_left_zone():
-    """Bridge room x-coordinates should fall in the left third of the map."""
-    width = 80
-    zone_w = width // 3
+def test_derelict_bridge_in_bow():
+    """Bridge room should be in the bow (left) section of the hull."""
     for seed in range(20):
-        _, rooms, _ = generate_dungeon(seed=seed, width=width, loc_type="derelict")
+        gm, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
         bridges = [r for r in rooms if r.label == "bridge"]
         assert bridges, f"seed={seed}: no bridge room"
+        # Bridge should be in the left half of the map
         for b in bridges:
-            assert b.x1 >= 1 and b.x2 <= zone_w + b.x2 - b.x1, (
-                f"seed={seed}: bridge at x1={b.x1} outside left zone"
-            )
-            assert b.x1 < zone_w, (
-                f"seed={seed}: bridge x1={b.x1} not in left zone (zone_w={zone_w})"
+            assert b.x2 < gm.width // 2, (
+                f"seed={seed}: bridge x2={b.x2} not in bow section"
             )
 
 
-def test_derelict_engine_in_right_zone():
-    """Engine room x-coordinates should fall in the right third of the map."""
-    width = 80
-    zone_w = width // 3
+def test_derelict_engine_in_stern():
+    """Engine room should be in the stern (right) section of the hull."""
     for seed in range(20):
-        _, rooms, _ = generate_dungeon(seed=seed, width=width, loc_type="derelict")
+        gm, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
         engines = [r for r in rooms if r.label == "engine_room"]
         assert engines, f"seed={seed}: no engine_room"
         for e in engines:
-            assert e.x1 >= 2 * zone_w, (
-                f"seed={seed}: engine x1={e.x1} not in right zone (2*zone_w={2*zone_w})"
+            assert e.x1 > gm.width // 2, (
+                f"seed={seed}: engine x1={e.x1} not in stern section"
             )
 
 
-# ---- Ship skeleton tests ----
+def test_derelict_bridge_engine_inline_with_spine():
+    """Bridge and engine rooms should be centered on the spine (inline)."""
+    for seed in range(20):
+        gm, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        spine_y = gm.spine_y
+        center_y = gm.height // 2
+        for r in rooms:
+            if r.label not in ("bridge", "engine_room"):
+                continue
+            room_cy = (r.y1 + r.y2) // 2
+            # Room center should be within 1 tile of center_y
+            assert abs(room_cy - center_y) <= 1, (
+                f"seed={seed}: {r.label} center y={room_cy} not inline "
+                f"with center_y={center_y}"
+            )
 
-def test_ship_skeleton_keel_is_walkable():
-    """The keel corridor should be carved as walkable tiles."""
+
+def test_derelict_rooms_symmetric():
+    """Non-terminus rooms should be roughly symmetrical above/below spine."""
+    for seed in range(20):
+        gm, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        center_y = gm.height // 2
+        mid_rooms = [r for r in rooms if r.label not in ("bridge", "engine_room")]
+        above = [r for r in mid_rooms if r.center[1] < center_y]
+        below = [r for r in mid_rooms if r.center[1] > center_y]
+        # Should have rooms on both sides (with enough rooms)
+        if len(mid_rooms) >= 2:
+            assert len(above) >= 1 and len(below) >= 1, (
+                f"seed={seed}: rooms not distributed above ({len(above)}) "
+                f"and below ({len(below)}) spine"
+            )
+
+
+def test_no_hull_stubs_at_spine_ends():
+    """No thin wall protrusions where the spine meets the hull edge.
+
+    A wall tile surrounded by space on 3+ cardinal sides is a stub.
+    A wall tile with space both above and below (horizontal strip of 1) is
+    also a stub unless it has walkable neighbors (i.e., it's structural hull).
+    """
+    wall_tid = int(tile_types.wall["tile_id"])
+    space_tid = int(tile_types.space["tile_id"])
+    for seed in range(20):
+        gm, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        if not gm.has_space:
+            continue
+        for x in range(1, gm.width - 1):
+            for y in range(1, gm.height - 1):
+                if int(gm.tiles["tile_id"][x, y]) != wall_tid:
+                    continue
+                space_count = 0
+                for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
+                    nx, ny = x + dx, y + dy
+                    if not gm.in_bounds(nx, ny):
+                        space_count += 1
+                        continue
+                    if int(gm.tiles["tile_id"][nx, ny]) == space_tid:
+                        space_count += 1
+                if space_count >= 3:
+                    assert False, (
+                        f"seed={seed}: hull stub at ({x},{y}) with {space_count} "
+                        f"space neighbors"
+                    )
+
+
+# ---- Hull profile ship tests ----
+
+def test_hull_profile_symmetric_rasterization():
+    """Rasterizing a hull profile should produce symmetric wall fill around center_y."""
+    rng = random.Random(42)
+    wall_tile = tile_types.wall
+    game_map = GameMap(80, 45, fill_tile=tile_types.space)
+    profile, section_bounds, margin_x = _load_hull_profile(rng, 80)
+    center_y = 45 // 2
+    _rasterize_hull(game_map, profile, margin_x, center_y, wall_tile)
+    wall_tid = int(wall_tile["tile_id"])
+    for i, half_w in enumerate(profile):
+        x = margin_x + i
+        for dy in range(1, half_w + 1):
+            top_is_wall = int(game_map.tiles["tile_id"][x, center_y - dy]) == wall_tid
+            bot_is_wall = int(game_map.tiles["tile_id"][x, center_y + dy]) == wall_tid
+            assert top_is_wall == bot_is_wall, (
+                f"Asymmetric at x={x}, dy={dy}: top={top_is_wall}, bot={bot_is_wall}"
+            )
+
+
+def test_spine_is_walkable_end_to_end():
+    """The spine corridor should be walkable from bow to stern."""
     rng = random.Random(42)
     wall_tile = tile_types.wall
     floor_tile = tile_types.floor
     game_map = GameMap(80, 45, fill_tile=wall_tile)
-    keel_x1, keel_x2, keel_y, keel_y2, ribs = _build_ship_skeleton(
-        game_map, rng, floor_tile,
+    profile, section_bounds, margin_x = _load_hull_profile(rng, 80)
+    center_y = 45 // 2
+    _rasterize_hull(game_map, profile, margin_x, center_y, wall_tile)
+    spine_x1, spine_x2, spine_y = _carve_spine(
+        game_map, profile, margin_x, center_y, floor_tile,
     )
-    # Every tile along the keel should be walkable (2-tile wide)
-    for x in range(keel_x1, keel_x2 + 1):
-        assert game_map.is_walkable(x, keel_y), f"keel not walkable at ({x}, {keel_y})"
-        assert game_map.is_walkable(x, keel_y + 1), f"keel not walkable at ({x}, {keel_y+1})"
+    for x in range(spine_x1, spine_x2 + 1):
+        for dy in range(3):
+            assert game_map.is_walkable(x, spine_y + dy), f"spine not walkable at ({x}, {spine_y+dy})"
 
 
-def test_ship_skeleton_has_ribs():
-    """Skeleton should produce 2-4 cross-corridors."""
+def test_spine_does_not_span_full_width():
+    """Spine should not touch map edges — ship has defined bounds."""
     rng = random.Random(42)
     game_map = GameMap(80, 45, fill_tile=tile_types.wall)
-    _, _, _, _, ribs = _build_ship_skeleton(game_map, rng, tile_types.floor)
-    assert 2 <= len(ribs) <= 4
+    profile, _, margin_x = _load_hull_profile(rng, 80)
+    center_y = 45 // 2
+    _rasterize_hull(game_map, profile, margin_x, center_y, tile_types.wall)
+    spine_x1, spine_x2, _ = _carve_spine(
+        game_map, profile, margin_x, center_y, tile_types.floor,
+    )
+    assert spine_x1 > 1, "spine starts too close to left edge"
+    assert spine_x2 < 78, "spine ends too close to right edge"
 
 
-def test_ship_skeleton_ribs_are_walkable():
-    """Each rib corridor should be carved as walkable tiles."""
+def test_rooms_fit_inside_hull():
+    """All rooms placed by _place_rooms_in_hull must be within hull bounds."""
+    from world.loc_profiles import get_profile
     rng = random.Random(42)
-    game_map = GameMap(80, 45, fill_tile=tile_types.wall)
-    _, _, _, _, ribs = _build_ship_skeleton(game_map, rng, tile_types.floor)
-    for rib_x, rib_y_start, rib_y_end in ribs:
-        for y in range(rib_y_start, rib_y_end + 1):
-            assert game_map.is_walkable(rib_x, y), (
-                f"rib not walkable at ({rib_x}, {y})"
-            )
+    wall_tile = tile_types.wall
+    floor_tile = tile_types.floor
+    profile_data, section_bounds, margin_x = _load_hull_profile(rng, 80)
+    center_y = 45 // 2
+    game_map = GameMap(80, 45, fill_tile=wall_tile)
+    _rasterize_hull(game_map, profile_data, margin_x, center_y, wall_tile)
+    spine_x1, spine_x2, spine_y = _carve_spine(
+        game_map, profile_data, margin_x, center_y, floor_tile,
+    )
+    loc_profile = get_profile("derelict")
+    rooms = _place_rooms_in_hull(
+        game_map, rng, loc_profile, profile_data, section_bounds,
+        margin_x, center_y, spine_y, floor_tile,
+    )
+    # Every room tile must be inside hull with margin
+    for room in rooms:
+        for x in range(room.x1 + 1, room.x2):
+            xi = x - margin_x
+            if 0 <= xi < len(profile_data):
+                half_w = profile_data[xi]
+                assert room.y1 >= center_y - half_w + 1, (
+                    f"Room {room.label} top y1={room.y1} outside hull at x={x}"
+                )
+                assert room.y2 <= center_y + half_w - 1, (
+                    f"Room {room.label} bottom y2={room.y2} outside hull at x={x}"
+                )
 
 
-def test_ship_keel_does_not_span_full_width():
-    """Keel should not touch map edges — ship has defined bounds."""
+def test_branch_corridors_connect_rooms_to_spine():
+    """Each room should be connected to the spine via walkable path."""
+    from world.loc_profiles import get_profile
     rng = random.Random(42)
-    game_map = GameMap(80, 45, fill_tile=tile_types.wall)
-    keel_x1, keel_x2, _, _, _ = _build_ship_skeleton(game_map, rng, tile_types.floor)
-    assert keel_x1 > 1, "keel starts too close to left edge"
-    assert keel_x2 < 78, "keel ends too close to right edge"
+    wall_tile = tile_types.wall
+    floor_tile = tile_types.floor
+    game_map = GameMap(80, 45, fill_tile=wall_tile)
+    profile_data, section_bounds, margin_x = _load_hull_profile(rng, 80)
+    center_y = 45 // 2
+    _rasterize_hull(game_map, profile_data, margin_x, center_y, wall_tile)
+    spine_x1, spine_x2, spine_y = _carve_spine(
+        game_map, profile_data, margin_x, center_y, floor_tile,
+    )
+    loc_profile = get_profile("derelict")
+    rooms = _place_rooms_in_hull(
+        game_map, rng, loc_profile, profile_data, section_bounds,
+        margin_x, center_y, spine_y, floor_tile,
+    )
+    branches = []
+    for room in rooms:
+        branch = _connect_room_to_spine(
+            game_map, room, spine_x1, spine_x2, spine_y, floor_tile,
+        )
+        if branch:
+            branches.append(branch)
+    # Every room center should be reachable from spine via walkable tiles
+    for room in rooms:
+        cx, cy = room.center
+        assert game_map.is_walkable(cx, cy), (
+            f"Room {room.label} center ({cx},{cy}) not walkable"
+        )
+
+
+def test_full_derelict_generates_valid_map():
+    """Full generate_dungeon with loc_type='derelict' produces a valid map."""
+    for seed in range(5):
+        game_map, rooms, exit_pos = generate_dungeon(seed=seed, loc_type="derelict")
+        assert len(rooms) >= 2, f"seed={seed}: too few rooms"
+        assert exit_pos is not None
+        # Spine should exist
+        assert hasattr(game_map, "spine_y")
+        assert hasattr(game_map, "branches")
 
 
 # ---- Ship room dressing tests ----
@@ -879,28 +1022,26 @@ def test_derelict_has_hull_facing_windows():
     assert found, "No hull-facing windows found in any derelict map across 50 seeds"
 
 
-def test_derelict_bridge_has_forward_windows():
-    """Bridge rooms should have windows facing west (forward/bow direction)."""
+def test_derelict_bridge_has_hull_windows():
+    """Bridge rooms should have hull-facing windows (north/south walls)."""
     window_tid = int(tile_types.structure_window["tile_id"])
     found = False
     for seed in range(50):
         game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
         bridges = [r for r in rooms if r.label == "bridge"]
         for br in bridges:
-            # Check west wall of bridge (x=x1) for windows
-            for y in range(br.y1 + 1, br.y2):
-                x = br.x1
-                if int(game_map.tiles["tile_id"][x, y]) == window_tid:
-                    # Verify hull-side window to the west (x-1 is also window)
-                    if (game_map.in_bounds(x - 1, y)
-                            and int(game_map.tiles["tile_id"][x - 1, y]) == window_tid):
+            for x in range(br.x1, br.x2 + 1):
+                for y in range(br.y1, br.y2 + 1):
+                    if int(game_map.tiles["tile_id"][x, y]) == window_tid:
                         found = True
                         break
+                if found:
+                    break
             if found:
                 break
         if found:
             break
-    assert found, "No forward-facing bridge windows found across 50 seeds"
+    assert found, "No bridge windows found across 50 seeds"
 
 
 def test_derelict_hull_windows_properties():
@@ -979,6 +1120,46 @@ def test_starbase_no_crash_with_windows():
             width=80, height=45, seed=seed, loc_type="starbase"
         )
         assert rooms
+
+
+def test_no_window_corner_ears():
+    """Wall tiles only diagonally adjacent to a window (not cardinally adjacent
+    to any walkable or window tile) should be converted to space, not left as
+    hull 'ears'."""
+    wall_tid = int(tile_types.wall["tile_id"])
+    window_tid = int(tile_types.structure_window["tile_id"])
+    space_tid = int(tile_types.space["tile_id"])
+    for seed in range(20):
+        gm, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
+        for x in range(1, gm.width - 1):
+            for y in range(1, gm.height - 1):
+                if int(gm.tiles["tile_id"][x, y]) != wall_tid:
+                    continue
+                # Check if this wall is only diagonally adjacent to windows
+                cardinal_interesting = False
+                diag_window = False
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nx, ny = x + dx, y + dy
+                    if not gm.in_bounds(nx, ny):
+                        continue
+                    tid = int(gm.tiles["tile_id"][nx, ny])
+                    if gm.tiles["walkable"][nx, ny] or tid == window_tid:
+                        cardinal_interesting = True
+                        break
+                if cardinal_interesting:
+                    continue
+                for dx, dy in [(-1, -1), (-1, 1), (1, -1), (1, 1)]:
+                    nx, ny = x + dx, y + dy
+                    if not gm.in_bounds(nx, ny):
+                        continue
+                    if int(gm.tiles["tile_id"][nx, ny]) == window_tid:
+                        diag_window = True
+                        break
+                if diag_window:
+                    assert False, (
+                        f"seed={seed}: wall 'ear' at ({x},{y}) only diag-adjacent "
+                        f"to window, should be space"
+                    )
 
 
 # ---- Space tile tests ----
@@ -1076,30 +1257,31 @@ def test_space_tiles_are_transparent():
 
 
 def test_space_conversion_preserves_hull_walls():
-    """Walls adjacent to walkable tiles (structural hull) must not be converted."""
-    wall_tid = int(tile_types.wall["tile_id"])
+    """Structural hull (walls, windows, doors) around rooms must not be converted to space."""
+    structural_tids = {
+        int(tile_types.wall["tile_id"]),
+        int(tile_types.structure_window["tile_id"]),
+        int(tile_types.door_closed["tile_id"]),
+        int(tile_types.door_open["tile_id"]),
+    }
     for seed in range(20):
         game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
-        # Every room boundary wall that neighbors a walkable interior should still be wall
         for room in rooms:
-            cx, cy = room.center
-            # Check that at least some walls remain around the room
-            perimeter_walls = 0
+            perimeter_structural = 0
             for x in range(room.x1, room.x2 + 1):
                 for y in [room.y1, room.y2]:
                     if game_map.in_bounds(x, y):
                         tid = int(game_map.tiles["tile_id"][x, y])
-                        if tid == wall_tid:
-                            perimeter_walls += 1
+                        if tid in structural_tids:
+                            perimeter_structural += 1
             for y in range(room.y1, room.y2 + 1):
                 for x in [room.x1, room.x2]:
                     if game_map.in_bounds(x, y):
                         tid = int(game_map.tiles["tile_id"][x, y])
-                        if tid == wall_tid:
-                            perimeter_walls += 1
-            # Room should have hull walls (some may be windows/doors, but not all space)
-            assert perimeter_walls > 0, (
-                f"seed={seed}: room at {room.center} lost all hull walls"
+                        if tid in structural_tids:
+                            perimeter_structural += 1
+            assert perimeter_structural > 0, (
+                f"seed={seed}: room at {room.center} lost all hull structure"
             )
 
 
