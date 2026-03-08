@@ -69,7 +69,8 @@ def test_stats_no_ranged_weapon():
 
 # --- Ground text header ---
 
-def test_targeting_header():
+def test_targeting_keeps_underfoot_header():
+    """While targeting, ground header should remain UNDERFOOT (not change to TARGETING)."""
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon())
     state = TacticalState()
@@ -77,12 +78,10 @@ def test_targeting_header():
     console, calls = _mock_console()
     layout = _make_layout()
     state._render_stats(console, engine, layout)
-    hit = _find_print(calls, "TARGETING:")
-    # The ground header should be "TARGETING:" (not underfoot or looking)
-    headers = [c for c in calls if c["string"] == "TARGETING:"]
-    assert len(headers) >= 1
-    # And the color should be red-ish
-    assert headers[0]["fg"] == (255, 100, 100)
+    headers = [c for c in calls if c["string"] == "UNDERFOOT:"]
+    assert len(headers) == 1
+    # Should NOT have TARGETING header
+    assert _find_print(calls, "TARGETING:") is None
 
 
 def test_look_header():
@@ -117,7 +116,7 @@ def test_targeting_distance_display():
     console, calls = _mock_console()
     layout = _make_layout()
     state._render_stats(console, engine, layout)
-    hit = _find_print(calls, "TARGETING: 3/5")
+    hit = _find_print(calls, "[f] 3/5")
     assert hit is not None
     # In range -> green
     assert hit["fg"] == (100, 255, 100)
@@ -132,7 +131,7 @@ def test_targeting_out_of_range_color():
     console, calls = _mock_console()
     layout = _make_layout()
     state._render_stats(console, engine, layout)
-    hit = _find_print(calls, "TARGETING: 3/2")
+    hit = _find_print(calls, "[f] 3/2")
     assert hit is not None
     # Out of range -> red
     assert hit["fg"] == (255, 100, 100)

@@ -543,21 +543,24 @@ class TacticalState(State):
         if not weapon:
             engine.message_log.add_message("No ranged weapon with ammo.", (255, 100, 100))
             return
-        # Find visible enemies
-        self._visible_enemies = [
-            e for e in engine.game_map.entities
-            if e is not engine.player
-            and e.fighter
-            and e.fighter.hp > 0
-            and engine.game_map.visible[e.x, e.y]
-        ]
+        # Find visible enemies, sorted by distance (closest first)
+        px, py = engine.player.x, engine.player.y
+        self._visible_enemies = sorted(
+            [
+                e for e in engine.game_map.entities
+                if e is not engine.player
+                and e.fighter
+                and e.fighter.hp > 0
+                and engine.game_map.visible[e.x, e.y]
+            ],
+            key=lambda e: max(abs(e.x - px), abs(e.y - py)),
+        )
         if self._visible_enemies:
             self._enemy_cycle_index = 0
             e = self._visible_enemies[0]
             self._ranged_cursor = (e.x, e.y)
         else:
-            self._ranged_cursor = (engine.player.x, engine.player.y)
-        self._update_ground_look_at_cursor(engine, self._ranged_cursor)
+            engine.message_log.add_message("No visible targets.", (255, 100, 100))
 
     def _handle_ranged_input(self, engine: Engine, key: Any) -> bool:
         import tcod.event
@@ -567,24 +570,22 @@ class TacticalState(State):
             self._update_ground_underfoot(engine)
             return True
 
-        if key == tcod.event.KeySym.TAB and self._visible_enemies:
-            self._enemy_cycle_index = (self._enemy_cycle_index + 1) % len(self._visible_enemies)
-            e = self._visible_enemies[self._enemy_cycle_index]
-            self._ranged_cursor = (e.x, e.y)
-            self._update_ground_look_at_cursor(engine, self._ranged_cursor)
-            return True
-
-        move = _move_keys().get(key)
-        if move:
-            cx, cy = self._ranged_cursor
-            nx, ny = cx + move[0], cy + move[1]
-            if engine.game_map.in_bounds(nx, ny):
-                self._ranged_cursor = (nx, ny)
-                self._update_ground_look_at_cursor(engine, self._ranged_cursor)
+        # Up/Down cycle through visible enemies
+        if key in (tcod.event.KeySym.UP, tcod.event.KeySym.DOWN,
+                   tcod.event.KeySym.k, tcod.event.KeySym.j,
+                   tcod.event.KeySym.KP_8, tcod.event.KeySym.KP_2):
+            if self._visible_enemies:
+                if key in (tcod.event.KeySym.DOWN, tcod.event.KeySym.j,
+                           tcod.event.KeySym.KP_2):
+                    self._enemy_cycle_index = (self._enemy_cycle_index + 1) % len(self._visible_enemies)
+                else:
+                    self._enemy_cycle_index = (self._enemy_cycle_index - 1) % len(self._visible_enemies)
+                e = self._visible_enemies[self._enemy_cycle_index]
+                self._ranged_cursor = (e.x, e.y)
             return True
 
         if key in confirm_keys():
-            # Fire at cursor position
+            # Fire at targeted enemy
             cx, cy = self._ranged_cursor
             target = engine.game_map.get_blocking_entity(cx, cy)
             if target and target.fighter and target is not engine.player:
@@ -992,10 +993,7 @@ class TacticalState(State):
             console.print(x=x, y=row, string="(none)", fg=(80, 80, 80))
 
         # --- Ground text block (non-persistent) ---
-        if self._ranged_cursor is not None:
-            header = "TARGETING:"
-            header_color = (255, 100, 100)
-        elif self._look_cursor is not None:
+        if self._look_cursor is not None:
             header = "LOOKING AT:"
             header_color = PROMPT
         else:
@@ -1030,8 +1028,14 @@ class TacticalState(State):
             console.print(x=x, y=nearby_y, string=header, fg=header_color)
             nearby_y += 1
             for entry in nearby_entries[:8]:
+                targeted = (self._ranged_cursor is not None
+                            and entry.x == self._ranged_cursor[0]
+                            and entry.y == self._ranged_cursor[1])
                 color = _cat_colors.get(entry.category, (180, 180, 200))
-                line = f"{entry.display_char} {entry.label} {entry.distance}"
+                prefix = ">" if targeted else entry.display_char
+                line = f"{prefix} {entry.label} {entry.distance}"
+                if targeted:
+                    color = (255, 255, 255)
                 console.print(x=x, y=nearby_y, string=line[:layout.stats_w - 2], fg=color)
                 nearby_y += 1
 
@@ -1045,7 +1049,7 @@ class TacticalState(State):
             wpn_ctrl = get_equipped_ranged_weapon(p)
             max_range = wpn_ctrl.item.get("range", 5) if wpn_ctrl else 0
             in_range = dist <= max_range
-            look_label = f"TARGETING: {dist}/{max_range}"
+            look_label = f"[f] {dist}/{max_range}"
             look_color = EQUIP_MSG if in_range else (255, 100, 100)
         elif self._look_cursor is not None:
             ak = action_keys()
