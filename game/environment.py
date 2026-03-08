@@ -305,6 +305,7 @@ def process_decompression_step(
             entity.drifting = True
             entity.drift_direction = direction
             entity.decompression_moves = 0
+            game_map.invalidate_entity_index()
             break
 
         if not game_map.tiles["walkable"][nx, ny]:
@@ -318,6 +319,7 @@ def process_decompression_step(
                     entity.x = snx
                     entity.y = sny
                     entity.decompression_moves -= 1
+                    game_map.invalidate_entity_index()
                     slid = True
                     break
             if not slid:
@@ -343,6 +345,7 @@ def process_decompression_step(
         entity.x = nx
         entity.y = ny
         entity.decompression_moves -= 1
+        game_map.invalidate_entity_index()
 
 
 def apply_environment_tick(engine: Engine) -> None:

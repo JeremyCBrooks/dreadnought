@@ -26,6 +26,9 @@ ACTION_COST = 4  # energy needed per movement action
 class CreatureAI:
     """4-state AI: sleeping, wandering, hunting, fleeing."""
 
+    def __init__(self) -> None:
+        self._cached_cost: "np.ndarray | None" = None
+
     # ---- energy-based movement speed ----
 
     def _accumulate_energy(self, owner: Entity, engine: Engine) -> None:
@@ -57,11 +60,16 @@ class CreatureAI:
         vision_radius = self._cfg(owner, "vision_radius")
         if chebyshev(owner.x, owner.y, target.x, target.y) > vision_radius:
             return False
-        fov = tcod.map.compute_fov(
-            engine.game_map.tiles["transparent"],
-            (owner.x, owner.y),
-            radius=vision_radius,
-        )
+        cache_key = (owner.x, owner.y, vision_radius)
+        fov_cache = engine.game_map._fov_cache
+        fov = fov_cache.get(cache_key)
+        if fov is None:
+            fov = tcod.map.compute_fov(
+                engine.game_map.tiles["transparent"],
+                (owner.x, owner.y),
+                radius=vision_radius,
+            )
+            fov_cache[cache_key] = fov
         return bool(fov[target.x, target.y])
 
     # ---- pathfinding ----
@@ -122,6 +130,7 @@ class CreatureAI:
             if self._cfg(owner, "can_open_doors"):
                 gm.tiles[nx, ny] = tile_types.door_open
                 gm._hazards_dirty = True
+                gm._fov_cache.clear()
                 engine.message_log.add_message(
                     f"The {owner.name} opens a door.", (200, 200, 200)
                 )
@@ -135,12 +144,15 @@ class CreatureAI:
         if gm.is_walkable(nx, ny) and not gm.get_blocking_entity(nx, ny):
             owner.x = nx
             owner.y = ny
+            gm.invalidate_entity_index()
             return True
         return False
 
     # ---- cost array (shared between hunting and fleeing) ----
 
     def _build_cost(self, owner: Entity, engine: Engine) -> "np.ndarray":
+        if self._cached_cost is not None:
+            return self._cached_cost.copy()
         import numpy as np
         gm = engine.game_map
         cost = np.array(gm.tiles["walkable"], dtype=np.int8)
@@ -154,7 +166,8 @@ class CreatureAI:
                 continue
             if e.blocks_movement:
                 cost[e.x, e.y] = 0
-        return cost
+        self._cached_cost = cost
+        return cost.copy()
 
     # ---- fleeing movement ----
 
@@ -217,26 +230,27 @@ class CreatureAI:
     ) -> Optional[Tuple[int, int]]:
         """Pick a random walkable, reachable, hazard-free tile as a patrol goal."""
         import numpy as np
+        import tcod.path
+
+        cost = self._build_cost(owner, engine)
+        graph = tcod.path.SimpleGraph(cost=cost, cardinal=2, diagonal=3)
+        pf = tcod.path.Pathfinder(graph)
+        pf.add_root((owner.x, owner.y))
+        pf.resolve()
+        dist = pf.distance
+
+        # Reachable tiles: finite distance, walkable, no hazards
+        reachable = dist < 0x7FFF_FFFF
+        reachable[owner.x, owner.y] = False
         gm = engine.game_map
-        walkable = np.array(gm.tiles["walkable"], dtype=bool)
-        # Exclude hazard tiles
         for overlay in gm.hazard_overlays.values():
-            walkable &= ~overlay
-        # Exclude owner's current position
-        walkable[owner.x, owner.y] = False
-        candidates = np.argwhere(walkable)
+            reachable &= ~overlay
+
+        candidates = np.argwhere(reachable)
         if len(candidates) == 0:
             return None
-        # Shuffle and try candidates until we find one reachable
-        indices = list(range(len(candidates)))
-        random.shuffle(indices)
-        # Only test a limited sample to avoid expensive pathfinding
-        for i in indices[:20]:
-            gx, gy = int(candidates[i][0]), int(candidates[i][1])
-            path = self._compute_path(owner, engine, (gx, gy))
-            if path:
-                return (gx, gy)
-        return None
+        idx = random.randint(0, len(candidates) - 1)
+        return (int(candidates[idx][0]), int(candidates[idx][1]))
 
     def _wander(self, owner: Entity, engine: Engine) -> None:
         if not self._can_spend_move(owner, engine):
@@ -285,6 +299,7 @@ class CreatureAI:
 
     def perform(self, owner: Entity, engine: Engine) -> None:
         self._accumulate_energy(owner, engine)
+        self._cached_cost = None  # clear per-turn cost cache
 
         state = owner.ai_state
         if state == "sleeping":
@@ -412,6 +427,7 @@ class CreatureAI:
             if gm.is_walkable(nx, ny) and not gm.get_blocking_entity(nx, ny):
                 owner.x = nx
                 owner.y = ny
+                gm.invalidate_entity_index()
                 return
 
     def _do_fleeing(self, owner: Entity, engine: Engine) -> None:

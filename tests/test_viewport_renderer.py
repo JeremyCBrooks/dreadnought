@@ -26,6 +26,8 @@ class TestStarfieldDeterminism:
         render_viewport(c1, 64, 0, 96, 42, "yellow_dwarf", 12345, time_override=100.0)
         render_viewport(c2, 64, 0, 96, 42, "yellow_dwarf", 12345, time_override=100.0)
         assert np.array_equal(c1.rgb["bg"], c2.rgb["bg"])
+        assert np.array_equal(c1.rgb["ch"], c2.rgb["ch"])
+        assert np.array_equal(c1.rgb["fg"], c2.rgb["fg"])
         assert c1.prints == c2.prints
 
     def test_different_seeds_differ(self):
@@ -140,14 +142,16 @@ class TestStarColors:
         c = FakeConsole(160, 50)
         # Use white_dwarf (small radius) so most prints are background stars
         render_viewport(c, 64, 0, 96, 42, "white_dwarf", 42, time_override=0.0)
-        # Only look at stars rendered with "." or "*+x" chars (background stars)
-        bg_star_chars = set(".*+x")
-        has_warm = False  # r > b (yellow or red tinted)
-        has_cool = False  # b >= r (white or blue tinted)
-        for p in c.prints:
-            if p["string"] not in bg_star_chars:
-                continue
-            r, g, b = p["fg"]
+        # Check star fg colors in the rgb array (away from star disc)
+        # Star disc is at upper-right; check left portion of viewport
+        region_fg = c.rgb["fg"][64:140, 0:42]
+        region_ch = c.rgb["ch"][64:140, 0:42]
+        star_chars = {ord('.'), ord('*'), ord('+'), ord('x')}
+        has_warm = False
+        has_cool = False
+        xs, ys = np.where(np.isin(region_ch, list(star_chars)))
+        for i in range(len(xs)):
+            r, g, b = int(region_fg[xs[i], ys[i]][0]), int(region_fg[xs[i], ys[i]][1]), int(region_fg[xs[i], ys[i]][2])
             if r > b + 5:
                 has_warm = True
             elif b >= r:
@@ -161,7 +165,8 @@ class TestStarColors:
         c2 = FakeConsole(160, 50)
         render_viewport(c1, 64, 0, 96, 42, "yellow_dwarf", 42, time_override=0.0)
         render_viewport(c2, 64, 0, 96, 42, "yellow_dwarf", 42, time_override=0.0)
-        assert c1.prints == c2.prints
+        assert np.array_equal(c1.rgb["ch"], c2.rgb["ch"])
+        assert np.array_equal(c1.rgb["fg"], c2.rgb["fg"])
 
 
     def test_flares_are_deterministic(self):

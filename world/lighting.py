@@ -45,21 +45,28 @@ def compute_light_map(
         fov_radius = ls.radius + LIGHT_SPILL_RADIUS
         fov = tcod.map.compute_fov(transparency, (ls.x, ls.y), fov_radius)
 
-        # Euclidean distance from source for all tiles
-        ix = np.arange(width)[:, np.newaxis]
-        iy = np.arange(height)[np.newaxis, :]
+        # Clamp to bounding box around the light source
+        x0 = max(0, ls.x - fov_radius)
+        x1 = min(width, ls.x + fov_radius + 1)
+        y0 = max(0, ls.y - fov_radius)
+        y1 = min(height, ls.y + fov_radius + 1)
+
+        # Euclidean distance from source (only within bounding box)
+        ix = np.arange(x0, x1)[:, np.newaxis]
+        iy = np.arange(y0, y1)[np.newaxis, :]
         dist = np.sqrt((ix - ls.x) ** 2 + (iy - ls.y) ** 2)
 
         # Linear falloff over the extended radius for smooth spill
         falloff = np.maximum(0.0, 1.0 - dist / fov_radius)
 
         # Mask to FOV-reachable tiles only
-        contribution = falloff * fov * ls.intensity
+        fov_slice = fov[x0:x1, y0:y1]
+        contribution = falloff * fov_slice * ls.intensity
 
-        # Apply normalized color
-        light_map[:, :, 0] += contribution * (ls.color[0] / 255.0)
-        light_map[:, :, 1] += contribution * (ls.color[1] / 255.0)
-        light_map[:, :, 2] += contribution * (ls.color[2] / 255.0)
+        # Apply normalized color (only to the subregion)
+        light_map[x0:x1, y0:y1, 0] += contribution * (ls.color[0] / 255.0)
+        light_map[x0:x1, y0:y1, 1] += contribution * (ls.color[1] / 255.0)
+        light_map[x0:x1, y0:y1, 2] += contribution * (ls.color[2] / 255.0)
 
     np.clip(light_map, 0, 1, out=light_map)
     return light_map

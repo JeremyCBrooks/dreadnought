@@ -54,15 +54,14 @@ class TestStarfieldBrightnessVariation:
 
         c = FakeConsole(160, 50)
         render_viewport(c, 64, 0, 96, 40, "yellow_dwarf", 42, time_override=0.5)
-        # Collect fg brightness of printed stars (excluding surface chars on disc)
-        star_brightnesses = []
-        for p in c.prints:
-            # Stars are single chars like . * + x in the starfield area
-            if p["string"] in ".+*x" and p["x"] < 140:  # away from the star disc
-                star_brightnesses.append(max(p["fg"]))
-        if len(star_brightnesses) >= 5:
-            # Should have meaningful variation in brightness
-            std = np.std(star_brightnesses)
+        # Collect fg brightness of background stars from rgb array (away from disc)
+        region_fg = c.rgb["fg"][64:140, 0:40]
+        region_ch = c.rgb["ch"][64:140, 0:40]
+        star_chars = {ord('.'), ord('*'), ord('+'), ord('x')}
+        star_mask = np.isin(region_ch, list(star_chars))
+        if np.sum(star_mask) >= 5:
+            max_fg = np.max(region_fg[star_mask], axis=-1)
+            std = np.std(max_fg.astype(np.float64))
             assert std > 5, f"Star brightness too uniform: std={std}"
 
 

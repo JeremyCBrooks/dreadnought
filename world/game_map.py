@@ -25,6 +25,8 @@ class GameMap:
         self.has_space = False
         self.airlocks: list = []
         self.entities: List[Entity] = []
+        self._entity_index: dict | None = None
+        self._entity_index_len: int = 0
         # Per-tile hazard propagation
         self.hazard_overlays: dict[str, np.ndarray] = {}
         self._hazards_dirty: bool = True
@@ -35,6 +37,8 @@ class GameMap:
         self._vacuum_baseline_set: bool = False
         self.biome: str | None = None
         self.debug_visible_all: bool = False
+        # Turn-scoped FOV cache for AI vision (cleared each turn)
+        self._fov_cache: dict[tuple[int, int, int], "np.ndarray"] = {}
         # Lighting
         self.light_sources: list = []
         self._light_map: np.ndarray | None = None
@@ -52,28 +56,50 @@ class GameMap:
             return False
         return bool(self.tiles["walkable"][x, y])
 
+    def _build_entity_index(self) -> dict:
+        """Build a position-indexed lookup: {(x, y): [entities]}."""
+        idx: dict[tuple[int, int], list] = {}
+        for e in self.entities:
+            key = (e.x, e.y)
+            if key in idx:
+                idx[key].append(e)
+            else:
+                idx[key] = [e]
+        return idx
+
+    def _get_entities_at(self, x: int, y: int) -> list:
+        """Return all entities at (x, y) using a per-frame spatial index."""
+        if self._entity_index is None or self._entity_index_len != len(self.entities):
+            self._entity_index = self._build_entity_index()
+            self._entity_index_len = len(self.entities)
+        return self._entity_index.get((x, y), [])
+
+    def invalidate_entity_index(self) -> None:
+        """Clear the spatial index (call when entities move or are added/removed)."""
+        self._entity_index = None
+
     def get_blocking_entity(self, x: int, y: int) -> Optional[Entity]:
-        for entity in self.entities:
-            if entity.blocks_movement and entity.x == x and entity.y == y:
+        for entity in self._get_entities_at(x, y):
+            if entity.blocks_movement:
                 return entity
         return None
 
     def get_items_at(self, x: int, y: int) -> List[Entity]:
         return [
-            e for e in self.entities
-            if not e.blocks_movement and e.item is not None and e.x == x and e.y == y
+            e for e in self._get_entities_at(x, y)
+            if not e.blocks_movement and e.item is not None
         ]
 
     def get_interactable_at(self, x: int, y: int) -> Optional[Entity]:
-        for e in self.entities:
-            if getattr(e, "interactable", None) and e.x == x and e.y == y:
+        for e in self._get_entities_at(x, y):
+            if getattr(e, "interactable", None):
                 return e
         return None
 
     def get_non_blocking_entity_at(self, x: int, y: int) -> Optional[Entity]:
         """Return any non-blocking entity (item or interactable) at (x, y)."""
-        for e in self.entities:
-            if not e.blocks_movement and e.x == x and e.y == y:
+        for e in self._get_entities_at(x, y):
+            if not e.blocks_movement:
                 return e
         return None
 
@@ -234,6 +260,7 @@ class GameMap:
         vp_h: int,
         scan_glow: Optional[dict] = None,
     ) -> None:
+        self._entity_index = None  # rebuild spatial index for this frame
         cam_x = max(0, min(cam_x, max(0, self.width - vp_w)))
         cam_y = max(0, min(cam_y, max(0, self.height - vp_h)))
 

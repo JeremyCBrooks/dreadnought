@@ -380,6 +380,8 @@ class TacticalState(State):
         )
         from game.hazards import apply_dot_effects
 
+        engine.game_map.invalidate_entity_index()
+        engine.game_map._fov_cache.clear()
         apply_environment_tick(engine)
         apply_dot_effects(engine)
         if engine.player.fighter.hp <= 0:
@@ -469,6 +471,7 @@ class TacticalState(State):
             entity.x = enx
             entity.y = eny
 
+        engine.game_map.invalidate_entity_index()
         import debug
         if not debug.DISABLE_ENEMY_AI:
             for entity in list(engine.game_map.entities):

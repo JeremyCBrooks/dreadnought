@@ -21,6 +21,59 @@ _STAR_TINTS = [
 ]
 # Lookup: 60% white/blue-white, 20% blue, 12% yellow, 8% red/orange
 _TINT_INDEX = [0]*30 + [1]*30 + [2]*20 + [3]*12 + [4]*5 + [5]*3
+_TINT_INDEX_ARR = np.array(_TINT_INDEX, dtype=np.int32)
+_STAR_TINTS_ARR = np.array(_STAR_TINTS, dtype=np.float64)
+
+
+# Cache for noise fields that don't change between frames
+_noise_cache: dict[tuple, dict[str, np.ndarray]] = {}
+_NOISE_CACHE_MAX = 4  # keep a few entries for different views
+
+
+def _get_cached_noise(seed: int, coord_x: int, coord_y: int, vp_w: int, vp_h: int) -> dict[str, np.ndarray]:
+    """Return cached noise fields, computing them if needed."""
+    key = (seed, coord_x, coord_y, vp_w, vp_h)
+    cached = _noise_cache.get(key)
+    if cached is not None:
+        return cached
+
+    xs = np.arange(coord_x, coord_x + vp_w)
+    ys = np.arange(coord_y, coord_y + vp_h)
+    noise = coord_fractal_noise(seed, xs, ys, octaves=3, base_period=10)
+
+    neb_presence = coord_fractal_noise(seed + 1, xs, ys, octaves=2, base_period=60)
+    neb_morph = coord_fractal_noise(seed + 4, xs, ys, octaves=2, base_period=40)
+    neb_blob = coord_fractal_noise(seed + 5, xs, ys, octaves=3, base_period=18)
+    neb_ridge_raw = coord_fractal_noise(seed + 6, xs, ys, octaves=3, base_period=24)
+    neb_filament = 1.0 - 2.0 * np.abs(neb_ridge_raw - 0.5)
+    neb_filament = np.clip(neb_filament, 0, 1) ** 0.7
+    neb_cloud = coord_fractal_noise(seed + 7, xs, ys, octaves=2, base_period=50)
+    neb_detail = coord_fractal_noise(seed + 3, xs, ys, octaves=2, base_period=7)
+
+    blob_weight = np.clip(1.0 - 3.0 * neb_morph, 0, 1)
+    filament_weight = np.clip(1.0 - np.abs(neb_morph - 0.5) * 4.0, 0, 1)
+    cloud_weight = np.clip(3.0 * neb_morph - 2.0, 0, 1)
+    total_w = blob_weight + filament_weight + cloud_weight + 1e-8
+    nebula_shape = (
+        blob_weight * neb_blob
+        + filament_weight * neb_filament
+        + cloud_weight * neb_cloud
+    ) / total_w
+    nebula_density = nebula_shape * (0.5 + 0.5 * neb_detail) * neb_presence
+    nebula_hue = coord_fractal_noise(seed + 2, xs, ys, octaves=2, base_period=8)
+    star_brightness = np.clip((noise - 0.20) / 0.60, 0, 1) ** 5
+
+    result = {
+        "noise": noise,
+        "nebula_density": nebula_density,
+        "nebula_hue": nebula_hue,
+        "star_brightness": star_brightness,
+    }
+
+    if len(_noise_cache) >= _NOISE_CACHE_MAX:
+        _noise_cache.pop(next(iter(_noise_cache)))
+    _noise_cache[key] = result
+    return result
 
 
 _NEBULA_PALETTES = [
@@ -59,41 +112,10 @@ def render_starfield_bg(
         cell_mask: (vp_w, vp_h) bool mask limiting which cells to render. None = all.
         skip_positions: set of (lx, ly) local coords to skip for star characters.
     """
-    xs = np.arange(coord_x, coord_x + vp_w)
-    ys = np.arange(coord_y, coord_y + vp_h)
-    noise = coord_fractal_noise(seed, xs, ys, octaves=3, base_period=10)
-
-    # Nebula: blend multiple morphologies for varied shapes
-    # Large-scale presence field — determines WHERE nebulae exist at all
-    neb_presence = coord_fractal_noise(seed + 1, xs, ys, octaves=2, base_period=60)
-    # Morphology selector — smoothly varies which shape type dominates
-    neb_morph = coord_fractal_noise(seed + 4, xs, ys, octaves=2, base_period=40)
-
-    # Layer 1: Blobs (original style, varying scale)
-    neb_blob = coord_fractal_noise(seed + 5, xs, ys, octaves=3, base_period=18)
-    # Layer 2: Filaments via ridge noise (sharp linear features)
-    neb_ridge_raw = coord_fractal_noise(seed + 6, xs, ys, octaves=3, base_period=24)
-    neb_filament = 1.0 - 2.0 * np.abs(neb_ridge_raw - 0.5)
-    neb_filament = np.clip(neb_filament, 0, 1) ** 0.7
-    # Layer 3: Large diffuse clouds
-    neb_cloud = coord_fractal_noise(seed + 7, xs, ys, octaves=2, base_period=50)
-    # Layer 4: Fine detail / texture
-    neb_detail = coord_fractal_noise(seed + 3, xs, ys, octaves=2, base_period=7)
-
-    # Blend morphologies based on morph selector:
-    #   morph < 0.33 → blobs,  0.33-0.66 → filaments,  > 0.66 → large clouds
-    blob_weight = np.clip(1.0 - 3.0 * neb_morph, 0, 1)
-    filament_weight = np.clip(1.0 - np.abs(neb_morph - 0.5) * 4.0, 0, 1)
-    cloud_weight = np.clip(3.0 * neb_morph - 2.0, 0, 1)
-    total_w = blob_weight + filament_weight + cloud_weight + 1e-8
-    nebula_shape = (
-        blob_weight * neb_blob
-        + filament_weight * neb_filament
-        + cloud_weight * neb_cloud
-    ) / total_w
-    # Modulate with detail and presence
-    nebula_density = nebula_shape * (0.5 + 0.5 * neb_detail) * neb_presence
-    nebula_hue = coord_fractal_noise(seed + 2, xs, ys, octaves=2, base_period=8)
+    cached = _get_cached_noise(seed, coord_x, coord_y, vp_w, vp_h)
+    noise = cached["noise"]
+    nebula_density = cached["nebula_density"]
+    nebula_hue = cached["nebula_hue"]
 
     bg_slice = console.rgb[vp_x : vp_x + vp_w, vp_y : vp_y + vp_h]
 
@@ -137,54 +159,77 @@ def render_starfield_bg(
             np.clip(current, 0, 255, out=current)
             bg_slice["bg"][..., ch] = current.astype(np.uint8)
 
-    # Background stars
-    star_brightness = np.clip((noise - 0.20) / 0.60, 0, 1) ** 5
+    # Background stars — fully vectorized
+    star_brightness = cached["star_brightness"]
 
-    for lx in range(vp_w):
-        for ly in range(vp_h):
-            if cell_mask is not None and not cell_mask[lx, ly]:
-                continue
-            if glow is not None and glow[lx, ly] > 0.05:
-                continue
-            if skip_positions and (lx, ly) in skip_positions:
-                continue
+    hx_arr = (coord_x + np.arange(vp_w)).reshape(-1, 1)
+    hy_arr = (coord_y + np.arange(vp_h)).reshape(1, -1)
+    h = ((hx_arr + seed) * 7919 + hy_arr * 104729) & 0xFFFF
+    kind = h % 100
 
-            hx = coord_x + lx
-            hy = coord_y + ly
-            h = ((hx + seed) * 7919 + hy * 104729) & 0xFFFF
-            kind = h % 100
+    # Star mask: only cells with kind >= 80
+    star_mask = kind >= 80
+    if cell_mask is not None:
+        star_mask = star_mask & cell_mask
+    if glow is not None:
+        star_mask = star_mask & (glow <= 0.05)
+    if skip_positions:
+        for slx, sly in skip_positions:
+            star_mask[slx, sly] = False
 
-            if kind < 80:
-                continue
+    if not np.any(star_mask):
+        return
 
-            noise_val = star_brightness[lx, ly]
-            tint = _STAR_TINTS[_TINT_INDEX[(h >> 8) % 100]]
+    # Tint lookup (vectorized)
+    tint_select = _TINT_INDEX_ARR[(h >> 8) % 100]
+    tint_rgb = _STAR_TINTS_ARR[tint_select]  # (vp_w, vp_h, 3)
 
-            # Per-star smooth brightness modulation
-            phase = ((h >> 4) & 0xFF) / 256.0
-            speed = 0.3 + (h % 13) * 0.015
-            fade = 0.5 + 0.5 * np.sin(t * speed + phase * 6.283)
+    # Per-star animation
+    phase = ((h >> 4) & 0xFF) / 256.0
+    speed = 0.3 + (h % 13) * 0.015
+    fade = 0.5 + 0.5 * np.sin(t * speed + phase * 6.283)
 
-            if kind < 93:
-                brightness = int(255 * noise_val * (0.1 + 0.4 * fade))
-                char = "."
-            else:
-                brightness = int(255 * noise_val * (0.5 + 0.5 * fade))
-                chars = "*+x*."
-                char_phase = ((h >> 3) & 0xFF) / 64.0
-                char_speed = 0.25 + (h % 11) * 0.01
-                char = chars[int((t * char_speed + char_phase) % len(chars))]
+    # Brightness: dim stars (kind 80-92) vs bright stars (kind 93+)
+    dim_mask = star_mask & (kind < 93)
+    bright_mask = star_mask & (kind >= 93)
+    brightness = np.zeros((vp_w, vp_h), dtype=np.float64)
+    brightness[dim_mask] = 255.0 * star_brightness[dim_mask] * (0.1 + 0.4 * fade[dim_mask])
+    brightness[bright_mask] = 255.0 * star_brightness[bright_mask] * (0.5 + 0.5 * fade[bright_mask])
 
-            sx = vp_x + lx
-            sy = vp_y + ly
-            fg = (min(int(brightness * tint[0]), 255),
-                  min(int(brightness * tint[1]), 255),
-                  min(int(brightness * tint[2]), 255))
-            # Skip if star fg is dimmer than the bg (avoids dark outlines in nebulae)
-            bg_cell = bg_slice["bg"][lx, ly]
-            if max(fg) < max(int(bg_cell[0]), int(bg_cell[1]), int(bg_cell[2])):
-                continue
-            console.print(x=sx, y=sy, string=char, fg=fg)
+    # Compute fg colors
+    fg_r = np.clip(brightness * tint_rgb[..., 0], 0, 255).astype(np.uint8)
+    fg_g = np.clip(brightness * tint_rgb[..., 1], 0, 255).astype(np.uint8)
+    fg_b = np.clip(brightness * tint_rgb[..., 2], 0, 255).astype(np.uint8)
+
+    # Skip stars dimmer than bg
+    bg_max = np.maximum(
+        bg_slice["bg"][..., 0].astype(np.int16),
+        np.maximum(bg_slice["bg"][..., 1].astype(np.int16),
+                   bg_slice["bg"][..., 2].astype(np.int16))
+    )
+    fg_max = np.maximum(fg_r.astype(np.int16),
+                        np.maximum(fg_g.astype(np.int16), fg_b.astype(np.int16)))
+    star_mask = star_mask & (fg_max >= bg_max)
+
+    if not np.any(star_mask):
+        return
+
+    # Character codes: dim='.' bright=animated from "*+x*."
+    _BRIGHT_CHARS = np.array([ord('*'), ord('+'), ord('x'), ord('*'), ord('.')], dtype=np.int32)
+    char_codes = np.full((vp_w, vp_h), ord('.'), dtype=np.int32)
+    if np.any(bright_mask & star_mask):
+        char_phase_b = ((h >> 3) & 0xFF) / 64.0
+        char_speed_b = 0.25 + (h % 11) * 0.01
+        char_idx = ((t * char_speed_b + char_phase_b) % len(_BRIGHT_CHARS)).astype(np.int32)
+        bm = bright_mask & star_mask
+        char_codes[bm] = _BRIGHT_CHARS[char_idx[bm]]
+
+    # Apply to console in bulk
+    console_slice = console.rgb[vp_x:vp_x + vp_w, vp_y:vp_y + vp_h]
+    console_slice["ch"][star_mask] = char_codes[star_mask]
+    console_slice["fg"][..., 0][star_mask] = fg_r[star_mask]
+    console_slice["fg"][..., 1][star_mask] = fg_g[star_mask]
+    console_slice["fg"][..., 2][star_mask] = fg_b[star_mask]
 
 
 def render_viewport(
