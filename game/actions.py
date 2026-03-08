@@ -226,6 +226,14 @@ class InteractAction(Action):
         ih = target.interactable
         name = target.name
 
+        # Block opening if inventory is full
+        if not entity.can_carry():
+            engine.message_log.add_message("Inventory full.", WARNING)
+            return 0
+
+        loot = ih.get("loot")
+        has_loot = loot and isinstance(loot, dict) and all(k in loot for k in ("char", "color", "name"))
+
         # Trigger hazard if present (and not scanned/safe)
         if ih.get("hazard") and not ih.get("scanned"):
             from game.hazards import trigger_hazard
@@ -236,24 +244,20 @@ class InteractAction(Action):
             )
 
         # Loot
-        loot = ih.get("loot")
-        if loot and isinstance(loot, dict) and all(k in loot for k in ("char", "color", "name")):
-            if not entity.can_carry():
-                engine.message_log.add_message("Inventory full.", WARNING)
-            else:
-                from game.entity import Entity as _Entity
-                from data import db
-                item_data = db.build_item_data(loot)
-                item_ent = _Entity(
-                    x=entity.x, y=entity.y,
-                    char=loot["char"], color=loot["color"], name=loot["name"],
-                    blocks_movement=False,
-                    item=item_data,
-                )
-                entity.inventory.append(item_ent)
-                engine.message_log.add_message(
-                    f"You search the {name}... Found {loot['name']}!", INTERACT_LOOT
-                )
+        if has_loot:
+            from game.entity import Entity as _Entity
+            from data import db
+            item_data = db.build_item_data(loot)
+            item_ent = _Entity(
+                x=entity.x, y=entity.y,
+                char=loot["char"], color=loot["color"], name=loot["name"],
+                blocks_movement=False,
+                item=item_data,
+            )
+            entity.inventory.append(item_ent)
+            engine.message_log.add_message(
+                f"You search the {name}... Found {loot['name']}!", INTERACT_LOOT
+            )
         else:
             engine.message_log.add_message(
                 f"You search the {name}. Nothing useful.", INTERACT_EMPTY

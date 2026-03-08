@@ -32,6 +32,7 @@ class Location:
         self.scanned = False
         self.visited = False
         self.system_name = system_name
+        self.has_nav_unit = False
 
 
 class StarSystem:
@@ -87,6 +88,7 @@ class Galaxy:
         self._occupied_positions: Dict[tuple[int, int], str] = {}
         self._generated_frontiers: set[str] = set()
         self._unexplored_frontier: set[str] = set()
+        self._nav_unit_rings: Dict[int, str] = {}
 
         # Cache data tables
         self._sw = system_words()
@@ -131,6 +133,17 @@ class Galaxy:
                            star_type=pick_star_type(rng), gx=gx, gy=gy)
         self.systems[name] = system
         self._occupied_positions[(gx, gy)] = name
+
+        # Assign nav unit: one per ring (1-6), only in derelicts
+        ring = abs(gx) + abs(gy)
+        if 1 <= ring <= 6 and ring not in self._nav_unit_rings:
+            nav_rng = random.Random(base_seed ^ 0x4E415631)
+            derelicts = [loc for loc in locations if loc.loc_type == "derelict"]
+            if derelicts:
+                chosen = nav_rng.choice(derelicts)
+                chosen.has_nav_unit = True
+                self._nav_unit_rings[ring] = chosen.name
+
         return system
 
     def _generate_system_name(self, rng: random.Random) -> str:

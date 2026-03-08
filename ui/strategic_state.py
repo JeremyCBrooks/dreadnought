@@ -208,6 +208,12 @@ class StrategicState(State):
         fuel_str = f"FUEL: {fuel}/{max_fuel}"
         console.print(x=left_w - len(fuel_str) - 2, y=1, string=fuel_str, fg=fuel_color)
 
+        # Nav unit counter
+        nav_count = engine.ship.nav_units if engine.ship else 0
+        nav_str = f"NAV: {nav_count}/6"
+        nav_color = (0, 255, 200) if nav_count >= 6 else (140, 160, 180)
+        console.print(x=left_w - len(nav_str) - 2, y=2, string=nav_str, fg=nav_color)
+
         # Star map section (fixed position at top)
         nav_active = self.focus == "navigation"
         nav_header_color = (180, 180, 200) if nav_active else (80, 80, 100)

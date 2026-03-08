@@ -431,6 +431,7 @@ def _dress_ship_room(
     game_map: GameMap,
     rng: random.Random,
     exit_pos: Optional[Tuple[int, int]] = None,
+    has_nav_unit: bool = False,
 ) -> None:
     """Place themed decorations and interactables in a ship room."""
     dressing = _ROOM_DRESSING.get(room.label)
@@ -506,13 +507,19 @@ def _dress_ship_room(
     all_loot = db.all_loot()
     hazard_pool = db.hazards()
 
+    nav_placed = False
     for _ in range(rng.randint(int_min, int_max)):
         pos = _pick_floor_pos()
         if not pos:
             continue
         ch, color, name = rng.choice(dressing["interactables"])
         hazard = dict(rng.choice(hazard_pool)) if rng.random() < hazard_chance else None
-        loot = rng.choice(all_loot) if rng.random() < loot_chance else None
+        if has_nav_unit and not nav_placed:
+            loot = {"char": "\u2302", "color": [0, 255, 200], "name": "Navigation Unit",
+                    "type": "nav_unit", "value": 1}
+            nav_placed = True
+        else:
+            loot = rng.choice(all_loot) if rng.random() < loot_chance else None
         occupied.add(pos)
         game_map.entities.append(
             Entity(x=pos[0], y=pos[1], char=ch, color=color, name=name,
@@ -807,6 +814,7 @@ def _generate_ship(
     profile: LocationProfile,
     wall_tile: np.ndarray,
     floor_tile: np.ndarray,
+    has_nav_unit: bool = False,
 ) -> List[RectRoom]:
     """Hull-profile-based ship layout for derelicts.
 
@@ -873,7 +881,8 @@ def _generate_ship(
     # Step 9: Room-specific dressing for all rooms
     exit_pos = rooms[0].center if rooms else None
     for room in rooms:
-        _dress_ship_room(room, game_map, rng, exit_pos=exit_pos)
+        _dress_ship_room(room, game_map, rng, exit_pos=exit_pos,
+                         has_nav_unit=(has_nav_unit and room.label == "bridge"))
 
     # Step 10: Corridor lights along spine and branches
     _place_ship_corridor_lights(
@@ -890,6 +899,7 @@ def _generate_organic(
     profile: LocationProfile,
     wall_tile: np.ndarray,
     floor_tile: np.ndarray,
+    **kwargs: object,
 ) -> List[RectRoom]:
     """Organic asteroid layout with irregular rooms and winding corridors."""
     w, h = game_map.width, game_map.height
@@ -954,6 +964,7 @@ def _generate_standard(
     profile: LocationProfile,
     wall_tile: np.ndarray,
     floor_tile: np.ndarray,
+    **kwargs: object,
 ) -> List[RectRoom]:
     """Standard starbase layout — like original but with wider corridors and bigger rooms."""
     w, h = game_map.width, game_map.height
@@ -2281,6 +2292,7 @@ def _generate_village(
     profile: LocationProfile,
     wall_tile: np.ndarray,
     floor_tile: np.ndarray,
+    **kwargs: object,
 ) -> List[RectRoom]:
     """Colony village: open ground with irregular multi-wing buildings."""
     w, h = game_map.width, game_map.height
@@ -2930,6 +2942,7 @@ def generate_dungeon(
     max_items: int = 1,
     loc_type: str = "derelict",
     max_total_enemies: int = MAX_ENEMIES_PER_LEVEL,
+    has_nav_unit: bool = False,
 ) -> Tuple[GameMap, List[RectRoom], Optional[Tuple[int, int]]]:
     """Returns (game_map, rooms, exit_pos)."""
     rng = random.Random(seed)
@@ -2944,7 +2957,8 @@ def generate_dungeon(
     game_map.debug_visible_all = VISIBLE_ALL
     gen_fn = _GENERATORS.get(profile.generator)
     if gen_fn:
-        rooms = gen_fn(game_map, rng, profile, wall_tile, floor_tile)
+        rooms = gen_fn(game_map, rng, profile, wall_tile, floor_tile,
+                       has_nav_unit=has_nav_unit)
     else:
         rooms = _generate_fallback(
             game_map, rng, max_rooms, room_min, room_max, floor_tile,

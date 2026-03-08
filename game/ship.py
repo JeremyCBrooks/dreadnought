@@ -20,6 +20,7 @@ class Ship:
         self.max_fuel = max_fuel
         self.cargo: List[Entity] = []
         self.scanner_quality = scanner_quality
+        self.nav_units: int = 0
 
     def add_cargo(self, item: Entity) -> None:
         """Add an item to the cargo hold."""

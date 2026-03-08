@@ -134,6 +134,7 @@ class TacticalState(State):
                 max_items=1,
                 seed=seed,
                 loc_type=loc_type,
+                has_nav_unit=getattr(self.location, 'has_nav_unit', False),
             )
             self.exit_pos = exit_pos
             engine.area_cache[key] = {
@@ -242,6 +243,14 @@ class TacticalState(State):
                             EQUIP_MSG,
                         )
                     saved_inventory.remove(core)
+                # Convert nav units to ship counter
+                nav_items = [i for i in saved_inventory if i.item and i.item.get("type") == "nav_unit"]
+                for nav in nav_items:
+                    engine.ship.nav_units += 1
+                    engine.message_log.add_message(
+                        "Navigation unit installed.", (0, 255, 200)
+                    )
+                    saved_inventory.remove(nav)
                 engine._saved_player["inventory"] = saved_inventory
 
             key = _area_key(self.location, self.depth)

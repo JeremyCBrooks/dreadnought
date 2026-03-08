@@ -194,8 +194,8 @@ reactor_core = new_tile(
 
 control_console = new_tile(
     walkable=False, transparent=True,
-    dark=(ord("\xf0"), (20, 40, 60), (5, 10, 20)),
-    light=(ord("\xf0"), (80, 200, 255), (15, 40, 60)),
+    dark=(ord("\xc9"), (20, 40, 60), (5, 10, 20)),
+    light=(ord("\xc9"), (80, 200, 255), (15, 40, 60)),
 )
 
 street_lamp = new_tile(

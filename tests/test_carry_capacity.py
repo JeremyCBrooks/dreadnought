@@ -83,7 +83,7 @@ def test_pickup_unlimited_when_no_max():
 
 
 def test_interact_loot_refused_when_full():
-    """InteractAction should not add loot when inventory is full."""
+    """InteractAction should refuse to open container when inventory is full."""
     gm = make_arena()
     player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1),
                     max_inventory=1)
@@ -98,9 +98,27 @@ def test_interact_loot_refused_when_full():
     eng = MockEngine(gm, player)
 
     result = InteractAction(dx=1, dy=0).perform(eng, player)
-    # Action still costs a turn (interactable consumed) but loot not added
-    assert result == 1
+    # Action blocked: no turn consumed, container preserved
+    assert result == 0
     assert len(player.inventory) == 1  # still just "Existing"
+    assert crate in gm.entities  # container NOT removed
+    assert any("full" in m[0].lower() for m in eng.message_log.messages)
+
+
+def test_interact_empty_container_refused_when_full():
+    """InteractAction should refuse to open even empty containers when inventory is full."""
+    gm = make_arena()
+    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1),
+                    max_inventory=1)
+    player.inventory.append(Entity(name="Existing"))
+    crate = Entity(x=6, y=5, name="Crate", blocks_movement=False,
+                   interactable={"kind": "crate"})
+    gm.entities.extend([player, crate])
+    eng = MockEngine(gm, player)
+
+    result = InteractAction(dx=1, dy=0).perform(eng, player)
+    assert result == 0
+    assert crate in gm.entities
     assert any("full" in m[0].lower() for m in eng.message_log.messages)
 
 
