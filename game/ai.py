@@ -228,7 +228,11 @@ class CreatureAI:
     def _pick_wander_goal(
         self, owner: Entity, engine: Engine,
     ) -> Optional[Tuple[int, int]]:
-        """Pick a random walkable, reachable, hazard-free tile as a patrol goal."""
+        """Pick a random walkable, reachable tile as a patrol goal.
+
+        Prefers hazard-free tiles, but falls back to hazardous tiles so
+        that enemies in fully-hazardous areas don't freeze.
+        """
         import numpy as np
         import tcod.path
 
@@ -239,14 +243,20 @@ class CreatureAI:
         pf.resolve()
         dist = pf.distance
 
-        # Reachable tiles: finite distance, walkable, no hazards
+        # Reachable tiles: finite distance
         reachable = dist < 0x7FFF_FFFF
         reachable[owner.x, owner.y] = False
-        gm = engine.game_map
-        for overlay in gm.hazard_overlays.values():
-            reachable &= ~overlay
 
-        candidates = np.argwhere(reachable)
+        # Prefer non-hazardous tiles
+        gm = engine.game_map
+        safe = reachable.copy()
+        for overlay in gm.hazard_overlays.values():
+            safe &= ~overlay
+
+        candidates = np.argwhere(safe)
+        if len(candidates) == 0:
+            # Fall back to any reachable tile (including hazardous)
+            candidates = np.argwhere(reachable)
         if len(candidates) == 0:
             return None
         idx = random.randint(0, len(candidates) - 1)
@@ -319,6 +329,7 @@ class CreatureAI:
                 owner.ai_state = "hunting"
                 owner.ai_target = (engine.player.x, engine.player.y)
                 owner.ai_turns_since_seen = 0
+                owner.ai_stuck_turns = 0
                 # Reset banked energy so the creature doesn't get
                 # extra moves from energy accumulated while sleeping.
                 owner.ai_energy = 0
@@ -398,16 +409,29 @@ class CreatureAI:
             return
 
         # Movement — spend energy, possibly multiple steps for fast creatures
+        moved = False
         while self._can_spend_move(owner, engine):
             path = self._compute_path(owner, engine, owner.ai_target)
             if not self._move_along_path(owner, engine, path):
                 self._simple_chase(owner, engine, owner.ai_target)
                 break
+            moved = True
             # After moving, check if now adjacent → attack and stop
             real_dist = chebyshev(owner.x, owner.y, target.x, target.y)
             if real_dist <= 1:
                 self._attack(owner, engine)
                 break
+
+        # Track consecutive turns where we couldn't move toward the target.
+        # Handles enemies that can see the player (e.g. through a window)
+        # but have no walkable path — without this they'd freeze in hunting.
+        if moved or real_dist <= 1:
+            owner.ai_stuck_turns = 0
+        else:
+            owner.ai_stuck_turns += 1
+            if owner.ai_stuck_turns > self._cfg(owner, "memory_turns"):
+                owner.ai_state = self._cfg(owner, "ai_initial_state")
+                owner.ai_target = None
 
     def _simple_chase(
         self, owner: Entity, engine: Engine, goal: Tuple[int, int],

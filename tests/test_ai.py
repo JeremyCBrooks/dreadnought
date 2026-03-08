@@ -1127,8 +1127,8 @@ class TestPatrolWander:
                 f"Creature crossed wall partition to ({creature.x},{creature.y})"
             )
 
-    def test_wandering_avoids_hazard_tiles(self):
-        """Wander goal should never be on a hazard tile."""
+    def test_wandering_avoids_hazard_tiles_when_safe_exist(self):
+        """Wander goal prefers non-hazard tiles when they exist."""
         gm, player, engine = _setup(w=20, h=20, player_pos=(1, 1))
         creature = _make_creature(10, 10, config={
             "aggro_distance": 3, "vision_radius": 4,
@@ -1138,13 +1138,174 @@ class TestPatrolWander:
         # Wall off player
         for y in range(0, 20):
             gm.tiles[5, y] = tile_types.wall
-        # Mark most of the map as hazardous
+        # Mark some of the map as hazardous, leaving a safe zone
         import numpy as np
         hazard = np.zeros((20, 20), dtype=bool)
-        hazard[6:, :] = True
-        hazard[10, 10] = False  # creature's own tile
+        hazard[14:, :] = True  # right half is hazardous
         gm.hazard_overlays["vacuum"] = hazard
         creature.ai.perform(creature, engine)
         if creature.ai_wander_goal is not None:
             gx, gy = creature.ai_wander_goal
-            assert not hazard[gx, gy], "Wander goal should not be on a hazard tile"
+            assert not hazard[gx, gy], "Should prefer non-hazard tiles when available"
+
+    def test_wandering_falls_back_to_hazard_when_all_hazardous(self):
+        """When all reachable tiles are hazardous, wander goal is still set."""
+        gm, player, engine = _setup(w=20, h=20, player_pos=(1, 1))
+        creature = _make_creature(10, 10, config={
+            "aggro_distance": 3, "vision_radius": 4,
+        })
+        creature.ai_state = "wandering"
+        gm.entities.append(creature)
+        for y in range(0, 20):
+            gm.tiles[5, y] = tile_types.wall
+        import numpy as np
+        hazard = np.ones((20, 20), dtype=bool)
+        gm.hazard_overlays["vacuum"] = hazard
+        creature.ai.perform(creature, engine)
+        # Enemy should still get a wander goal (falls back to hazardous tiles)
+        assert creature.ai_wander_goal is not None or \
+            (creature.x, creature.y) != (10, 10), \
+            "Enemy should wander even when all tiles are hazardous"
+
+
+class TestWanderingInHazards:
+    """Enemies should keep wandering even when all reachable tiles are hazardous."""
+
+    def test_wander_in_full_vacuum_area(self):
+        """Enemy in a fully-vacuumed room should still wander (not freeze)."""
+        gm = make_arena(20, 20)
+        player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        engine = MockEngine(gm, player)
+
+        # Place enemy far from player so it doesn't aggro
+        creature = _make_creature(15, 15, config={
+            "aggro_distance": 3, "vision_radius": 4,
+        })
+        creature.ai_state = "wandering"
+        gm.entities.append(creature)
+
+        # Cover the entire map in vacuum hazard
+        import numpy as np
+        vacuum = np.ones((20, 20), dtype=bool)
+        gm.hazard_overlays["vacuum"] = vacuum
+
+        start_x, start_y = creature.x, creature.y
+        moved = False
+        for _ in range(10):
+            creature.ai.perform(creature, engine)
+            if (creature.x, creature.y) != (start_x, start_y):
+                moved = True
+                break
+
+        assert moved, "Wandering enemy froze in hazard area — never moved in 10 turns"
+
+    def test_wander_prefers_non_hazard_tiles(self):
+        """When some non-hazard tiles exist, wander goal should prefer them."""
+        gm = make_arena(20, 20)
+        player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        engine = MockEngine(gm, player)
+
+        creature = _make_creature(15, 15, config={
+            "aggro_distance": 3, "vision_radius": 4,
+        })
+        creature.ai_state = "wandering"
+        gm.entities.append(creature)
+
+        # Vacuum everywhere EXCEPT a small safe zone
+        import numpy as np
+        vacuum = np.ones((20, 20), dtype=bool)
+        vacuum[14:17, 14:17] = False  # 3x3 safe area around enemy
+        gm.hazard_overlays["vacuum"] = vacuum
+
+        creature.ai.perform(creature, engine)
+        if creature.ai_wander_goal is not None:
+            gx, gy = creature.ai_wander_goal
+            assert not vacuum[gx, gy], "Should prefer non-hazard tiles when available"
+
+
+class TestHuntingUnreachable:
+    """Enemies that can see but cannot reach the player should not freeze."""
+
+    def test_visible_but_unreachable_deaggros(self):
+        """Enemy seeing player through a window but with no walkable path
+        should eventually give up hunting."""
+        # 20x20 arena, wall of windows at x=10 splitting map in two.
+        gm = make_arena(20, 20)
+        for y in range(0, 20):
+            gm.tiles[10, y] = tile_types.structure_window  # transparent, not walkable
+
+        player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        engine = MockEngine(gm, player)
+
+        creature = _make_creature(15, 5, config={
+            "aggro_distance": 20, "vision_radius": 20, "memory_turns": 15,
+        })
+        creature.ai_state = "hunting"
+        creature.ai_target = (player.x, player.y)
+        creature.ai_turns_since_seen = 0
+        gm.entities.append(creature)
+
+        # Run many turns — enemy can always see player through window
+        for _ in range(30):
+            creature.ai.perform(creature, engine)
+
+        # Enemy should NOT still be stuck in hunting — it should have
+        # de-aggroed because it cannot reach the player.
+        assert creature.ai_state != "hunting", (
+            f"Enemy stuck in hunting for 30 turns despite being unreachable "
+            f"(ai_stuck_turns={getattr(creature, 'ai_stuck_turns', 'N/A')})"
+        )
+
+    def test_reachable_enemy_stays_hunting(self):
+        """Enemy that CAN reach the player should remain hunting (no false de-aggro)."""
+        gm, player, engine = _setup(w=20, h=20, player_pos=(5, 5))
+
+        creature = _make_creature(8, 5, config={
+            "aggro_distance": 20, "vision_radius": 20, "memory_turns": 15,
+        })
+        creature.ai_state = "hunting"
+        creature.ai_target = (player.x, player.y)
+        creature.ai_turns_since_seen = 0
+        gm.entities.append(creature)
+
+        # Run several turns — enemy should approach and attack, staying in hunting
+        for _ in range(10):
+            creature.ai.perform(creature, engine)
+
+        # Enemy should still be hunting (or adjacent attacking)
+        from game.helpers import chebyshev
+        dist = chebyshev(creature.x, creature.y, player.x, player.y)
+        assert creature.ai_state == "hunting" or dist <= 1
+
+    def test_multiple_enemies_unreachable_all_deaggro(self):
+        """All enemies stuck behind a window should eventually de-aggro."""
+        gm = make_arena(20, 20)
+        for y in range(0, 20):
+            gm.tiles[10, y] = tile_types.structure_window
+
+        player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        engine = MockEngine(gm, player)
+
+        creatures = []
+        for i, (cx, cy) in enumerate([(15, 3), (15, 5), (15, 7)]):
+            c = _make_creature(cx, cy, config={
+                "aggro_distance": 20, "vision_radius": 20, "memory_turns": 15,
+            }, name=f"Drone{i}")
+            c.ai_state = "hunting"
+            c.ai_target = (player.x, player.y)
+            c.ai_turns_since_seen = 0
+            gm.entities.append(c)
+            creatures.append(c)
+
+        for _ in range(30):
+            for c in creatures:
+                c.ai.perform(c, engine)
+
+        for c in creatures:
+            assert c.ai_state != "hunting", (
+                f"{c.name} still stuck in hunting after 30 turns"
+            )

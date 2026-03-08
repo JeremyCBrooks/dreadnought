@@ -64,6 +64,7 @@ class Entity:
         self.ai_target: Optional[Tuple[int, int]] = None
         self.ai_wander_goal: Optional[Tuple[int, int]] = None
         self.ai_turns_since_seen: int = 0
+        self.ai_stuck_turns: int = 0
         self.ai_energy: int = 0
 
     def can_carry(self) -> bool:
