@@ -83,14 +83,8 @@ def hazards() -> List[Dict[str, Any]]:
 
 
 def all_loot() -> List[Dict[str, Any]]:
-    """Merged items + scanners list, scanners normalized with type/value keys."""
-    result = [dict(i) for i in items()]
-    for s in scanners():
-        entry = dict(s)
-        entry["type"] = "scanner"
-        entry["value"] = entry["scanner_tier"]
-        result.append(entry)
-    return result
+    """Merged items + scanners list."""
+    return [dict(i) for i in items()] + [dict(s) for s in scanners()]
 
 
 def build_item_data(definition: Dict[str, Any], *, rng: Any = None) -> Dict[str, Any]:

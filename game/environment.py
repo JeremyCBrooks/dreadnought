@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from game.hazards import apply_hp_damage
+
 if TYPE_CHECKING:
     from engine.game_state import Engine
     from game.entity import Entity
@@ -292,9 +294,7 @@ def process_decompression_step(
         if not game_map.in_bounds(nx, ny):
             # Impact: 1 HP per remaining move
             if entity.fighter:
-                entity.fighter.hp -= entity.decompression_moves
-                if entity.fighter.hp < 0:
-                    entity.fighter.hp = 0
+                apply_hp_damage(entity.fighter, entity.decompression_moves)
             entity.decompression_moves = 0
             continue
 
@@ -325,9 +325,7 @@ def process_decompression_step(
             if not slid:
                 # Impact: 1 HP per remaining move
                 if entity.fighter:
-                    entity.fighter.hp -= entity.decompression_moves
-                    if entity.fighter.hp < 0:
-                        entity.fighter.hp = 0
+                    apply_hp_damage(entity.fighter, entity.decompression_moves)
                 entity.decompression_moves = 0
             continue
 
@@ -335,9 +333,7 @@ def process_decompression_step(
         blocker = game_map.get_blocking_entity(nx, ny)
         if blocker and blocker is not entity:
             if entity.fighter:
-                entity.fighter.hp -= entity.decompression_moves
-                if entity.fighter.hp < 0:
-                    entity.fighter.hp = 0
+                apply_hp_damage(entity.fighter, entity.decompression_moves)
             entity.decompression_moves = 0
             break
 
@@ -397,8 +393,7 @@ def apply_environment_tick(engine: Engine) -> None:
         # No resistance or pool depleted: deal 1 HP per turn
         if debug.GOD_MODE:
             continue
-        from game.hazards import _apply_hp_damage
-        _apply_hp_damage(engine.player.fighter, 1)
+        apply_hp_damage(engine.player.fighter, 1)
         engine.message_log.add_message(
             f"WARNING: {hazard_type.replace('_', ' ').title()}! Taking damage!",
             (255, 100, 100),
@@ -440,8 +435,7 @@ def apply_environment_tick_entity(engine: Engine, entity: Entity) -> None:
             if overlay is None and hazard_type in SPATIAL_HAZARDS:
                 continue
 
-        from game.hazards import _apply_hp_damage
-        _apply_hp_damage(entity.fighter, 1)
+        apply_hp_damage(entity.fighter, 1)
 
     if entity.fighter.hp <= 0:
         engine.message_log.add_message(

@@ -5,6 +5,7 @@ import time
 from typing import TYPE_CHECKING, Any, Tuple
 
 from engine.game_state import State
+from ui.colors import DARK_GRAY, NEUTRAL
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -73,12 +74,12 @@ class GameOverState(State):
         if subtitle:
             console.print(
                 x=cx - len(subtitle) // 2, y=cy, string=subtitle,
-                fg=self._fade_color((200, 200, 200), alpha),
+                fg=self._fade_color(NEUTRAL, alpha),
             )
 
         if alpha >= 1.0:
             console.print(
                 x=cx - 13, y=cy + 8,
                 string="Press Enter to continue",
-                fg=(100, 100, 100),
+                fg=DARK_GRAY,
             )

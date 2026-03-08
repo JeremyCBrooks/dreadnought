@@ -21,11 +21,10 @@ _HAZARD_MESSAGES = {
     "electric":   ("Electric discharge from {source_name}! You take {damage} damage.", HAZARD_ELECTRIC),
     "radiation":  ("Radiation leak from {source_name}! You take {damage} damage. You feel sick.", HAZARD_RADIATION),
     "explosive":  ("Explosion at {source_name}! You take {damage} damage.", HAZARD_EXPLOSIVE),
-    "gas":        ("Toxic gas from {source_name}! You take {damage} damage.", HAZARD_GAS),
 }
 
 
-def _apply_hp_damage(fighter: Fighter, amount: int) -> None:
+def apply_hp_damage(fighter: Fighter, amount: int) -> None:
     """Reduce HP by *amount*, clamped to 0."""
     fighter.hp = max(0, fighter.hp - amount)
 
@@ -70,7 +69,7 @@ def trigger_hazard(engine: Engine, hazard: dict, source_name: str) -> None:
     damage = hazard.get("damage", 1)
     player = engine.player
 
-    _apply_hp_damage(player.fighter, damage)
+    apply_hp_damage(player.fighter, damage)
 
     # Type-specific side effects
     if htype == "electric" and hazard.get("equipment_damage", False):
@@ -116,7 +115,7 @@ def apply_dot_effects(engine: Engine) -> None:
     surviving: list[dict] = []
     for effect in engine.active_effects:
         if not debug.GOD_MODE:
-            _apply_hp_damage(engine.player.fighter, effect["dot"])
+            apply_hp_damage(engine.player.fighter, effect["dot"])
         engine.message_log.add_message(
             f"{effect['type'].title()} damage!", HAZARD_RADIATION
         )

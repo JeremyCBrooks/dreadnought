@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, List, Tuple
 
 from engine.game_state import State
+from ui.colors import DARK_GRAY, GRAY
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -16,11 +17,8 @@ class InventoryState(State):
 
     def _combined_items(self, engine: Engine) -> List[Tuple[Entity, bool]]:
         """Return [(item, is_equipped), ...] in stable insertion order."""
-        lo = engine.player.loadout
-        return [
-            (item, lo.has_item(item) if lo else False)
-            for item in engine.player.inventory
-        ]
+        from game.loadout import combined_items
+        return combined_items(engine.player.inventory, engine.player.loadout)
 
     def ev_keydown(self, engine: Engine, event: Any) -> bool:
         from ui.keys import move_keys, cancel_keys, is_action
@@ -91,14 +89,14 @@ class InventoryState(State):
 
         combined = self._combined_items(engine)
         if not combined:
-            console.print(x=bx + 2, y=row, string="(empty)", fg=(100, 100, 100))
+            console.print(x=bx + 2, y=row, string="(empty)", fg=DARK_GRAY)
         else:
             start = max(0, min(self.selected - max_visible + 1, len(combined) - max_visible))
             for j in range(min(max_visible, len(combined) - start)):
                 i = start + j
                 item, is_equipped = combined[i]
                 prefix = ">" if i == self.selected else " "
-                color = (255, 255, 255) if i == self.selected else (150, 150, 150)
+                color = (255, 255, 255) if i == self.selected else GRAY
                 eq_tag = "[E] " if is_equipped else ""
                 line = f"{prefix} {eq_tag}{item.name}"
                 if item.item:
@@ -110,5 +108,5 @@ class InventoryState(State):
         console.print(
             x=bx + 2, y=by + bh - 2,
             string="[UP/DOWN] Select [E] Use/Equip [ESC] Close",
-            fg=(100, 100, 100),
+            fg=DARK_GRAY,
         )

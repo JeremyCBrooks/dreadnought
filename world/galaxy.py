@@ -246,10 +246,11 @@ class Galaxy:
             self._assign_depths()
 
     def _assign_depths(self) -> None:
+        from collections import deque
         distances: Dict[str, int] = {self.home_system: 0}
-        queue = [self.home_system]
+        queue = deque([self.home_system])
         while queue:
-            name = queue.pop(0)
+            name = queue.popleft()
             for neighbor in self.systems[name].connections:
                 if neighbor not in distances:
                     distances[neighbor] = distances[name] + 1

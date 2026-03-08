@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
 from engine.game_state import State
+from ui.colors import DARK_GRAY, EQUIP_MSG, GRAY, PROMPT
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -238,7 +239,7 @@ class TacticalState(State):
                         engine.ship.fuel += added
                         engine.message_log.add_message(
                             f"Reactor core converted to fuel. (+{added} fuel)",
-                            (100, 255, 100),
+                            EQUIP_MSG,
                         )
                     saved_inventory.remove(core)
                 engine._saved_player["inventory"] = saved_inventory
@@ -322,25 +323,14 @@ class TacticalState(State):
         if is_action("interact", key):
             interact_dirs = self._adjacent_interact_dirs(engine)
             if len(interact_dirs) == 0:
-                engine.message_log.add_message("Nothing to interact with here.", (100, 100, 100))
+                engine.message_log.add_message("Nothing to interact with here.", DARK_GRAY)
                 consumed = 0
             elif len(interact_dirs) == 1:
                 dx, dy, kind = interact_dirs[0]
-                if kind == "door":
-                    from game.actions import ToggleDoorAction
-                    consumed = ToggleDoorAction(dx, dy).perform(engine, engine.player)
-                elif kind == "switch":
-                    from game.actions import ToggleSwitchAction
-                    consumed = ToggleSwitchAction(dx, dy).perform(engine, engine.player)
-                elif kind == "reactor":
-                    from game.actions import TakeReactorCoreAction
-                    consumed = TakeReactorCoreAction(dx, dy).perform(engine, engine.player)
-                else:
-                    from game.actions import InteractAction
-                    consumed = InteractAction(dx, dy).perform(engine, engine.player)
+                consumed = self._perform_interact(engine, dx, dy, kind)
             else:
                 self._interact_pending = True
-                engine.message_log.add_message("Which direction? (arrow/vi key)", (200, 200, 100))
+                engine.message_log.add_message("Which direction? (arrow/vi key)", PROMPT)
                 return True
             moved = False
         elif is_action("scan", key):
@@ -348,14 +338,14 @@ class TacticalState(State):
             loadout = getattr(engine.player, "loadout", None)
             scanners = loadout.get_all_scanners() if loadout else []
             if len(scanners) == 0:
-                engine.message_log.add_message("You need a scanner in your loadout.", (150, 150, 150))
+                engine.message_log.add_message("You need a scanner in your loadout.", GRAY)
                 consumed = 0
             elif len(scanners) == 1:
                 from game.actions import ScanAction
                 consumed = ScanAction(scanner=scanners[0]).perform(engine, engine.player)
             else:
                 labels = " ".join(f"({i+1}) {s.name}" for i, s in enumerate(scanners))
-                engine.message_log.add_message(f"Which scanner? {labels}", (200, 200, 100))
+                engine.message_log.add_message(f"Which scanner? {labels}", PROMPT)
                 self._scan_pending = scanners
                 return True
             moved = False
@@ -371,7 +361,7 @@ class TacticalState(State):
             return True
 
         if self.exit_pos and (engine.player.x, engine.player.y) == self.exit_pos:
-            engine.message_log.add_message("You return to your ship.", (100, 255, 100))
+            engine.message_log.add_message("You return to your ship.", EQUIP_MSG)
             engine.pop_state()
             return True
 
@@ -548,8 +538,8 @@ class TacticalState(State):
     # ------------------------------------------------------------------
 
     def _enter_ranged(self, engine: Engine) -> None:
-        from game.actions import _get_equipped_ranged_weapon
-        weapon = _get_equipped_ranged_weapon(engine.player)
+        from game.helpers import get_equipped_ranged_weapon
+        weapon = get_equipped_ranged_weapon(engine.player)
         if not weapon:
             engine.message_log.add_message("No ranged weapon with ammo.", (255, 100, 100))
             return
@@ -611,10 +601,27 @@ class TacticalState(State):
                     self._update_fov_with_scan(engine)
                 self._update_ground_underfoot(engine)
             else:
-                engine.message_log.add_message("No target at cursor.", (150, 150, 150))
+                engine.message_log.add_message("No target at cursor.", GRAY)
             return True
 
         return True
+
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _perform_interact(engine: Engine, dx: int, dy: int, kind: str) -> int:
+        """Dispatch an interact action based on kind."""
+        if kind == "door":
+            from game.actions import ToggleDoorAction
+            return ToggleDoorAction(dx, dy).perform(engine, engine.player)
+        elif kind == "switch":
+            from game.actions import ToggleSwitchAction
+            return ToggleSwitchAction(dx, dy).perform(engine, engine.player)
+        elif kind == "reactor":
+            from game.actions import TakeReactorCoreAction
+            return TakeReactorCoreAction(dx, dy).perform(engine, engine.player)
+        else:
+            from game.actions import InteractAction
+            return InteractAction(dx, dy).perform(engine, engine.player)
 
     # ------------------------------------------------------------------
     # Interact direction prompt
@@ -676,25 +683,14 @@ class TacticalState(State):
                 if adx == dx and ady == dy:
                     kind = akind
                     break
-            if kind == "door":
-                from game.actions import ToggleDoorAction
-                consumed = ToggleDoorAction(dx, dy).perform(engine, engine.player)
-            elif kind == "switch":
-                from game.actions import ToggleSwitchAction
-                consumed = ToggleSwitchAction(dx, dy).perform(engine, engine.player)
-            elif kind == "reactor":
-                from game.actions import TakeReactorCoreAction
-                consumed = TakeReactorCoreAction(dx, dy).perform(engine, engine.player)
-            elif kind == "entity":
-                from game.actions import InteractAction
-                consumed = InteractAction(dx, dy).perform(engine, engine.player)
-            else:
-                engine.message_log.add_message("Nothing there.", (150, 150, 150))
+            if kind is None:
+                engine.message_log.add_message("Nothing there.", GRAY)
                 return True
+            consumed = self._perform_interact(engine, dx, dy, kind)
 
             if consumed:
                 if self.exit_pos and (engine.player.x, engine.player.y) == self.exit_pos:
-                    engine.message_log.add_message("You return to your ship.", (100, 255, 100))
+                    engine.message_log.add_message("You return to your ship.", EQUIP_MSG)
                     engine.pop_state()
                     return True
                 for _ in range(consumed):
@@ -934,9 +930,9 @@ class TacticalState(State):
                     filled = max(0, int(bar_w * ratio))
                     bar = "█" * filled + "░" * (bar_w - filled)
                     console.print(x=x, y=row, string=f"{label}: {bar}", fg=bar_color)
-                    console.print(x=x + 4 + bar_w + 1, y=row, string=f"{current}/{max_turns}", fg=(150, 150, 150))
+                    console.print(x=x + 4 + bar_w + 1, y=row, string=f"{current}/{max_turns}", fg=GRAY)
                 else:
-                    console.print(x=x, y=row, string=f"{label}: --", fg=(100, 100, 100))
+                    console.print(x=x, y=row, string=f"{label}: --", fg=DARK_GRAY)
                 row += 1
             row += 1
 
@@ -956,7 +952,7 @@ class TacticalState(State):
             for h in sorted(active):
                 label = h.replace("_", " ").upper()
                 if h in NON_DAMAGING_HAZARDS:
-                    color = (200, 200, 100)
+                    color = PROMPT
                 else:
                     color = (255, 80, 80)
                 console.print(x=x, y=row, string=f"! {label}", fg=color)
@@ -1001,7 +997,7 @@ class TacticalState(State):
             header_color = (255, 100, 100)
         elif self._look_cursor is not None:
             header = "LOOKING AT:"
-            header_color = (200, 200, 100)
+            header_color = PROMPT
         else:
             header = "UNDERFOOT:"
             header_color = (140, 140, 170)
@@ -1045,16 +1041,16 @@ class TacticalState(State):
             dx = abs(p.x - cx)
             dy = abs(p.y - cy)
             dist = max(dx, dy)
-            from game.actions import _get_equipped_ranged_weapon
-            wpn_ctrl = _get_equipped_ranged_weapon(p)
+            from game.helpers import get_equipped_ranged_weapon
+            wpn_ctrl = get_equipped_ranged_weapon(p)
             max_range = wpn_ctrl.item.get("range", 5) if wpn_ctrl else 0
             in_range = dist <= max_range
             look_label = f"TARGETING: {dist}/{max_range}"
-            look_color = (100, 255, 100) if in_range else (255, 100, 100)
+            look_color = EQUIP_MSG if in_range else (255, 100, 100)
         elif self._look_cursor is not None:
             ak = action_keys()
             look_label = f"[{ak['look'][1]}] LOOKING"
-            look_color = (200, 200, 100)
+            look_color = PROMPT
         else:
             look_label = _hint("look")
             look_color = (70, 70, 70)

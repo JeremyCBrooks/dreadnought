@@ -14,6 +14,9 @@ if TYPE_CHECKING:
     from game.suit import Suit
 
 
+_ANIM_TIMEOUT = 0.1
+
+
 class State:
     """Base class for all game states. Subclass and override methods."""
 
@@ -128,7 +131,6 @@ class Engine:
                 if self.current_state is not state_before:
                     continue
                 # Short timeout when animation is needed; None (blocking) otherwise
-                _ANIM_TIMEOUT = 0.1
                 needs_anim = (
                     (self.game_map and getattr(self.game_map, 'has_space', False))
                     or (self.game_map and getattr(self.game_map, 'has_flickering_lights', False))

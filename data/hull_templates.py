@@ -7,8 +7,8 @@ x-position.  The hull is symmetric: bottom offset = -top offset.
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Tuple
 
 
 @dataclass

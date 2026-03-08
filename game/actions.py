@@ -12,7 +12,6 @@ from ui.colors import (
     PLAYER_ATTACK, ENEMY_ATTACK, PLAYER_RANGED, ENEMY_RANGED,
     DEATH_MSG, ENEMY_DEATH, NEUTRAL, WARNING, PICKUP, DARK_GRAY,
     INTERACT_LOOT, INTERACT_SAFE, INTERACT_EMPTY, SCAN_MSG, HAZARD_VOID,
-    HAZARD_ENV_DAMAGE,
 )
 
 
@@ -45,6 +44,18 @@ def _apply_damage_and_death(engine: Engine, attacker: Entity, target: Entity, da
                 engine.game_map.entities.remove(target)
 
 
+def _attack_message(engine: Engine, entity: Entity, target: Entity,
+                     player_verb: str, enemy_verb: str, damage: int,
+                     player_color: tuple, enemy_color: tuple) -> None:
+    if entity is engine.player:
+        msg = f"You {player_verb} the {target.name} for {damage} damage."
+        color = player_color
+    else:
+        msg = f"The {entity.name} {enemy_verb} you for {damage} damage."
+        color = enemy_color
+    engine.message_log.add_message(msg, color)
+
+
 class Action:
     def perform(self, engine: Engine, entity: Entity) -> int:
         """Execute the action. Return number of ticks consumed (0 = no-op)."""
@@ -75,6 +86,7 @@ class MovementAction(Action):
             return 0
         entity.x = dest_x
         entity.y = dest_y
+        engine.game_map.invalidate_entity_index()
         from game.environment import has_low_gravity
         if has_low_gravity(engine):
             return 2
@@ -89,14 +101,7 @@ class MeleeAction(Action):
         if not entity.fighter or not self.target.fighter:
             return 0
         damage = _calc_damage(engine, entity, self.target, entity.fighter.power)
-
-        if entity is engine.player:
-            msg = f"You hit the {self.target.name} for {damage} damage."
-            color = PLAYER_ATTACK
-        else:
-            msg = f"The {entity.name} hits you for {damage} damage."
-            color = ENEMY_ATTACK
-        engine.message_log.add_message(msg, color)
+        _attack_message(engine, entity, self.target, "hit", "hits", damage, PLAYER_ATTACK, ENEMY_ATTACK)
 
         _apply_damage_and_death(engine, entity, self.target, damage)
         return 1
@@ -291,12 +296,6 @@ class ScanAction(Action):
         return 1
 
 
-def _get_equipped_ranged_weapon(entity: Entity) -> Optional[Entity]:
-    """Return the ranged weapon from loadout if available, else fallback to inventory (enemies)."""
-    from game.helpers import get_equipped_ranged_weapon
-    return get_equipped_ranged_weapon(entity)
-
-
 class ToggleDoorAction(Action):
     """Open or close a door at a cardinal offset from the entity."""
 
@@ -357,9 +356,10 @@ class RangedAction(Action):
         if not entity.fighter or not self.target.fighter:
             return 0
 
-        weapon = _get_equipped_ranged_weapon(entity)
+        from game.helpers import get_equipped_ranged_weapon
+        weapon = get_equipped_ranged_weapon(entity)
         if not weapon:
-            engine.message_log.add_message("No ranged weapon with ammo.", HAZARD_ENV_DAMAGE)
+            engine.message_log.add_message("No ranged weapon with ammo.", WARNING)
             return 0
 
         # Check range
@@ -367,26 +367,19 @@ class RangedAction(Action):
         distance = chebyshev(entity.x, entity.y, self.target.x, self.target.y)
         max_range = weapon.item.get("range", 5)
         if distance > max_range:
-            engine.message_log.add_message("Target out of range.", HAZARD_ENV_DAMAGE)
+            engine.message_log.add_message("Target out of range.", WARNING)
             return 0
 
         # Check FOV
         if not engine.game_map.visible[self.target.x, self.target.y]:
-            engine.message_log.add_message("Target not visible.", HAZARD_ENV_DAMAGE)
+            engine.message_log.add_message("Target not visible.", WARNING)
             return 0
 
         # Consume ammo
         weapon.item["ammo"] -= 1
 
         damage = _calc_damage(engine, entity, self.target, weapon.item["value"])
-
-        if entity is engine.player:
-            msg = f"You shoot the {self.target.name} for {damage} damage."
-            color = PLAYER_RANGED
-        else:
-            msg = f"The {entity.name} shoots you for {damage} damage."
-            color = ENEMY_RANGED
-        engine.message_log.add_message(msg, color)
+        _attack_message(engine, entity, self.target, "shoot", "shoots", damage, PLAYER_RANGED, ENEMY_RANGED)
 
         _apply_damage_and_death(engine, entity, self.target, damage)
         return 1

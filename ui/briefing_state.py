@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from engine.game_state import State
+from ui.colors import DARK_GRAY, GRAY, NEUTRAL
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -110,7 +111,7 @@ class BriefingState(State):
         threat = _threat_level(env, self.depth)
         from ui.colors import THREAT_LOW, THREAT_MODERATE, THREAT_HIGH
         threat_color = {"LOW": THREAT_LOW, "MODERATE": THREAT_MODERATE, "HIGH": THREAT_HIGH}
-        console.print(x=bx + 2, y=y, string=f"Threat Level: {threat}", fg=threat_color.get(threat, (200, 200, 200)))
+        console.print(x=bx + 2, y=y, string=f"Threat Level: {threat}", fg=threat_color.get(threat, NEUTRAL))
 
         y += 2
         console.print(x=bx + 2, y=y, string="Environmental Hazards:", fg=(180, 180, 200))
@@ -130,7 +131,7 @@ class BriefingState(State):
         y += 1
         for i, suit in enumerate(self._suits):
             prefix = ">" if i == self._suit_index else " "
-            color = (255, 255, 255) if i == self._suit_index else (150, 150, 150)
+            color = (255, 255, 255) if i == self._suit_index else GRAY
             res_str = ", ".join(f"{k}:{v}" for k, v in suit.resistances.items())
             label = f"{prefix} {suit.name} (DEF+{suit.defense_bonus}, {res_str})"
             console.print(x=bx + 4, y=y, string=label[:max(1, bw - 6)], fg=color)
@@ -139,5 +140,5 @@ class BriefingState(State):
         console.print(
             x=bx + 2, y=by + bh - 2,
             string="[ENTER] Deploy  [UP/DOWN] Suit  [C] Cargo  [ESC] Back",
-            fg=(100, 100, 100),
+            fg=DARK_GRAY,
         )

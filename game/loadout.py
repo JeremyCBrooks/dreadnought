@@ -21,6 +21,8 @@ def is_equippable(entity: Entity) -> bool:
 
 def recalc_melee_power(player: Entity) -> None:
     """Recalculate player melee power from base + equipped melee weapon bonus."""
+    if not player.fighter:
+        return
     base = player.fighter.base_power
     bonus = 0
     if player.loadout:
@@ -117,6 +119,11 @@ class Loadout:
             if item.item and item.item.get("durability") is not None and item.item.get("durability", 0) > 0:
                 result.append(item)
         return result
+
+
+def combined_items(inventory: list, loadout: Loadout | None) -> list:
+    """Return [(item, is_equipped), ...] in stable insertion order."""
+    return [(item, loadout.has_item(item) if loadout else False) for item in inventory]
 
 
 def toggle_equip(engine: object, player: Entity, item: Entity) -> None:

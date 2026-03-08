@@ -37,8 +37,8 @@ class ColonyPalette:
     ground_light_bg: Color
     wall_colors: list[Color]
     noise_range: int
-    path_materials: list[PathMaterial] = None  # type: ignore[assignment]
-    flora: list[FloraEntry] = None  # type: ignore[assignment]
+    path_materials: list[PathMaterial] | None = None
+    flora: list[FloraEntry] | None = None
     blur_size: int = 5
 
 

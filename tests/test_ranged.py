@@ -1,6 +1,7 @@
 """Tests for ranged combat: RangedAction, AI ranged attacks, and AI wander."""
 from game.entity import Entity, Fighter
-from game.actions import RangedAction, _get_equipped_ranged_weapon
+from game.actions import RangedAction
+from game.helpers import get_equipped_ranged_weapon
 from game.loadout import Loadout
 from game.ai import HostileAI
 from tests.conftest import make_engine, make_arena, MockEngine
@@ -23,29 +24,29 @@ def _melee_weapon():
     )
 
 
-# --- _get_equipped_ranged_weapon ---
+# --- get_equipped_ranged_weapon ---
 
 def test_get_ranged_weapon_found():
     player = Entity(name="Player", fighter=Fighter(10, 10, 0, 1))
     player.loadout = Loadout(slot1=_ranged_weapon())
-    assert _get_equipped_ranged_weapon(player) is not None
+    assert get_equipped_ranged_weapon(player) is not None
 
 
 def test_get_ranged_weapon_no_ammo():
     player = Entity(name="Player", fighter=Fighter(10, 10, 0, 1))
     player.loadout = Loadout(slot1=_ranged_weapon(ammo=0))
-    assert _get_equipped_ranged_weapon(player) is None
+    assert get_equipped_ranged_weapon(player) is None
 
 
 def test_get_ranged_weapon_only_melee():
     player = Entity(name="Player", fighter=Fighter(10, 10, 0, 1))
     player.loadout = Loadout(slot1=_melee_weapon())
-    assert _get_equipped_ranged_weapon(player) is None
+    assert get_equipped_ranged_weapon(player) is None
 
 
 def test_get_ranged_weapon_empty_inventory():
     player = Entity(name="Player", fighter=Fighter(10, 10, 0, 1))
-    assert _get_equipped_ranged_weapon(player) is None
+    assert get_equipped_ranged_weapon(player) is None
 
 
 # --- RangedAction ---

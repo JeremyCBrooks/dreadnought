@@ -203,7 +203,7 @@ class CreatureAI:
             for y in range(y_lo, y_hi):
                 d = dist[x, y]
                 # Skip unreachable tiles (max int = unreachable in tcod)
-                if d >= 0x7FFF_FFFF or d < 0:
+                if d >= 0x7FFF_FFFF:
                     continue
                 if d > best_cost:
                     best_cost = d
@@ -259,8 +259,8 @@ class CreatureAI:
             candidates = np.argwhere(reachable)
         if len(candidates) == 0:
             return None
-        idx = random.randint(0, len(candidates) - 1)
-        return (int(candidates[idx][0]), int(candidates[idx][1]))
+        chosen = candidates[random.randint(0, len(candidates) - 1)]
+        return (int(chosen[0]), int(chosen[1]))
 
     def _wander(self, owner: Entity, engine: Engine) -> None:
         if not self._can_spend_move(owner, engine):
@@ -295,8 +295,8 @@ class CreatureAI:
             owner.ai_energy = 0
             return
 
-        from game.actions import _get_equipped_ranged_weapon
-        weapon = _get_equipped_ranged_weapon(owner)
+        from game.helpers import get_equipped_ranged_weapon
+        weapon = get_equipped_ranged_weapon(owner)
         if weapon:
             max_range = weapon.item.get("range", 5)
             if distance <= max_range:
@@ -395,8 +395,8 @@ class CreatureAI:
 
         # Ranged attack if we can see the player (not gated by energy)
         if can_see:
-            from game.actions import _get_equipped_ranged_weapon
-            weapon = _get_equipped_ranged_weapon(owner)
+            from game.helpers import get_equipped_ranged_weapon
+            weapon = get_equipped_ranged_weapon(owner)
             if weapon:
                 max_range = weapon.item.get("range", 5)
                 if real_dist <= max_range:

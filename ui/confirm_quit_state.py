@@ -42,8 +42,8 @@ class ConfirmQuitState(State):
         bx = (cw - bw) // 2
         by = (ch - bh) // 2
 
-        from ui.colors import DIALOG_BG
+        from ui.colors import DIALOG_BG, GRAY, HEADER_TITLE
         console.draw_rect(bx, by, bw, bh, ch=32, bg=DIALOG_BG)
-        console.print(x=bx + 2, y=by + 1, string="Quit game?", fg=(255, 255, 200))
-        console.print(x=bx + 2, y=by + 3, string="[Y] Yes, exit", fg=(150, 150, 150))
-        console.print(x=bx + 2, y=by + 4, string="[N] No, stay", fg=(150, 150, 150))
+        console.print(x=bx + 2, y=by + 1, string="Quit game?", fg=HEADER_TITLE)
+        console.print(x=bx + 2, y=by + 3, string="[Y] Yes, exit", fg=GRAY)
+        console.print(x=bx + 2, y=by + 4, string="[N] No, stay", fg=GRAY)

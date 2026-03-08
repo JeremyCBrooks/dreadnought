@@ -1,6 +1,6 @@
 """Tests for weapon management via loadout model."""
 from game.entity import Entity, Fighter
-from game.actions import _get_equipped_ranged_weapon
+from game.helpers import get_equipped_ranged_weapon
 from game.loadout import Loadout
 from tests.conftest import make_engine
 
@@ -20,7 +20,7 @@ def test_loadout_ranged_weapon_preferred():
     player = Entity(name="Player", fighter=Fighter(10, 10, 0, 1))
     blaster = _ranged("Blaster")
     player.loadout = Loadout(slot1=blaster)
-    assert _get_equipped_ranged_weapon(player) is blaster
+    assert get_equipped_ranged_weapon(player) is blaster
 
 
 def test_loadout_no_ammo_returns_none():
@@ -28,7 +28,7 @@ def test_loadout_no_ammo_returns_none():
     player = Entity(name="Player", fighter=Fighter(10, 10, 0, 1))
     blaster = _ranged("Blaster", ammo=0)
     player.loadout = Loadout(slot1=blaster)
-    assert _get_equipped_ranged_weapon(player) is None
+    assert get_equipped_ranged_weapon(player) is None
 
 
 def test_fallback_to_inventory():
@@ -37,7 +37,7 @@ def test_fallback_to_inventory():
     blaster = _ranged("Blaster")
     shotgun = _ranged("Shotgun")
     player.inventory.extend([blaster, shotgun])
-    assert _get_equipped_ranged_weapon(player) is blaster
+    assert get_equipped_ranged_weapon(player) is blaster
 
 
 def test_fallback_when_equipped_empty():
@@ -46,7 +46,7 @@ def test_fallback_when_equipped_empty():
     blaster = _ranged("Blaster", ammo=0)
     player.loadout = Loadout(slot1=blaster)
     # No inventory fallback for player with loadout
-    assert _get_equipped_ranged_weapon(player) is None
+    assert get_equipped_ranged_weapon(player) is None
 
 
 def test_melee_weapon_auto_applies_power():

@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
 from engine.game_state import State
+from ui.colors import DARK_GRAY, GRAY, WARNING
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -56,11 +57,8 @@ class CargoState(State):
 
     def _combined_personal(self, engine: Engine) -> List[Tuple[Entity, bool]]:
         """Return [(item, is_equipped), ...] in stable insertion order."""
-        lo = self._get_loadout(engine)
-        return [
-            (item, lo.has_item(item) if lo else False)
-            for item in self._personal_list(engine)
-        ]
+        from game.loadout import combined_items
+        return combined_items(self._personal_list(engine), self._get_loadout(engine))
 
     def _personal_count(self, engine: Engine) -> int:
         """Total personal items (equipped items are kept in inventory)."""
@@ -169,7 +167,7 @@ class CargoState(State):
             if not cargo or self.selected >= len(cargo):
                 return
             if self._personal_count(engine) >= PLAYER_MAX_INVENTORY:
-                engine.message_log.add_message("Personal inventory full.", (255, 200, 100))
+                engine.message_log.add_message("Personal inventory full.", WARNING)
                 return
             item = cargo.pop(self.selected)
             personal.append(item)
@@ -219,11 +217,11 @@ class CargoState(State):
         # Personal column (combined: equipped + inventory)
         combined = self._combined_personal(engine)
         if not combined:
-            console.print(x=bx + 2, y=row, string="(empty)", fg=(100, 100, 100))
+            console.print(x=bx + 2, y=row, string="(empty)", fg=DARK_GRAY)
         else:
             for j, (item, is_equipped) in enumerate(combined[:max_visible]):
                 prefix = ">" if self._section == _PERSONAL and j == self.selected else " "
-                color = (255, 255, 255) if self._section == _PERSONAL and j == self.selected else (150, 150, 150)
+                color = (255, 255, 255) if self._section == _PERSONAL and j == self.selected else GRAY
                 eq_tag = "[E] " if is_equipped else ""
                 line = f"{prefix} {eq_tag}{item.name}"
                 if len(line) > label_width:
@@ -234,11 +232,11 @@ class CargoState(State):
         cargo = engine.ship.cargo
         col_x = bx + bw // 2
         if not cargo:
-            console.print(x=col_x, y=row, string="(empty)", fg=(100, 100, 100))
+            console.print(x=col_x, y=row, string="(empty)", fg=DARK_GRAY)
         else:
             for j, item in enumerate(cargo[:max_visible]):
                 prefix = ">" if self._section == _CARGO and j == self.selected else " "
-                color = (255, 255, 255) if self._section == _CARGO and j == self.selected else (150, 150, 150)
+                color = (255, 255, 255) if self._section == _CARGO and j == self.selected else GRAY
                 line = f"{prefix} {item.name}"
                 if len(line) > label_width:
                     line = line[:label_width - 3] + "..."
@@ -247,7 +245,7 @@ class CargoState(State):
         console.print(
             x=bx + 2, y=by + bh - 2,
             string=self._footer_text(),
-            fg=(100, 100, 100),
+            fg=DARK_GRAY,
         )
 
     def _footer_text(self) -> str:

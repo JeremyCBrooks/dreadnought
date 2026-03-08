@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from engine.game_state import State
+from ui.colors import DARK_GRAY
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -50,7 +51,7 @@ class TitleState(State):
         console.print(
             x=w // 2 - 12, y=cy + 2,
             string="Press any key to begin",
-            fg=(100, 100, 100),
+            fg=DARK_GRAY,
         )
         console.print(
             x=w // 2 - 8, y=cy + 4,

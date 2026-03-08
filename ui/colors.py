@@ -48,6 +48,7 @@ INTERACT_SAFE: Color = (100, 255, 200)
 INTERACT_EMPTY: Color = (150, 150, 150)
 SCAN_MSG: Color = (100, 200, 255)
 EQUIP_MSG: Color = (100, 255, 100)
+PROMPT: Color = (200, 200, 100)
 
 # Message log: hazards
 HAZARD_ELECTRIC: Color = (255, 200, 0)

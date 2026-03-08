@@ -1,7 +1,7 @@
 """Procedural dungeon generation: room-and-corridor algorithm."""
 from __future__ import annotations
 
-import collections
+from collections import deque
 import heapq
 import random
 from typing import List, Optional, Tuple
@@ -2321,7 +2321,7 @@ def _generate_village(
     gap = 1  # minimum tiles between buildings
 
     # Place required rooms first, then fill
-    all_specs: List[RoomSpec] = list(_required_specs(profile))
+    all_specs = deque(_required_specs(profile))
 
     def _try_place_building(
         rx: int, ry: int, spec: RoomSpec,
@@ -2367,7 +2367,7 @@ def _generate_village(
             break
 
         if all_specs:
-            spec = all_specs.pop(0)
+            spec = all_specs.popleft()
         else:
             spec = _pick_room_spec(rng, profile, label_counts)
 
