@@ -645,6 +645,10 @@ def _generate_ship(
         game_map, rng, floor_tile,
     )
     skel = (keel_x1, keel_x2, keel_y, keel_y2, ribs)
+    # Store skeleton info for rib-tip airlock placement
+    game_map.ribs = ribs
+    game_map.keel_y = keel_y
+    game_map.keel_y2 = keel_y2
 
     # Step 3: Place bridge in left zone
     bridge_spec = next((s for s in profile.room_specs if s.label == "bridge"), None)
@@ -2431,6 +2435,135 @@ _GENERATORS = {
 # Space conversion — replace outer hull walls with space tiles
 # -------------------------------------------------------------------
 
+def _find_rib_tip(
+    game_map: GameMap, rib_x: int, start_y: int, dy: int, wall_tid: int,
+) -> int | None:
+    """Walk along a rib column from *start_y* in direction *dy* to find the
+    outermost walkable tile that has a wall tile immediately beyond it.
+
+    Returns the y-coordinate of that walkable tip, or ``None`` if no clear
+    hull-adjacent tip exists on this end of the rib.
+    """
+    y = start_y
+    # Walk outward along the rib looking for the last walkable tile
+    while game_map.in_bounds(rib_x, y) and game_map.tiles["walkable"][rib_x, y]:
+        y += dy
+    # Back up one — that's the last walkable tile
+    tip_y = y - dy
+    # The tile at y must be a wall (the hull boundary)
+    if not game_map.in_bounds(rib_x, y):
+        return None
+    if int(game_map.tiles["tile_id"][rib_x, y]) != wall_tid:
+        return None
+    return tip_y
+
+
+def _place_rib_airlocks(
+    game_map: GameMap,
+    wall_tile: np.ndarray,
+) -> None:
+    """Place an airlock at each rib tip (the end away from the keel).
+
+    Each airlock extends outward from the tip:
+    [interior_door] [airlock_floor] [exterior_door]
+    Must be called before _convert_hull_to_space().
+    """
+    wall_tid = int(wall_tile["tile_id"])
+    ribs = game_map.ribs
+    keel_y = game_map.keel_y
+    keel_y2 = game_map.keel_y2
+    used_positions: set = set()
+
+    # Collect rib tips: (rib_x, start_y, dy) where dy is outward direction
+    tip_searches = []
+    for rib_x, rib_y_start, rib_y_end in ribs:
+        if rib_y_start < keel_y:
+            tip_searches.append((rib_x, rib_y_start, -1))  # north tip
+        if rib_y_end > keel_y2:
+            tip_searches.append((rib_x, rib_y_end, 1))  # south tip
+
+    for rib_x, start_y, dy in tip_searches:
+        tip_y = _find_rib_tip(game_map, rib_x, start_y, dy, wall_tid)
+        if tip_y is None:
+            continue
+
+        dx = 0
+        # Interior door goes 1 tile beyond the tip, then airlock floor, then exterior
+        positions = [(rib_x, tip_y + (i + 1) * dy) for i in range(3)]
+
+        # All 3 positions must be in bounds and currently wall
+        valid = True
+        for px, py in positions:
+            if not game_map.in_bounds(px, py):
+                valid = False
+                break
+            if int(game_map.tiles["tile_id"][px, py]) != wall_tid:
+                valid = False
+                break
+            if (px, py) in used_positions:
+                valid = False
+                break
+        if not valid:
+            continue
+
+        # Beyond tile (past exterior door) must be in bounds and wall
+        bx, by = rib_x, tip_y + 4 * dy
+        if not game_map.in_bounds(bx, by):
+            continue
+        if int(game_map.tiles["tile_id"][bx, by]) != wall_tid:
+            continue
+
+        # Check perpendicular neighbors are wall (chamber walls)
+        perp = [(-1, 0), (1, 0)]  # ribs are vertical, so perp is east/west
+        walls_ok = True
+        for px, py in positions:
+            for pdx, pdy in perp:
+                nx, ny = px + pdx, py + pdy
+                if not game_map.in_bounds(nx, ny):
+                    walls_ok = False
+                    break
+                if int(game_map.tiles["tile_id"][nx, ny]) != wall_tid:
+                    walls_ok = False
+                    break
+            if not walls_ok:
+                break
+        if not walls_ok:
+            continue
+
+        # Carve the airlock
+        game_map.tiles[positions[0][0], positions[0][1]] = tile_types.door_closed
+        game_map.tiles[positions[1][0], positions[1][1]] = tile_types.airlock_floor
+        game_map.tiles[positions[2][0], positions[2][1]] = tile_types.airlock_ext_closed
+
+        for px, py in positions:
+            used_positions.add((px, py))
+
+        # Place switch on a perpendicular wall tile next to the interior door
+        door_x, door_y = positions[0]
+        switch_pos = None
+        for pdx, _ in perp:
+            sx, sy = door_x + pdx, door_y
+            if not game_map.in_bounds(sx, sy):
+                continue
+            if (sx, sy) in used_positions:
+                continue
+            if int(game_map.tiles["tile_id"][sx, sy]) != wall_tid:
+                continue
+            switch_pos = (sx, sy)
+            break
+
+        if switch_pos:
+            game_map.tiles[switch_pos[0], switch_pos[1]] = tile_types.airlock_switch_off
+            used_positions.add(switch_pos)
+
+        game_map.airlocks.append({
+            "interior_door": positions[0],
+            "exterior_door": positions[2],
+            "direction": (dx, dy),
+            "switch": switch_pos,
+        })
+
+
 def _place_airlocks(
     game_map: GameMap,
     rng: random.Random,
@@ -2830,7 +2963,9 @@ def generate_dungeon(
                 )
 
     # Place airlocks before hull conversion (need wall tiles to identify hull)
-    if profile.generator in ("ship", "standard"):
+    if profile.generator == "ship" and hasattr(game_map, "ribs"):
+        _place_rib_airlocks(game_map, wall_tile)
+    elif profile.generator in ("ship", "standard"):
         _place_airlocks(game_map, rng, rooms, wall_tile, floor_tile)
 
     # Convert outer hull walls to space tiles for ship/starbase maps

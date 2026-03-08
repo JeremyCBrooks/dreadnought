@@ -425,6 +425,8 @@ class TacticalState(State):
 
         # Player drift
         if engine.player.drifting:
+            from world import tile_types as _tt
+            _space_tid = int(_tt.space["tile_id"])
             dx, dy = engine.player.drift_direction
             nx, ny = engine.player.x + dx, engine.player.y + dy
             if not engine.game_map.in_bounds(nx, ny):
@@ -434,8 +436,8 @@ class TacticalState(State):
                 engine.player.fighter.hp = 0
                 self._handle_player_death(engine, "Lost to the void.")
                 return
-            # Death on hull collision
-            if not engine.game_map.tiles["walkable"][nx, ny] and not engine.game_map.tiles["transparent"][nx, ny]:
+            # Only space tiles are passable while drifting
+            if engine.game_map.tiles["tile_id"][nx, ny] != _space_tid:
                 engine.message_log.add_message(
                     "You slam into the hull. The impact is fatal.", (255, 0, 0)
                 )
@@ -454,14 +456,16 @@ class TacticalState(State):
                 continue
             if not entity.drifting:
                 continue
+            from world import tile_types as _tt
+            _space_tid = int(_tt.space["tile_id"])
             edx, edy = entity.drift_direction
             enx, eny = entity.x + edx, entity.y + edy
             if not engine.game_map.in_bounds(enx, eny):
                 if entity in engine.game_map.entities:
                     engine.game_map.entities.remove(entity)
                 continue
-            # Hull collision kills drifting enemies too
-            if not engine.game_map.tiles["walkable"][enx, eny] and not engine.game_map.tiles["transparent"][enx, eny]:
+            # Only space tiles are passable while drifting
+            if engine.game_map.tiles["tile_id"][enx, eny] != _space_tid:
                 if entity in engine.game_map.entities:
                     engine.game_map.entities.remove(entity)
                 engine.message_log.add_message(
