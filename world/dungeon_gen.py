@@ -376,24 +376,54 @@ def _place_ship_corridor_lights(
     spine_x1: int, spine_x2: int, spine_y: int, spine_y2: int,
     branches: List[Tuple[int, int, int]],
     rng: random.Random,
+    derelict: bool = False,
+    rooms: Optional[List[RectRoom]] = None,
 ) -> None:
-    """Place warm white lights along spine and branch corridors."""
+    """Place warm white lights along spine and branch corridors.
+
+    If *derelict*, only a random subset (1 to 50% of total) are placed,
+    and 25-75% of those flicker.
+    """
     color = (200, 190, 170)
     radius = 4
     intensity = 0.5
     spacing = rng.randint(6, 8)
 
-    # Along the spine
+    # Collect all candidate positions
+    candidates: List[Tuple[int, int]] = []
     for x in range(spine_x1, spine_x2 + 1, spacing):
-        y = spine_y
-        if game_map.in_bounds(x, y):
-            game_map.add_light_source(x, y, radius=radius, color=color, intensity=intensity)
-
-    # Along each branch
+        if game_map.in_bounds(x, spine_y):
+            candidates.append((x, spine_y))
     for br_x, br_y_start, br_y_end in branches:
         for y in range(br_y_start, br_y_end + 1, spacing):
             if game_map.in_bounds(br_x, y):
-                game_map.add_light_source(br_x, y, radius=radius, color=color, intensity=intensity)
+                candidates.append((br_x, y))
+
+    # Exclude positions inside bridge and engine room
+    if rooms:
+        fixture_rooms = [r for r in rooms if r.label in ("bridge", "engine_room")]
+        def _in_fixture_room(x: int, y: int) -> bool:
+            for r in fixture_rooms:
+                if r.x1 <= x <= r.x2 and r.y1 <= y <= r.y2:
+                    return True
+            return False
+        candidates = [(x, y) for x, y in candidates if not _in_fixture_room(x, y)]
+
+    if derelict and len(candidates) > 1:
+        min_lights = max(1, round(len(candidates) * 0.10))
+        max_lights = max(min_lights, round(len(candidates) * 0.75))
+        count = rng.randint(min_lights, max_lights)
+        chosen = rng.sample(candidates, count)
+        flicker_count = min(2, rng.randint(0, 2))
+        rng.shuffle(chosen)
+        for i, (x, y) in enumerate(chosen):
+            game_map.add_light_source(
+                x, y, radius=radius, color=color,
+                intensity=intensity, flicker=(i < flicker_count),
+            )
+    else:
+        for x, y in candidates:
+            game_map.add_light_source(x, y, radius=radius, color=color, intensity=intensity)
 
 
 def _dress_ship_room(
@@ -417,10 +447,12 @@ def _dress_ship_room(
     fixture_light = None
     if room.label == "engine_room":
         fixture_tile = tile_types.reactor_core
-        fixture_light = {"radius": 7, "color": (120, 60, 220), "intensity": 0.9}
+        fixture_light = {"radius": 7, "color": (120, 60, 220), "intensity": 0.9,
+                         "flicker": rng.random() < 0.05}
     elif room.label == "bridge":
         fixture_tile = tile_types.control_console
-        fixture_light = {"radius": 5, "color": (80, 160, 255), "intensity": 0.7}
+        fixture_light = {"radius": 5, "color": (80, 160, 255), "intensity": 0.7,
+                         "flicker": rng.random() < 0.05}
 
     if fixture_tile is not None:
         # Try center first, then offsets to avoid overwriting exit tile
@@ -846,6 +878,7 @@ def _generate_ship(
     # Step 10: Corridor lights along spine and branches
     _place_ship_corridor_lights(
         game_map, spine_x1, spine_x2, spine_y, spine_y + 2, branches, rng,
+        derelict=True, rooms=rooms,
     )
 
     return rooms

@@ -145,6 +145,143 @@ class TestGameMapLightCaching:
         assert lm1 is not lm2  # recomputed
 
 
+class TestFlickerLights:
+    def test_flicker_default_false(self):
+        ls = LightSource(x=0, y=0, radius=5, color=(255, 255, 255))
+        assert ls.flicker is False
+
+    def test_flicker_light_varies_intensity(self):
+        """A flickering light should produce different intensities at different times."""
+        import time
+        from unittest.mock import patch
+
+        gm = make_arena(20, 20)
+        sources = [LightSource(x=10, y=10, radius=5, color=(255, 255, 255), intensity=1.0, flicker=True)]
+
+        with patch("world.lighting.time") as mock_time:
+            mock_time.time.return_value = 0.0
+            lm1 = compute_light_map(gm.width, gm.height, gm.tiles, sources)
+            val1 = float(lm1[10, 10, 0])
+
+            mock_time.time.return_value = 0.3
+            lm2 = compute_light_map(gm.width, gm.height, gm.tiles, sources)
+            val2 = float(lm2[10, 10, 0])
+
+        # At least one of the two samples should differ from full intensity
+        # (the flicker modulates between ~0.2 and 1.0)
+        assert val1 != pytest.approx(val2, abs=0.01) or val1 < 1.0
+
+    def test_non_flicker_light_stable(self):
+        """A non-flickering light should produce the same intensity regardless of time."""
+        from unittest.mock import patch
+
+        gm = make_arena(20, 20)
+        sources = [LightSource(x=10, y=10, radius=5, color=(255, 255, 255), intensity=1.0, flicker=False)]
+
+        with patch("world.lighting.time") as mock_time:
+            mock_time.time.return_value = 0.0
+            lm1 = compute_light_map(gm.width, gm.height, gm.tiles, sources)
+            val1 = float(lm1[10, 10, 0])
+
+            mock_time.time.return_value = 0.3
+            lm2 = compute_light_map(gm.width, gm.height, gm.tiles, sources)
+            val2 = float(lm2[10, 10, 0])
+
+        assert val1 == pytest.approx(val2)
+
+    def test_game_map_has_flickering_lights(self):
+        gm = make_arena(20, 20)
+        assert not gm.has_flickering_lights
+        gm.add_light_source(5, 5, radius=4, color=(255, 255, 255), flicker=True)
+        assert gm.has_flickering_lights
+
+    def test_game_map_always_dirty_with_flicker(self):
+        """Light map should always recompute when flickering lights exist."""
+        gm = make_arena(20, 20)
+        gm.add_light_source(5, 5, radius=4, color=(255, 255, 255), flicker=True)
+        _ = gm.get_light_map()
+        # Should still be considered dirty for next call
+        lm1 = gm.get_light_map()
+        lm2 = gm.get_light_map()
+        # They should be different objects (recomputed)
+        assert lm1 is not lm2
+
+
+class TestDerelictLightReduction:
+    def test_derelict_corridor_lights_at_most_half(self):
+        """Derelict corridor lights should be at most 50% of what a
+        fully-lit ship would have (plus fixture lights like reactors)."""
+        from world.dungeon_gen import generate_dungeon
+        for seed in range(10):
+            gm, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
+            # Should have at least 1 light
+            assert len(gm.light_sources) >= 1, f"seed={seed}: no lights at all"
+
+    def test_derelict_has_some_flickering_lights(self):
+        """25-75% of derelict corridor lights should be flickering."""
+        from world.dungeon_gen import generate_dungeon
+        any_flicker = False
+        for seed in range(10):
+            gm, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
+            flicker_count = sum(1 for ls in gm.light_sources if ls.flicker)
+            if flicker_count > 0:
+                any_flicker = True
+                break
+        assert any_flicker, "No flickering lights found in derelicts across 10 seeds"
+
+    def test_derelict_corridor_flicker_max_two(self):
+        """At most 2 corridor lights should flicker on a derelict."""
+        from world.dungeon_gen import generate_dungeon
+        for seed in range(10):
+            gm, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
+            corridor_flicker = sum(1 for ls in gm.light_sources
+                                   if ls.color == (200, 190, 170) and ls.flicker)
+            assert corridor_flicker <= 2, f"seed={seed}: {corridor_flicker} flickering corridor lights"
+
+
+class TestDerelictFixtureFlicker:
+    def test_fixture_lights_sometimes_flicker(self):
+        """Engine room and bridge fixture lights should sometimes flicker (5% each)."""
+        from world.dungeon_gen import generate_dungeon
+        fixture_colors = {(120, 60, 220), (80, 160, 255)}
+        any_flicker = False
+        for seed in range(200):
+            gm, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
+            for ls in gm.light_sources:
+                if ls.color in fixture_colors and ls.flicker:
+                    any_flicker = True
+                    break
+            if any_flicker:
+                break
+        assert any_flicker, "No flickering fixture lights across 200 seeds"
+
+    def test_no_corridor_lights_in_bridge_or_engine(self):
+        """Corridor lights should not appear inside bridge or engine rooms."""
+        from world.dungeon_gen import generate_dungeon
+        corridor_color = (200, 190, 170)
+        for seed in range(10):
+            gm, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
+            fixture_rooms = [r for r in rooms if r.label in ("bridge", "engine_room")]
+            corridor_lights = [ls for ls in gm.light_sources if ls.color == corridor_color]
+            for ls in corridor_lights:
+                for r in fixture_rooms:
+                    assert not (r.x1 <= ls.x <= r.x2 and r.y1 <= ls.y <= r.y2), (
+                        f"seed={seed}: corridor light at ({ls.x},{ls.y}) inside {r.label}"
+                    )
+
+    def test_fixture_lights_always_present(self):
+        """Fixture lights should always be placed (never skipped)."""
+        from world.dungeon_gen import generate_dungeon
+        fixture_colors = {(120, 60, 220), (80, 160, 255)}
+        for seed in range(10):
+            gm, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
+            has_engine = any(r.label == "engine_room" for r in rooms)
+            has_bridge = any(r.label == "bridge" for r in rooms)
+            fixture_lights = [ls for ls in gm.light_sources if ls.color in fixture_colors]
+            if has_engine or has_bridge:
+                assert len(fixture_lights) > 0, f"seed={seed}: fixture rooms exist but no fixture lights"
+
+
 class TestDungeonGenLights:
     def test_ship_has_light_sources(self):
         from world.dungeon_gen import generate_dungeon

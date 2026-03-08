@@ -12,6 +12,9 @@ if TYPE_CHECKING:
 class ConfirmQuitState(State):
     """Pushed onto the stack to confirm quit. Y exits, N/ESC returns."""
 
+    def __init__(self, abandon: bool = False) -> None:
+        self.abandon = abandon
+
     def ev_keydown(self, engine: Engine, event: Any) -> bool:
         import tcod.event
 
@@ -19,6 +22,10 @@ class ConfirmQuitState(State):
         K = tcod.event.KeySym
 
         if key == K.y:
+            if self.abandon:
+                from ui.game_over_state import GameOverState
+                engine.switch_state(GameOverState(victory=False, title="MISSION ABANDONED"))
+                return True
             raise SystemExit
         if key == K.n or key == K.ESCAPE:
             engine.pop_state()

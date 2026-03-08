@@ -45,6 +45,37 @@ class TestConfirmQuitState:
         assert isinstance(engine.current_state, ConfirmQuitState)
 
 
+class TestConfirmQuitAbandon:
+    def test_y_with_abandon_switches_to_game_over(self):
+        import tcod.event
+        from ui.game_over_state import GameOverState
+        engine = make_engine()
+        state = ConfirmQuitState(abandon=True)
+        engine.push_state(state)
+        state.ev_keydown(engine, _key_event(tcod.event.KeySym.y))
+        assert isinstance(engine.current_state, GameOverState)
+
+    def test_abandon_game_over_shows_abandoned_message(self):
+        import tcod.event
+        from ui.game_over_state import GameOverState
+        engine = make_engine()
+        state = ConfirmQuitState(abandon=True)
+        engine.push_state(state)
+        state.ev_keydown(engine, _key_event(tcod.event.KeySym.y))
+        go_state = engine.current_state
+        assert isinstance(go_state, GameOverState)
+        assert go_state.title == "MISSION ABANDONED"
+        assert not go_state.victory
+
+    def test_abandon_does_not_raise_system_exit(self):
+        import tcod.event
+        engine = make_engine()
+        state = ConfirmQuitState(abandon=True)
+        engine.push_state(state)
+        # Should NOT raise SystemExit
+        state.ev_keydown(engine, _key_event(tcod.event.KeySym.y))
+
+
 class TestTacticalQuitBinding:
     def test_shift_q_pushes_confirm_quit(self):
         import tcod.event

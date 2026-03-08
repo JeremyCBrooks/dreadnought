@@ -77,3 +77,21 @@ def test_game_over_default_cause_is_empty():
     """GameOverState with no cause should default to empty string."""
     state = GameOverState(victory=False)
     assert state.cause == ""
+
+
+def test_game_over_custom_title():
+    """GameOverState should support a custom title."""
+    state = GameOverState(victory=False, title="MISSION ABANDONED")
+    assert state.title == "MISSION ABANDONED"
+
+
+def test_game_over_default_title_death():
+    """Default title for non-victory should be YOU DIED."""
+    state = GameOverState(victory=False)
+    assert state.title == "YOU DIED"
+
+
+def test_game_over_default_title_victory():
+    """Default title for victory should be YOU ESCAPED!."""
+    state = GameOverState(victory=True)
+    assert state.title == "YOU ESCAPED!"

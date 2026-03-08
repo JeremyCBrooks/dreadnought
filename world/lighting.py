@@ -1,6 +1,8 @@
 """Light source definitions and light map computation."""
 from __future__ import annotations
 
+import math
+import time
 from dataclasses import dataclass, field
 from typing import Tuple, List
 
@@ -17,6 +19,7 @@ class LightSource:
     radius: int
     color: Tuple[int, int, int]
     intensity: float = 1.0
+    flicker: bool = False
 
 
 def compute_light_map(
@@ -37,6 +40,8 @@ def compute_light_map(
         return light_map
 
     transparency = tiles["transparent"]
+
+    now = time.time()
 
     for ls in light_sources:
         if not (0 <= ls.x < width and 0 <= ls.y < height):
@@ -59,9 +64,31 @@ def compute_light_map(
         # Linear falloff over the extended radius for smooth spill
         falloff = np.maximum(0.0, 1.0 - dist / fov_radius)
 
+        # Apply flicker: time-based intensity modulation using overlapping sine waves
+        effective_intensity = ls.intensity
+        if ls.flicker:
+            # Use position as a unique phase offset so lights flicker independently
+            phase = ls.x * 7.3 + ls.y * 13.1
+            # Pseudo-random hash component: quantize time to create
+            # abrupt jumps between intensity levels
+            t_slot = int(now * 6 + phase)
+            hash_val = ((t_slot * 2654435761) & 0xFFFFFFFF) / 0xFFFFFFFF  # 0-1
+            # Sine waves for smooth oscillation between the jumps
+            wave = (
+                math.sin(now * 7.1 + phase) * 0.4
+                + math.sin(now * 17.3 + phase * 1.3) * 0.3
+            )
+            # Blend hash noise and wave; bias toward off
+            combined = hash_val * 0.6 + (0.5 + wave) * 0.4  # 0-1 range
+            # Sharp threshold: light is mostly off or mostly on
+            if combined < 0.45:
+                effective_intensity = ls.intensity * combined * 0.3
+            else:
+                effective_intensity = ls.intensity * min(1.0, combined * 1.2)
+
         # Mask to FOV-reachable tiles only
         fov_slice = fov[x0:x1, y0:y1]
-        contribution = falloff * fov_slice * ls.intensity
+        contribution = falloff * fov_slice * effective_intensity
 
         # Apply normalized color (only to the subregion)
         light_map[x0:x1, y0:y1, 0] += contribution * (ls.color[0] / 255.0)

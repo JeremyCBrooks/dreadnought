@@ -282,7 +282,7 @@ class TacticalState(State):
 
         if is_action("quit", key) and event.mod & (tcod.event.Modifier.LSHIFT | tcod.event.Modifier.RSHIFT):
             from ui.confirm_quit_state import ConfirmQuitState
-            engine.push_state(ConfirmQuitState())
+            engine.push_state(ConfirmQuitState(abandon=True))
             return True
 
         if self._handle_log_scroll(engine, key):

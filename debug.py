@@ -5,7 +5,7 @@ DISABLE_OXYGEN = False    # Suit O2 pools never deplete
 DISABLE_HAZARDS = False   # Interactable hazards don't trigger
 DISABLE_ENEMY_AI = False  # Enemies skip their turns
 ONE_HIT_KILL = False      # Player attacks always kill
-VISIBLE_ALL = True        # All tiles visible, lit, and explored
+VISIBLE_ALL = False        # All tiles visible, lit, and explored
 
 # Debug starting inventory — list of (category, name) tuples.
 # category is "scanner", "item", etc. matching data/entities.json sections.

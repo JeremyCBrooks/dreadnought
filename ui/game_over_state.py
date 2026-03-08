@@ -13,9 +13,10 @@ FADE_IN_DURATION = 1.0
 
 
 class GameOverState(State):
-    def __init__(self, victory: bool = False, cause: str = "") -> None:
+    def __init__(self, victory: bool = False, cause: str = "", title: str = "") -> None:
         self.victory = victory
         self.cause = cause
+        self.title = title or ("YOU ESCAPED!" if victory else "YOU DIED")
         self._fade_start: float = 0.0
 
     def on_enter(self, engine: Engine) -> None:
@@ -56,27 +57,24 @@ class GameOverState(State):
         cy = engine.CONSOLE_HEIGHT // 2
         alpha = self._alpha()
 
+        title_color = (0, 255, 0) if self.victory else (255, 0, 0)
+        title_x = cx - len(self.title) // 2
+        console.print(
+            x=title_x, y=cy - 2, string=self.title,
+            fg=self._fade_color(title_color, alpha),
+        )
+
+        subtitle = ""
         if self.victory:
+            subtitle = "You made it back to your ship alive."
+        elif self.cause:
+            subtitle = self.cause
+
+        if subtitle:
             console.print(
-                x=cx - 7, y=cy - 2, string="YOU ESCAPED!",
-                fg=self._fade_color((0, 255, 0), alpha),
-            )
-            console.print(
-                x=cx - 17, y=cy,
-                string="You made it back to your ship alive.",
+                x=cx - len(subtitle) // 2, y=cy, string=subtitle,
                 fg=self._fade_color((200, 200, 200), alpha),
             )
-        else:
-            console.print(
-                x=cx - 4, y=cy - 2, string="YOU DIED",
-                fg=self._fade_color((255, 0, 0), alpha),
-            )
-            if self.cause:
-                cause_x = cx - len(self.cause) // 2
-                console.print(
-                    x=cause_x, y=cy, string=self.cause,
-                    fg=self._fade_color((200, 200, 200), alpha),
-                )
 
         if alpha >= 1.0:
             console.print(

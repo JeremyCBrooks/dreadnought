@@ -131,6 +131,7 @@ class Engine:
                 _ANIM_TIMEOUT = 0.1
                 needs_anim = (
                     (self.game_map and getattr(self.game_map, 'has_space', False))
+                    or (self.game_map and getattr(self.game_map, 'has_flickering_lights', False))
                     or self.scan_glow
                     or getattr(self.current_state, 'needs_animation', False)
                 )

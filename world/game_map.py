@@ -159,18 +159,23 @@ class GameMap:
         return result
 
     def add_light_source(
-        self, x: int, y: int, radius: int, color: Tuple[int, int, int], intensity: float = 1.0,
+        self, x: int, y: int, radius: int, color: Tuple[int, int, int],
+        intensity: float = 1.0, flicker: bool = False,
     ) -> None:
         from world.lighting import LightSource
-        self.light_sources.append(LightSource(x=x, y=y, radius=radius, color=color, intensity=intensity))
+        self.light_sources.append(LightSource(x=x, y=y, radius=radius, color=color, intensity=intensity, flicker=flicker))
         self._light_dirty = True
+
+    @property
+    def has_flickering_lights(self) -> bool:
+        return any(ls.flicker for ls in self.light_sources)
 
     def invalidate_lights(self) -> None:
         self._light_dirty = True
         self._light_map = None
 
     def get_light_map(self) -> np.ndarray:
-        if self._light_map is None or self._light_dirty:
+        if self._light_map is None or self._light_dirty or self.has_flickering_lights:
             from world.lighting import compute_light_map
             self._light_map = compute_light_map(self.width, self.height, self.tiles, self.light_sources)
             self._light_dirty = False
