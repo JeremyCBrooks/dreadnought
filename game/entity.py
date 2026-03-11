@@ -38,6 +38,7 @@ class Entity:
         item: Optional[dict] = None,
         interactable: Optional[dict] = None,
         organic: bool = True,
+        gore_color: Optional[Tuple[int, int, int]] = None,
         max_inventory: Optional[int] = None,
     ) -> None:
         self.x = x
@@ -51,6 +52,7 @@ class Entity:
         self.item = item
         self.interactable = interactable  # {kind, hazard?: {type, severity, damage, equipment_damage}, loot?, scanned?}
         self.organic = organic
+        self.gore_color = gore_color
         self.max_inventory = max_inventory
         self.inventory: List[Entity] = []
         self.loadout: Optional[Loadout] = None

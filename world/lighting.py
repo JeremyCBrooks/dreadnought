@@ -12,6 +12,9 @@ import numpy as np
 LIGHT_SPILL_RADIUS = 3
 
 
+HAZARD_LIGHT_COLOR: Tuple[int, int, int] = (200, 40, 20)
+
+
 @dataclass
 class LightSource:
     x: int
@@ -20,6 +23,11 @@ class LightSource:
     color: Tuple[int, int, int]
     intensity: float = 1.0
     flicker: bool = False
+    base_color: Tuple[int, int, int] | None = field(default=None, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.base_color is None:
+            self.base_color = self.color
 
 
 def compute_light_map(

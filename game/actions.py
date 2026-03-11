@@ -40,6 +40,8 @@ def _apply_damage_and_death(engine: Engine, attacker: Entity, target: Entity, da
             engine.message_log.add_message(
                 f"The {target.name} is destroyed!", ENEMY_DEATH
             )
+            from game.gore import place_death_gore
+            place_death_gore(engine.game_map, target)
             if target in engine.game_map.entities:
                 engine.game_map.entities.remove(target)
 
@@ -377,6 +379,13 @@ class RangedAction(Action):
         # Check FOV
         if not engine.game_map.visible[self.target.x, self.target.y]:
             engine.message_log.add_message("Target not visible.", WARNING)
+            return 0
+
+        # Check line-of-sight (no non-walkable tiles in the way)
+        from game.helpers import has_clear_shot
+        if not has_clear_shot(engine.game_map, entity.x, entity.y,
+                              self.target.x, self.target.y):
+            engine.message_log.add_message("No clear shot — path blocked.", WARNING)
             return 0
 
         # Consume ammo

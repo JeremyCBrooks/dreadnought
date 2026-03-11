@@ -56,6 +56,38 @@ def get_door_tile_ids() -> Tuple[int, int]:
     )
 
 
+def has_clear_shot(game_map: GameMap, x1: int, y1: int, x2: int, y2: int) -> bool:
+    """Return True if no non-walkable tile lies between (x1,y1) and (x2,y2).
+
+    Uses Bresenham's line algorithm.  Only *intermediate* tiles are checked —
+    the start and end positions are excluded so that the shooter's and
+    target's own tiles don't block the shot.
+    """
+    dx = abs(x2 - x1)
+    dy = abs(y2 - y1)
+    sx = 1 if x1 < x2 else -1
+    sy = 1 if y1 < y2 else -1
+    err = dx - dy
+    cx, cy = x1, y1
+    while True:
+        e2 = 2 * err
+        if e2 > -dy:
+            err -= dy
+            cx += sx
+        if e2 < dx:
+            err += dx
+            cy += sy
+        # Stop before we reach the target tile
+        if cx == x2 and cy == y2:
+            break
+        # Also stop if we already passed origin on first iteration
+        if cx == x1 and cy == y1:
+            continue
+        if not game_map.tiles["walkable"][cx, cy]:
+            return False
+    return True
+
+
 def is_diagonal_blocked(game_map: GameMap, x: int, y: int, dx: int, dy: int) -> bool:
     """Return True if diagonal movement from (x,y) by (dx,dy) is blocked by a closed door.
 

@@ -8,7 +8,7 @@ from world import tile_types
 from game.entity import Entity, Fighter
 
 
-def _make_ship_map(w=30, h=20):
+def _make_ship_map(w=30, h=20, breach_count=1):
     """Create a simple ship-like map with walls, floors, and some breaches."""
     gm = GameMap(w, h)
     # Fill with walls, carve a floor interior
@@ -16,8 +16,11 @@ def _make_ship_map(w=30, h=20):
         for y in range(3, h - 3):
             gm.tiles[x, y] = tile_types.floor
     # Hull breaches at known positions
-    gm.tiles[3, 5] = tile_types.hull_breach
-    gm.hull_breaches.append((3, 5))
+    for i in range(breach_count):
+        bx, by = 3, 5 + i * 3
+        if gm.in_bounds(bx, by):
+            gm.tiles[bx, by] = tile_types.hull_breach
+            gm.hull_breaches.append((bx, by))
     return gm
 
 
@@ -30,14 +33,12 @@ class TestHullPatina:
         wall_tid = int(tile_types.wall["tile_id"])
         rng = random.Random(42)
 
-        # Record original wall fg colors
         is_wall = gm.tiles["tile_id"] == wall_tid
         orig_fg_light = gm.tiles["light"]["fg"][is_wall].copy()
 
         _apply_hull_patina(gm, rng, tile_types.wall)
 
         new_fg_light = gm.tiles["light"]["fg"][is_wall]
-        # Not all wall tiles should have the same color anymore
         assert not np.all(new_fg_light == orig_fg_light), \
             "Patina should modify at least some wall tile colors"
 
@@ -53,7 +54,6 @@ class TestHullPatina:
         is_wall = gm.tiles["tile_id"] == wall_tid
         fg = gm.tiles["light"]["fg"]
 
-        # Check that adjacent wall tiles don't differ by more than ~40 per channel
         max_diff = 0
         for x in range(1, gm.width - 1):
             for y in range(1, gm.height - 1):
@@ -82,6 +82,21 @@ class TestHullPatina:
         new_floor_fg = gm.tiles["light"]["fg"][is_floor]
         assert np.array_equal(orig_floor_fg, new_floor_fg)
 
+    def test_damage_level_scales_intensity(self):
+        """Higher damage_level should produce greater color spread."""
+        from world.dungeon_gen import _apply_hull_patina
+
+        spreads = {}
+        for level in (0.0, 0.5, 1.0):
+            gm = GameMap(40, 30)
+            rng = random.Random(42)
+            _apply_hull_patina(gm, rng, tile_types.wall, damage_level=level)
+            fg = gm.tiles["light"]["fg"]
+            spreads[level] = int(fg[..., 0].max()) - int(fg[..., 0].min())
+
+        assert spreads[0.0] < spreads[1.0], \
+            f"Pristine spread {spreads[0.0]} should be less than wrecked {spreads[1.0]}"
+
 
 class TestDebrisScatter:
     def test_places_debris_on_floors(self):
@@ -94,12 +109,25 @@ class TestDebrisScatter:
 
         _scatter_floor_debris(gm, rng, tile_types.floor)
 
-        # Some floor tiles should now have different chars
         is_floor = gm.tiles["tile_id"] == floor_tid
         chars = gm.tiles["light"]["ch"][is_floor]
         dot_char = ord(".")
         non_dot = chars[chars != dot_char]
         assert len(non_dot) > 0, "Should place at least some debris chars"
+
+    def test_no_debris_at_zero_damage(self):
+        """damage_level=0 should place no debris."""
+        from world.dungeon_gen import _scatter_floor_debris
+
+        gm = _make_ship_map()
+        rng = random.Random(42)
+        floor_tid = int(tile_types.floor["tile_id"])
+        is_floor = gm.tiles["tile_id"] == floor_tid
+        orig_chars = gm.tiles["light"]["ch"][is_floor].copy()
+
+        _scatter_floor_debris(gm, rng, tile_types.floor, damage_level=0.0)
+
+        assert np.array_equal(gm.tiles["light"]["ch"][is_floor], orig_chars)
 
     def test_does_not_change_walkability(self):
         """Debris tiles must remain walkable and transparent."""
@@ -112,7 +140,6 @@ class TestDebrisScatter:
 
         _scatter_floor_debris(gm, rng, tile_types.floor)
 
-        # All original floor tiles should still be walkable
         assert np.all(gm.tiles["walkable"][is_floor])
         assert np.all(gm.tiles["transparent"][is_floor])
 
@@ -138,15 +165,12 @@ class TestScorchMarks:
 
         gm = _make_ship_map()
         rng = random.Random(42)
-        floor_tid = int(tile_types.floor["tile_id"])
 
-        # Record original brightness of tiles near the breach at (3, 5)
         orig_bg = gm.tiles["light"]["bg"][4, 5].copy()
 
         _place_scorch_marks(gm, rng, tile_types.floor)
 
         new_bg = gm.tiles["light"]["bg"][4, 5]
-        # At least one channel should be darker or equal (not brighter)
         assert any(int(new_bg[c]) <= int(orig_bg[c]) for c in range(3)), \
             "Tiles near breach should not get brighter"
 
@@ -157,14 +181,12 @@ class TestScorchMarks:
         gm = _make_ship_map()
         rng = random.Random(42)
         wall_tid = int(tile_types.wall["tile_id"])
-        # Wall at (2,5) is adjacent to breach at (3,5)
         assert int(gm.tiles["tile_id"][2, 5]) == wall_tid
         orig_fg = gm.tiles["light"]["fg"][2, 5].copy()
 
         _place_scorch_marks(gm, rng, tile_types.floor, tile_types.wall)
 
         new_fg = gm.tiles["light"]["fg"][2, 5]
-        # Should be darker (at least one channel reduced)
         assert any(int(new_fg[c]) < int(orig_fg[c]) for c in range(3)), \
             "Wall tiles near breach should be scorched"
 
@@ -176,7 +198,6 @@ class TestBloodstains:
 
         gm = _make_ship_map()
         rng = random.Random(42)
-        # Place several enemies to ensure at least one gets stains
         for i in range(5):
             enemy = Entity(
                 x=10 + i * 3, y=10, name="Alien", char="A",
@@ -187,7 +208,6 @@ class TestBloodstains:
 
         _place_bloodstains(gm, rng, tile_types.floor)
 
-        # Check tiles near enemy for red tint
         floor_tid = int(tile_types.floor["tile_id"])
         found_red = False
         for dx in range(-3, 4):
@@ -198,13 +218,69 @@ class TestBloodstains:
                 if int(gm.tiles["tile_id"][nx, ny]) != floor_tid:
                     continue
                 fg = gm.tiles["light"]["fg"][nx, ny]
-                # Red channel boosted, green/blue suppressed
                 if int(fg[0]) > 100 and int(fg[1]) < 100:
                     found_red = True
                     break
             if found_red:
                 break
         assert found_red, "Should place at least one red-tinted tile near enemy"
+
+    def test_no_stains_at_zero_damage(self):
+        """damage_level=0 should place no bloodstains."""
+        from world.dungeon_gen import _place_bloodstains
+
+        gm = _make_ship_map()
+        rng = random.Random(42)
+        for i in range(5):
+            gm.entities.append(Entity(
+                x=10 + i * 3, y=10, name="Alien", char="A",
+                color=(255, 0, 0), blocks_movement=True,
+                fighter=Fighter(hp=5, max_hp=5, defense=0, power=1),
+            ))
+
+        floor_tid = int(tile_types.floor["tile_id"])
+        is_floor = gm.tiles["tile_id"] == floor_tid
+        orig_fg = gm.tiles["light"]["fg"][is_floor].copy()
+
+        _place_bloodstains(gm, rng, tile_types.floor, damage_level=0.0)
+
+        assert np.array_equal(gm.tiles["light"]["fg"][is_floor], orig_fg)
+
+
+class TestDamageLevelScaling:
+    def test_no_breaches_means_clean(self):
+        """A map with no breaches should have damage_level=0 (no debris)."""
+        from world.dungeon_gen import _apply_ship_cosmetics
+
+        gm = _make_ship_map(breach_count=0)
+        rng = random.Random(42)
+        floor_tid = int(tile_types.floor["tile_id"])
+        is_floor = gm.tiles["tile_id"] == floor_tid
+        orig_chars = gm.tiles["light"]["ch"][is_floor].copy()
+
+        _apply_ship_cosmetics(gm, rng, tile_types.wall, tile_types.floor)
+
+        # No breaches → no debris
+        assert np.array_equal(gm.tiles["light"]["ch"][is_floor], orig_chars), \
+            "Zero breaches should produce no floor debris"
+
+    def test_more_breaches_means_more_debris(self):
+        """More hull breaches should produce more debris tiles."""
+        from world.dungeon_gen import _scatter_floor_debris
+
+        floor_tid = int(tile_types.floor["tile_id"])
+        counts = {}
+        for n_breaches in (1, 3):
+            gm = _make_ship_map(breach_count=n_breaches)
+            rng = random.Random(42)
+            damage = min(1.0, n_breaches / 3.0)
+            _scatter_floor_debris(gm, rng, tile_types.floor, damage_level=damage)
+            is_floor = gm.tiles["tile_id"] == floor_tid
+            chars = gm.tiles["light"]["ch"][is_floor]
+            counts[n_breaches] = int(np.sum(chars != ord(".")))
+
+        assert counts[3] > counts[1], \
+            f"3 breaches ({counts[3]} debris) should produce more than 1 ({counts[1]})"
 
 
 class TestFullIntegration:
@@ -217,9 +293,41 @@ class TestFullIntegration:
         is_wall = gm.tiles["tile_id"] == wall_tid
 
         if not np.any(is_wall):
-            return  # skip if no walls (shouldn't happen)
+            return
 
         fg = gm.tiles["light"]["fg"][is_wall]
-        # Check for color variation among walls
         unique_r = len(np.unique(fg[:, 0]))
         assert unique_r > 1, "Wall tiles should have color variation"
+
+    def test_starbase_gets_cosmetics(self):
+        """A starbase should also receive cosmetic treatment."""
+        from world.dungeon_gen import generate_dungeon
+
+        gm, rooms, _ = generate_dungeon(seed=42, loc_type="starbase")
+        wall_tid = int(tile_types.wall["tile_id"])
+        is_wall = gm.tiles["tile_id"] == wall_tid
+
+        if not np.any(is_wall):
+            return
+
+        fg = gm.tiles["light"]["fg"][is_wall]
+        unique_r = len(np.unique(fg[:, 0]))
+        assert unique_r > 1, "Starbase wall tiles should have color variation"
+
+    def test_starbase_no_breaches_is_clean(self):
+        """A starbase without breaches should have no floor debris."""
+        from world.dungeon_gen import generate_dungeon
+
+        # Try multiple seeds to find one with no breaches (80% chance each)
+        for seed in range(20):
+            gm, rooms, _ = generate_dungeon(seed=seed, loc_type="starbase")
+            if not gm.hull_breaches:
+                floor_tid = int(tile_types.floor["tile_id"])
+                is_floor = gm.tiles["tile_id"] == floor_tid
+                chars = gm.tiles["light"]["ch"][is_floor]
+                debris_chars = {ord(","), ord("'"), ord("`"), ord(";")}
+                has_debris = any(int(c) in debris_chars for c in chars)
+                assert not has_debris, \
+                    f"Starbase with 0 breaches (seed={seed}) should have no debris"
+                return
+        # If all seeds had breaches, that's fine — skip

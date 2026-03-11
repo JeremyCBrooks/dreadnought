@@ -29,6 +29,8 @@ def _load() -> Dict[str, List[Dict[str, Any]]]:
         for entry in raw[category]:
             if "color" in entry:
                 entry["color"] = tuple(entry["color"])
+            if "gore_color" in entry:
+                entry["gore_color"] = tuple(entry["gore_color"])
     _cache = raw
     return _cache
 

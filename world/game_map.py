@@ -150,6 +150,9 @@ class GameMap:
                     self.hazard_overlays["vacuum"] = self._empty_bool_grid()
                 self.hazard_overlays["vacuum"] |= space_mask
 
+        # Update light colors based on new hazard state
+        self.update_hazard_lights()
+
     def get_hazards_at(self, x: int, y: int) -> set[str]:
         """Return set of active hazard names at (x, y)."""
         result: set[str] = set()
@@ -173,6 +176,47 @@ class GameMap:
     def invalidate_lights(self) -> None:
         self._light_dirty = True
         self._light_map = None
+
+    def update_hazard_lights(self) -> None:
+        """Set light colors to red if adjacent interior floors are under hazard.
+
+        Only walkable (floor) tiles are checked — space and wall tiles are
+        ignored so that hull-boundary lights don't false-positive from
+        adjacent space vacuum.  Restores base_color when hazard clears.
+        """
+        from world.lighting import HAZARD_LIGHT_COLOR
+
+        if not self.light_sources:
+            return
+        if not self.hazard_overlays:
+            # No hazards at all — restore everything
+            for ls in self.light_sources:
+                if ls.color != ls.base_color:
+                    ls.color = ls.base_color
+                    self._light_dirty = True
+            return
+
+        for ls in self.light_sources:
+            in_hazard = False
+            # Check the light's own tile + cardinal neighbors
+            for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = ls.x + dx, ls.y + dy
+                if not self.in_bounds(nx, ny):
+                    continue
+                # Only consider walkable interior tiles (floors, not space/walls)
+                if not self.tiles["walkable"][nx, ny]:
+                    continue
+                for overlay in self.hazard_overlays.values():
+                    if overlay[nx, ny]:
+                        in_hazard = True
+                        break
+                if in_hazard:
+                    break
+
+            new_color = HAZARD_LIGHT_COLOR if in_hazard else ls.base_color
+            if ls.color != new_color:
+                ls.color = new_color
+                self._light_dirty = True
 
     def get_light_map(self) -> np.ndarray:
         if self._light_map is None or self._light_dirty or self.has_flickering_lights:
