@@ -1,11 +1,11 @@
 """Debug configuration flags for development. Toggle these to alter game behavior."""
 
-GOD_MODE = False          # Player takes no damage from any source
+GOD_MODE = True          # Player takes no damage from any source
 DISABLE_OXYGEN = False    # Suit O2 pools never deplete
 DISABLE_HAZARDS = False   # Interactable hazards don't trigger
 DISABLE_ENEMY_AI = False  # Enemies skip their turns
 ONE_HIT_KILL = False      # Player attacks always kill
-VISIBLE_ALL = False        # All tiles visible, lit, and explored
+VISIBLE_ALL = True        # All tiles visible, lit, and explored
 
 # Debug starting inventory — list of (category, name) tuples.
 # category is "scanner", "item", etc. matching data/entities.json sections.

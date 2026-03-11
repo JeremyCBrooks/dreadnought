@@ -13,7 +13,8 @@
       "Bash(python3:*)",
       "Bash(done)",
       "Bash(test:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(find /f/dev/gamedev/dreadnought -type f -name \"*.py\" -exec grep -l \"console.rgb\\\\|console.print\" {} \\\\; | grep -v \".venv\" | head -20)"
     ]
   }
 }
