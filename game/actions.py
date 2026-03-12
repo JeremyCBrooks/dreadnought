@@ -182,13 +182,39 @@ class DropAction(Action):
     def __init__(self, item_index: int) -> None:
         self.item_index = item_index
 
+    def _find_drop_tile(self, engine: Engine, entity: Entity) -> Optional[tuple]:
+        """Find a valid tile to drop an item: player tile first, then adjacent."""
+        gm = engine.game_map
+        # Try player's tile first
+        if not gm.get_items_at(entity.x, entity.y):
+            return (entity.x, entity.y)
+        # Try adjacent walkable tiles without items
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                nx, ny = entity.x + dx, entity.y + dy
+                if gm.is_walkable(nx, ny) and not gm.get_items_at(nx, ny):
+                    return (nx, ny)
+        return None
+
     def perform(self, engine: Engine, entity: Entity) -> int:
         if self.item_index < 0 or self.item_index >= len(entity.inventory):
             return 0
+        tile = self._find_drop_tile(engine, entity)
+        if tile is None:
+            engine.message_log.add_message("No space to drop that.", WARNING)
+            return 0
         item = entity.inventory.pop(self.item_index)
-        item.x = entity.x
-        item.y = entity.y
+        # Unequip if equipped
+        if entity.loadout and entity.loadout.has_item(item):
+            entity.loadout.unequip(item)
+            from game.loadout import recalc_melee_power
+            if entity.fighter:
+                recalc_melee_power(entity)
+        item.x, item.y = tile
         engine.game_map.entities.append(item)
+        engine.game_map.invalidate_entity_index()
         engine.message_log.add_message(f"You drop the {item.name}.", NEUTRAL)
         return 1
 

@@ -45,6 +45,11 @@ class InventoryState(State):
             self._activate(engine)
             return True
 
+        import tcod.event
+        if key == tcod.event.KeySym.d:
+            self._drop(engine)
+            return True
+
         return True
 
     def _activate(self, engine: Engine) -> None:
@@ -63,6 +68,24 @@ class InventoryState(State):
             from game.consumables import use_consumable
             use_consumable(engine, engine.player, item)
 
+        self._clamp_selected(engine)
+
+    def _in_tactical(self, engine: Engine) -> bool:
+        """Return True if the inventory is overlaid on a TacticalState."""
+        from ui.tactical_state import TacticalState
+        return any(isinstance(s, TacticalState) for s in engine._state_stack)
+
+    def _drop(self, engine: Engine) -> None:
+        """Drop the selected item onto the map (tactical state only)."""
+        if not self._in_tactical(engine):
+            return
+        combined = self._combined_items(engine)
+        if not combined or self.selected >= len(combined):
+            return
+        item, _is_equipped = combined[self.selected]
+        idx = engine.player.inventory.index(item)
+        from game.actions import DropAction
+        DropAction(idx).perform(engine, engine.player)
         self._clamp_selected(engine)
 
     def _clamp_selected(self, engine: Engine) -> None:
@@ -107,6 +130,6 @@ class InventoryState(State):
 
         console.print(
             x=bx + 2, y=by + bh - 2,
-            string="[UP/DOWN] Select [E] Use/Equip [ESC] Close",
+            string="[UP/DOWN] Select [E] Use/Equip [D] Drop [ESC] Close",
             fg=DARK_GRAY,
         )
