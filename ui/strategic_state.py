@@ -166,6 +166,21 @@ class StrategicState(State):
             engine.message_log.add_message(
                 f"A crate tumbles into the void — {item.name} lost.", (255, 80, 80)
             )
+        else:
+            engine.ship.hull = max(0, engine.ship.hull - 1)
+            engine.message_log.add_message(
+                "Hull groans under the stress of unshielded drift!", (255, 120, 50)
+            )
+            if engine.ship.hull <= 0:
+                from ui.game_over_state import GameOverState
+                engine.message_log.add_message(
+                    "The hull buckles and breaks apart...", (255, 0, 0)
+                )
+                engine.switch_state(GameOverState(
+                    title="SHIP DESTROYED",
+                    cause="Your ship broke apart drifting through the void.",
+                ))
+                return
         engine.message_log.add_message(
             f"Drifting into {dest_name}...", (200, 100, 100)
         )
@@ -213,6 +228,19 @@ class StrategicState(State):
         nav_str = f"NAV: {nav_count}/6"
         nav_color = (0, 255, 200) if nav_count >= 6 else (140, 160, 180)
         console.print(x=left_w - len(nav_str) - 2, y=2, string=nav_str, fg=nav_color)
+
+        # Hull gauge
+        hull = engine.ship.hull
+        max_hull = engine.ship.max_hull
+        hull_ratio = hull / max_hull if max_hull > 0 else 0
+        if hull_ratio > 0.5:
+            hull_color = (0, 255, 0)
+        elif hull_ratio >= 0.3:
+            hull_color = (255, 255, 0)
+        else:
+            hull_color = (255, 0, 0)
+        hull_str = f"HULL: {hull}/{max_hull}"
+        console.print(x=left_w - len(hull_str) - 2, y=3, string=hull_str, fg=hull_color)
 
         # Star map section (fixed position at top)
         nav_active = self.focus == "navigation"

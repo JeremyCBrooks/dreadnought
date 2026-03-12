@@ -34,6 +34,7 @@ def use_consumable(engine: Engine, player: Entity, item: Entity) -> bool:
                     max_d = other.item.get("max_durability", 5)
                     if d < max_d:
                         other.item["durability"] = min(max_d, d + item.item.get("value", 1))
+                        other.item.pop("damaged", None)
                         repaired = other.name
                         break
         if repaired:

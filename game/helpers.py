@@ -14,11 +14,13 @@ def chebyshev(x1: int, y1: int, x2: int, y2: int) -> int:
 
 
 def get_equipped_ranged_weapon(entity: Entity) -> Entity | None:
-    """Return equipped ranged weapon with ammo, checking loadout then inventory."""
+    """Return a usable ranged weapon with ammo.
+
+    For entities with a loadout (player): only checks equipped loadout slots.
+    For entities without a loadout (AI): falls back to inventory search.
+    """
     if getattr(entity, "loadout", None):
-        wpn = entity.loadout.get_ranged_weapon()
-        if wpn:
-            return wpn
+        return entity.loadout.get_ranged_weapon()
     for e in entity.inventory:
         if (
             e.item
@@ -28,6 +30,31 @@ def get_equipped_ranged_weapon(entity: Entity) -> Entity | None:
         ):
             return e
     return None
+
+
+def has_ranged_weapon(entity: Entity) -> bool:
+    """Return True if entity has any ranged weapon (regardless of ammo).
+
+    For entities with a loadout (player): only checks equipped loadout slots.
+    For entities without a loadout (AI): falls back to inventory search.
+    """
+    if getattr(entity, "loadout", None):
+        for s in (entity.loadout.slot1, entity.loadout.slot2):
+            if (
+                s is not None
+                and s.item
+                and s.item.get("weapon_class") == "ranged"
+            ):
+                return True
+        return False
+    for e in entity.inventory:
+        if (
+            e.item
+            and e.item.get("type") == "weapon"
+            and e.item.get("weapon_class") == "ranged"
+        ):
+            return True
+    return False
 
 
 def has_usable_ranged(entity: Entity) -> bool:

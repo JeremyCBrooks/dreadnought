@@ -81,6 +81,21 @@ def test_o2_not_consumed_when_no_suit():
     assert o2 in engine.player.inventory
 
 
+def test_repair_fixes_damaged_item():
+    """Repair kit restores durability and clears 'damaged' flag on a broken item."""
+    engine = make_engine()
+    weapon = Entity(name="Baton", item={
+        "type": "weapon", "value": 2, "durability": 0, "max_durability": 5, "damaged": True,
+    })
+    engine.player.loadout = Loadout(slot1=weapon)
+    repair = Entity(name="Repair Kit", item={"type": "repair", "value": 3})
+    engine.player.inventory.append(repair)
+    result = use_consumable(engine, engine.player, repair)
+    assert result is True
+    assert weapon.item["durability"] == 3
+    assert weapon.item.get("damaged") is not True
+
+
 def test_unknown_consumable_returns_false():
     engine = make_engine()
     thing = Entity(name="Thing", item={"type": "unknown", "value": 1})

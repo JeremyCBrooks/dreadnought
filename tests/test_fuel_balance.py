@@ -110,6 +110,7 @@ def test_adrift_no_jettison_empty_cargo():
     state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
     assert galaxy.current_system == "OtherSystem"
     assert not any("tumbles" in m[0] for m in engine.message_log.messages)
+    assert engine.ship.hull == 9  # hull damaged when drifting with no cargo
 
 
 def test_adrift_prefers_unvisited_derelicts():

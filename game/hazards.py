@@ -45,12 +45,9 @@ def _apply_equipment_damage(engine: Engine, player: Entity) -> None:
     victim = random.choice(candidates)
     victim.item["durability"] = max(0, victim.item.get("durability", 1) - 1)
     if victim.item["durability"] <= 0:
-        if getattr(player, "loadout", None):
-            player.loadout.remove_item(victim)
-        else:
-            player.inventory.remove(victim)
+        victim.item["damaged"] = True
         engine.message_log.add_message(
-            f"Your {victim.name} is destroyed!", HAZARD_EXPLOSIVE
+            f"Your {victim.name} is damaged beyond use!", HAZARD_EXPLOSIVE
         )
     else:
         engine.message_log.add_message(

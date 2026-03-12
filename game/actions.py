@@ -362,10 +362,13 @@ class RangedAction(Action):
         if not entity.fighter or not self.target.fighter:
             return 0
 
-        from game.helpers import get_equipped_ranged_weapon
+        from game.helpers import get_equipped_ranged_weapon, has_ranged_weapon
         weapon = get_equipped_ranged_weapon(entity)
         if not weapon:
-            engine.message_log.add_message("No ranged weapon with ammo.", WARNING)
+            if has_ranged_weapon(entity):
+                engine.message_log.add_message("Out of ammo!", WARNING)
+            else:
+                engine.message_log.add_message("No ranged weapon equipped.", WARNING)
             return 0
 
         # Check range
@@ -388,8 +391,11 @@ class RangedAction(Action):
             engine.message_log.add_message("No clear shot — path blocked.", WARNING)
             return 0
 
-        # Consume ammo
-        weapon.item["ammo"] -= 1
+        # Consume ammo (guard against negative)
+        if weapon.item.get("ammo", 0) <= 0:
+            engine.message_log.add_message("Out of ammo!", WARNING)
+            return 0
+        weapon.item["ammo"] = max(0, weapon.item["ammo"] - 1)
 
         damage = _calc_damage(engine, entity, self.target, weapon.item["value"])
         _attack_message(engine, entity, self.target, "shoot", "shoots", damage, PLAYER_RANGED, ENEMY_RANGED)

@@ -49,6 +49,46 @@ def test_get_ranged_weapon_empty_inventory():
     assert get_equipped_ranged_weapon(player) is None
 
 
+def test_get_ranged_weapon_ignores_unequipped_inventory():
+    """Player with empty-ammo loadout weapon must NOT fall back to unequipped inventory."""
+    player = Entity(name="Player", fighter=Fighter(10, 10, 0, 1))
+    equipped = _ranged_weapon(ammo=0)
+    unequipped = _ranged_weapon(ammo=10)
+    player.loadout = Loadout(slot1=equipped)
+    player.inventory = [equipped, unequipped]
+    # Should return None — the equipped weapon has no ammo,
+    # and the unequipped one should NOT be auto-selected
+    assert get_equipped_ranged_weapon(player) is None
+
+
+def test_unequipped_ranged_weapon_cannot_fire():
+    """Firing must fail when the equipped weapon has no ammo, even if
+    another ranged weapon with ammo sits unequipped in inventory."""
+    engine = make_engine()
+    equipped = _ranged_weapon(ammo=0)
+    spare = _ranged_weapon(ammo=10)
+    engine.player.loadout = Loadout(slot1=equipped)
+    engine.player.inventory = [equipped, spare]
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
+                    blocks_movement=True)
+    engine.game_map.entities.append(target)
+    engine.game_map.visible[7, 5] = True
+    result = RangedAction(target).perform(engine, engine.player)
+    assert result == 0
+    assert target.fighter.hp == 5  # no damage
+    assert spare.item["ammo"] == 10  # spare untouched
+
+
+def test_ai_uses_inventory_ranged_weapon():
+    """AI enemies (no loadout) should still fire from inventory."""
+    engine = make_engine()
+    enemy = Entity(x=8, y=5, name="Drone", fighter=Fighter(4, 4, 0, 3),
+                   blocks_movement=True, ai=HostileAI())
+    weapon = _ranged_weapon(ammo=5, range_=5, value=3)
+    enemy.inventory = [weapon]
+    assert get_equipped_ranged_weapon(enemy) is weapon  # AI can use inventory
+
+
 # --- RangedAction ---
 
 def test_ranged_hit():
@@ -98,10 +138,11 @@ def test_ranged_no_weapon():
     result = RangedAction(target).perform(engine, engine.player)
     assert result == 0
     msgs = [m[0] for m in engine.message_log.messages]
-    assert any("No ranged weapon" in m for m in msgs)
+    assert any("No ranged weapon equipped" in m for m in msgs)
 
 
 def test_ranged_no_ammo():
+    """Weapon equipped but ammo=0 → blocked, message mentions ammo."""
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon(ammo=0))
     target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
@@ -110,6 +151,146 @@ def test_ranged_no_ammo():
     engine.game_map.visible[7, 5] = True
     result = RangedAction(target).perform(engine, engine.player)
     assert result == 0
+    assert target.fighter.hp == 5  # no damage dealt
+    msgs = [m[0] for m in engine.message_log.messages]
+    assert any("ammo" in m.lower() for m in msgs)
+
+
+def test_ranged_no_ammo_message_distinct_from_no_weapon():
+    """Out-of-ammo message should differ from 'no ranged weapon' message."""
+    engine = make_engine()
+    # Case 1: weapon equipped, no ammo
+    engine.player.loadout = Loadout(slot1=_ranged_weapon(ammo=0))
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
+                    blocks_movement=True)
+    engine.game_map.entities.append(target)
+    engine.game_map.visible[7, 5] = True
+    RangedAction(target).perform(engine, engine.player)
+    ammo_msgs = [m[0] for m in engine.message_log.messages]
+
+    # Case 2: no weapon at all
+    engine2 = make_engine()
+    engine2.player.loadout = Loadout()  # empty loadout
+    target2 = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
+                     blocks_movement=True)
+    engine2.game_map.entities.append(target2)
+    engine2.game_map.visible[7, 5] = True
+    RangedAction(target2).perform(engine2, engine2.player)
+    no_weapon_msgs = [m[0] for m in engine2.message_log.messages]
+
+    # Messages should be different
+    assert ammo_msgs != no_weapon_msgs
+
+
+def test_ranged_last_bullet_then_blocked():
+    """Fire the last bullet (ammo 1→0), then verify next shot is blocked."""
+    engine = make_engine()
+    weapon = _ranged_weapon(ammo=1)
+    engine.player.loadout = Loadout(slot1=weapon)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(50, 50, 0, 0),
+                    blocks_movement=True)
+    engine.game_map.entities.append(target)
+    engine.game_map.visible[7, 5] = True
+    # Fire last bullet
+    result = RangedAction(target).perform(engine, engine.player)
+    assert result == 1
+    assert weapon.item["ammo"] == 0
+    # Now try again — should fail
+    result2 = RangedAction(target).perform(engine, engine.player)
+    assert result2 == 0
+    assert weapon.item["ammo"] == 0  # must not go negative
+
+
+def test_ranged_ammo_never_negative():
+    """Firing with ammo=0 must not decrement ammo below zero."""
+    engine = make_engine()
+    weapon = _ranged_weapon(ammo=0)
+    engine.player.loadout = Loadout(slot1=weapon)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(10, 10, 0, 0),
+                    blocks_movement=True)
+    engine.game_map.entities.append(target)
+    engine.game_map.visible[7, 5] = True
+    RangedAction(target).perform(engine, engine.player)
+    assert weapon.item["ammo"] >= 0
+
+
+def test_ranged_exhaust_all_ammo_then_blocked():
+    """Fire every shot until ammo=0, then verify weapon refuses to fire."""
+    engine = make_engine()
+    starting_ammo = 5
+    weapon = _ranged_weapon(ammo=starting_ammo, value=1)
+    engine.player.loadout = Loadout(slot1=weapon)
+    # Also place weapon in inventory (matching real gameplay)
+    engine.player.inventory.append(weapon)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(500, 500, 0, 0),
+                    blocks_movement=True)
+    engine.game_map.entities.append(target)
+    engine.game_map.visible[7, 5] = True
+
+    # Fire all shots
+    for i in range(starting_ammo):
+        result = RangedAction(target).perform(engine, engine.player)
+        assert result == 1, f"Shot {i+1} should fire (ammo was {starting_ammo - i})"
+        assert weapon.item["ammo"] == starting_ammo - i - 1
+
+    assert weapon.item["ammo"] == 0
+
+    # Now EVERY subsequent attempt must fail
+    for _ in range(3):
+        result = RangedAction(target).perform(engine, engine.player)
+        assert result == 0, "Should NOT fire with 0 ammo"
+        assert weapon.item["ammo"] == 0, "Ammo must not go negative"
+        assert target.fighter.hp == 500 - starting_ammo  # no extra damage
+
+
+def test_ui_enter_ranged_blocked_when_no_ammo():
+    """_enter_ranged must refuse to activate targeting when ammo is 0."""
+    from ui.tactical_state import TacticalState
+
+    engine = make_engine()
+    weapon = _ranged_weapon(ammo=0)
+    engine.player.loadout = Loadout(slot1=weapon)
+    engine.player.inventory.append(weapon)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
+                    blocks_movement=True)
+    engine.game_map.entities.append(target)
+    engine.game_map.visible[7, 5] = True
+
+    state = TacticalState()
+    state._enter_ranged(engine)
+    # Targeting must NOT activate
+    assert state._ranged_cursor is None
+    msgs = [m[0] for m in engine.message_log.messages]
+    assert any("ammo" in m.lower() for m in msgs)
+
+
+def test_ui_confirm_blocked_when_ammo_depleted_mid_targeting():
+    """If ammo somehow reaches 0 while in targeting mode, confirm must not fire."""
+    import tcod.event
+    from ui.tactical_state import TacticalState
+
+    engine = make_engine()
+    weapon = _ranged_weapon(ammo=1)
+    engine.player.loadout = Loadout(slot1=weapon)
+    engine.player.inventory.append(weapon)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(500, 500, 0, 0),
+                    blocks_movement=True)
+    engine.game_map.entities.append(target)
+    engine.game_map.visible[7, 5] = True
+
+    state = TacticalState()
+    state._enter_ranged(engine)
+    assert state._ranged_cursor is not None
+
+    # Manually set ammo to 0 (simulating external drain or edge case)
+    weapon.item["ammo"] = 0
+
+    # Pressing confirm must NOT fire
+    state._handle_ranged_input(engine, tcod.event.KeySym.RETURN)
+    assert state._ranged_cursor is None  # exited targeting
+    assert target.fighter.hp == 500  # no damage dealt
+    msgs = [m[0] for m in engine.message_log.messages]
+    assert any("ammo" in m.lower() for m in msgs)
 
 
 def test_ranged_kills_removes():

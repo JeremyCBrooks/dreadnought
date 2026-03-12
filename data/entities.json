@@ -6,6 +6,12 @@
      "ai_initial_state": "wandering", "aggro_distance": 8, "sleep_aggro_distance": 3, "can_open_doors": true, "flee_threshold": 0.0, "memory_turns": 20, "vision_radius": 8, "move_speed": 3},
     {"char": "p", "color": [200, 50, 50], "name": "Pirate", "hp": 5, "defense": 1, "power": 3, "organic": true, "gore_color": [140, 20, 20],
      "ai_initial_state": "wandering", "aggro_distance": 8, "sleep_aggro_distance": 4, "can_open_doors": true, "flee_threshold": 0.3, "memory_turns": 15, "vision_radius": 8, "move_speed": 4},
+    {"char": "p", "color": [50, 200, 50], "name": "Xeno Pirate", "hp": 5, "defense": 1, "power": 3, "organic": true, "gore_color": [30, 120, 30],
+     "ai_initial_state": "wandering", "aggro_distance": 8, "sleep_aggro_distance": 4, "can_open_doors": true, "flee_threshold": 0.3, "memory_turns": 15, "vision_radius": 8, "move_speed": 4},
+    {"char": "p", "color": [50, 80, 200], "name": "Vek Pirate", "hp": 5, "defense": 1, "power": 3, "organic": true, "gore_color": [30, 40, 140],
+     "ai_initial_state": "wandering", "aggro_distance": 8, "sleep_aggro_distance": 4, "can_open_doors": true, "flee_threshold": 0.3, "memory_turns": 15, "vision_radius": 8, "move_speed": 4},
+    {"char": "p", "color": [180, 150, 150], "name": "Mech Pirate", "hp": 6, "defense": 2, "power": 3, "organic": false, "gore_color": [50, 50, 60],
+     "ai_initial_state": "wandering", "aggro_distance": 8, "sleep_aggro_distance": 4, "can_open_doors": true, "flee_threshold": 0.2, "memory_turns": 20, "vision_radius": 8, "move_speed": 3},
     {"char": "d", "color": [150, 150, 200], "name": "Security Drone", "hp": 4, "defense": 0, "power": 3, "organic": false, "gore_color": [50, 50, 60],
      "ai_initial_state": "sleeping", "aggro_distance": 10, "sleep_aggro_distance": 3, "can_open_doors": true, "flee_threshold": 0.0, "memory_turns": 30, "vision_radius": 10, "move_speed": 3}
   ],
@@ -16,7 +22,8 @@
     {"char": "}", "color": [200, 80, 80], "name": "Low-power Blaster", "type": "weapon", "value": 3, "weapon_class": "ranged", "range": 5, "ammo": 20, "max_ammo": 20},
     {"char": "}", "color": [180, 120, 60], "name": "Shotgun", "type": "weapon", "value": 5, "weapon_class": "ranged", "range": 3, "ammo": 10, "max_ammo": 10},
     {"char": "#", "color": [180, 140, 80], "name": "Repair Kit", "type": "repair", "value": 5},
-    {"char": "O", "color": [100, 200, 255], "name": "O2 Canister", "type": "o2", "value": 20}
+    {"char": "O", "color": [100, 200, 255], "name": "O2 Canister", "type": "o2", "value": 20},
+    {"char": "#", "color": [80, 200, 180], "name": "Hull Patch", "type": "hull_repair", "value": 3}
   ],
   "scanners": [
     {"char": "]", "color": [100, 200, 255], "name": "Basic Scanner", "scanner_tier": 1, "range": 8, "type": "scanner", "value": 1},

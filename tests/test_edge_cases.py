@@ -80,10 +80,12 @@ def test_electric_equipment_damage(monkeypatch):
     monkeypatch.setattr(random, "choice", lambda lst: lst[0])
 
     trigger_hazard(engine, hazard, "Console")
-    # Weapon had durability 1, should be destroyed (durability 1 - 1 = 0 <= 0)
-    assert engine.player.loadout.slot1 is None
+    # Weapon had durability 1, reaches 0 — tagged as damaged, NOT removed
+    assert engine.player.loadout.slot1 is weapon
+    assert weapon.item["durability"] == 0
+    assert weapon.item.get("damaged") is True
     msgs = [m[0] for m in engine.message_log.messages]
-    assert any("destroyed" in m for m in msgs)
+    assert any("damaged" in m.lower() for m in msgs)
 
 
 def test_electric_equipment_no_damage_when_random_high(monkeypatch):

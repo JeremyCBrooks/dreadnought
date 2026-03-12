@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
 from engine.game_state import State
+from game.ship import Ship
 from ui.colors import DARK_GRAY, EQUIP_MSG, GRAY, PROMPT
 
 if TYPE_CHECKING:
@@ -246,11 +247,22 @@ class TacticalState(State):
                 # Convert nav units to ship counter
                 nav_items = [i for i in saved_inventory if i.item and i.item.get("type") == "nav_unit"]
                 for nav in nav_items:
-                    engine.ship.nav_units += 1
+                    engine.ship.nav_units = min(engine.ship.nav_units + 1, Ship.MAX_NAV_UNITS)
                     engine.message_log.add_message(
                         "Navigation unit installed.", (0, 255, 200)
                     )
                     saved_inventory.remove(nav)
+                # Convert hull repair kits to hull
+                hull_kits = [i for i in saved_inventory if i.item and i.item.get("type") == "hull_repair"]
+                for kit in hull_kits:
+                    added = min(kit.item["value"], engine.ship.max_hull - engine.ship.hull)
+                    if added > 0:
+                        engine.ship.hull += added
+                        engine.message_log.add_message(
+                            f"Hull patched. (+{added} hull integrity)",
+                            EQUIP_MSG,
+                        )
+                    saved_inventory.remove(kit)
                 engine._saved_player["inventory"] = saved_inventory
 
             key = _area_key(self.location, self.depth)
@@ -547,10 +559,13 @@ class TacticalState(State):
     # ------------------------------------------------------------------
 
     def _enter_ranged(self, engine: Engine) -> None:
-        from game.helpers import get_equipped_ranged_weapon
+        from game.helpers import get_equipped_ranged_weapon, has_ranged_weapon
         weapon = get_equipped_ranged_weapon(engine.player)
         if not weapon:
-            engine.message_log.add_message("No ranged weapon with ammo.", (255, 100, 100))
+            if has_ranged_weapon(engine.player):
+                engine.message_log.add_message("Out of ammo!", (255, 100, 100))
+            else:
+                engine.message_log.add_message("No ranged weapon equipped.", (255, 100, 100))
             return
         # Find visible enemies, sorted by distance (closest first)
         px, py = engine.player.x, engine.player.y
@@ -594,6 +609,18 @@ class TacticalState(State):
             return True
 
         if key in confirm_keys():
+            # Re-check ammo before firing (weapon may have been depleted)
+            from game.helpers import get_equipped_ranged_weapon
+            weapon = get_equipped_ranged_weapon(engine.player)
+            if not weapon:
+                from game.helpers import has_ranged_weapon
+                if has_ranged_weapon(engine.player):
+                    engine.message_log.add_message("Out of ammo!", (255, 100, 100))
+                else:
+                    engine.message_log.add_message("No ranged weapon equipped.", (255, 100, 100))
+                self._ranged_cursor = None
+                self._update_ground_underfoot(engine)
+                return True
             # Fire at targeted enemy
             cx, cy = self._ranged_cursor
             target = engine.game_map.get_blocking_entity(cx, cy)

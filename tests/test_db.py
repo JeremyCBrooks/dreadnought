@@ -15,11 +15,11 @@ def _reload_db():
 class TestLoadCategories:
     def test_enemies_returns_list(self):
         assert isinstance(db.enemies(), list)
-        assert len(db.enemies()) == 4
+        assert len(db.enemies()) == 7
 
     def test_items_returns_list(self):
         assert isinstance(db.items(), list)
-        assert len(db.items()) == 7
+        assert len(db.items()) == 8
 
     def test_scanners_returns_list(self):
         assert isinstance(db.scanners(), list)
@@ -224,4 +224,4 @@ class TestReload:
         _ = db.enemies()
         db.reload()
         # After reload, should re-read and still return valid data
-        assert len(db.enemies()) == 4
+        assert len(db.enemies()) == 7

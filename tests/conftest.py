@@ -67,6 +67,10 @@ class MockEngine:
         self.scan_results = None
         self.scan_glow = None
         self.mission_loadout = []
+        self._switched_state = None
+
+    def switch_state(self, state):
+        self._switched_state = state
 
 
 # ---- Shared helpers for common entity creation ----

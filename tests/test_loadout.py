@@ -1,6 +1,6 @@
 """Tests for the Loadout data model (2 generic equipment slots)."""
-from game.entity import Entity
-from game.loadout import Loadout, is_equippable
+from game.entity import Entity, Fighter
+from game.loadout import Loadout, is_equippable, recalc_melee_power
 
 
 def _weapon(name="Blaster", weapon_class="ranged", ammo=5, value=3):
@@ -262,3 +262,49 @@ def test_items_with_durability_zero():
 def test_items_with_durability_empty():
     lo = Loadout()
     assert lo.items_with_durability() == []
+
+
+# --- damaged melee weapon gives no bonus ---
+
+def test_damaged_melee_weapon_gives_no_bonus():
+    """A melee weapon with damaged=True should not contribute to melee power."""
+    player = Entity(name="Player", fighter=Fighter(10, 10, 0, 1))
+    weapon = Entity(name="Baton", item={
+        "type": "weapon", "weapon_class": "melee", "value": 3,
+        "durability": 0, "max_durability": 5, "damaged": True,
+    })
+    player.loadout = Loadout(slot1=weapon)
+    recalc_melee_power(player)
+    assert player.fighter.power == player.fighter.base_power  # no bonus
+
+
+def test_damaged_ranged_weapon_not_returned():
+    """A damaged ranged weapon should not be returned by get_ranged_weapon."""
+    w = Entity(name="Blaster", item={
+        "type": "weapon", "weapon_class": "ranged", "value": 3,
+        "ammo": 5, "max_ammo": 20, "durability": 0, "max_durability": 5, "damaged": True,
+    })
+    lo = Loadout(slot1=w)
+    assert lo.get_ranged_weapon() is None
+
+
+def test_damaged_scanner_not_returned():
+    """A damaged scanner should not be returned by get_scanner."""
+    s = Entity(name="Scanner", item={
+        "type": "scanner", "scanner_tier": 1, "value": 1,
+        "durability": 0, "max_durability": 5, "damaged": True,
+    })
+    lo = Loadout(slot1=s)
+    assert lo.get_scanner() is None
+
+
+def test_working_melee_weapon_gives_bonus():
+    """A melee weapon without damaged flag should give its bonus."""
+    player = Entity(name="Player", fighter=Fighter(10, 10, 0, 1))
+    weapon = Entity(name="Baton", item={
+        "type": "weapon", "weapon_class": "melee", "value": 3,
+        "durability": 3, "max_durability": 5,
+    })
+    player.loadout = Loadout(slot1=weapon)
+    recalc_melee_power(player)
+    assert player.fighter.power == player.fighter.base_power + 3

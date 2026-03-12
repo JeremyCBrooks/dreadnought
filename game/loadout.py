@@ -27,7 +27,8 @@ def recalc_melee_power(player: Entity) -> None:
     bonus = 0
     if player.loadout:
         for item in player.loadout.all_items():
-            if item.item and item.item.get("weapon_class", "melee") == "melee":
+            if (item.item and item.item.get("weapon_class", "melee") == "melee"
+                    and not item.item.get("damaged")):
                 bonus = item.item.get("value", 0)
                 break
     player.fighter.power = base + bonus
@@ -92,6 +93,7 @@ class Loadout:
             if (
                 s is not None
                 and s.item
+                and not s.item.get("damaged")
                 and s.item.get("weapon_class") == "ranged"
                 and s.item.get("ammo", 0) > 0
             ):
@@ -101,7 +103,7 @@ class Loadout:
     def get_scanner(self) -> Optional[Entity]:
         """Return the first scanner from either slot."""
         for s in (self.slot1, self.slot2):
-            if s is not None and s.item and s.item.get("type") == "scanner":
+            if s is not None and s.item and not s.item.get("damaged") and s.item.get("type") == "scanner":
                 return s
         return None
 
