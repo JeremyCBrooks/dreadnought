@@ -247,11 +247,20 @@ class TacticalState(State):
                 # Convert nav units to ship counter
                 nav_items = [i for i in saved_inventory if i.item and i.item.get("type") == "nav_unit"]
                 for nav in nav_items:
-                    engine.ship.nav_units = min(engine.ship.nav_units + 1, Ship.MAX_NAV_UNITS)
+                    engine.ship.nav_units = min(engine.ship.nav_units + 1, engine.ship.max_nav_units)
                     engine.message_log.add_message(
                         "Navigation unit installed.", (0, 255, 200)
                     )
                     saved_inventory.remove(nav)
+                # Reveal Dreadnought on 6th nav unit
+                if (engine.ship.nav_units >= engine.ship.max_nav_units
+                        and engine.galaxy
+                        and not engine.galaxy.dreadnought_system):
+                    engine.galaxy.spawn_dreadnought()
+                    engine.message_log.add_message(
+                        "All navigation units installed. The Dreadnought's coordinates are locked in!",
+                        (255, 200, 0),
+                    )
                 # Convert hull repair kits to hull
                 hull_kits = [i for i in saved_inventory if i.item and i.item.get("type") == "hull_repair"]
                 for kit in hull_kits:
@@ -263,6 +272,15 @@ class TacticalState(State):
                             EQUIP_MSG,
                         )
                     saved_inventory.remove(kit)
+                # Transfer dreadnought cores to ship cargo
+                d_cores = [i for i in saved_inventory if i.item and i.item.get("type") == "dreadnought_core"]
+                for dc in d_cores:
+                    engine.ship.add_cargo(dc)
+                    saved_inventory.remove(dc)
+                    engine.message_log.add_message(
+                        "Dreadnought core secured in cargo hold.",
+                        (255, 50, 50),
+                    )
                 engine._saved_player["inventory"] = saved_inventory
 
             key = _area_key(self.location, self.depth)

@@ -20,6 +20,7 @@ def _reset_debug_flags():
     debug.DISABLE_HAZARDS = False
     debug.DISABLE_ENEMY_AI = False
     debug.ONE_HIT_KILL = False
+    debug.MAX_NAV_UNITS = None
 
 
 @pytest.fixture

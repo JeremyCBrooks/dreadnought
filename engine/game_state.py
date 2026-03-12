@@ -71,6 +71,7 @@ class Engine:
         self.scan_results: Any = None
         self.scan_glow: Optional[dict] = None
         self.mission_loadout: List[Entity] = []
+        self.galaxy: Any = None
 
     @property
     def current_state(self) -> Optional[State]:

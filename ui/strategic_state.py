@@ -134,6 +134,18 @@ class StrategicState(State):
                     engine.message_log.add_message(
                         f"Traveling to {dest_name}.", (100, 200, 255)
                     )
+                    # Victory: arrive home with Dreadnought core
+                    if dest_name == self.galaxy.home_system:
+                        core_items = [c for c in engine.ship.cargo
+                                      if c.item and c.item.get("type") == "dreadnought_core"]
+                        if core_items:
+                            from ui.game_over_state import GameOverState
+                            engine.switch_state(GameOverState(
+                                victory=True,
+                                title="VICTORY",
+                                cause="You delivered the Dreadnought's reactor core. Unlimited energy is yours.",
+                            ))
+                            return True
                 return True
             if key in confirm_keys():
                 return True
@@ -166,6 +178,13 @@ class StrategicState(State):
             engine.message_log.add_message(
                 f"A crate tumbles into the void — {item.name} lost.", (255, 80, 80)
             )
+            if item.item and item.item.get("type") == "dreadnought_core":
+                from ui.game_over_state import GameOverState
+                engine.switch_state(GameOverState(
+                    title="THE CORE IS LOST",
+                    cause="The Dreadnought's reactor core tumbles into the void. All hope is lost.",
+                ))
+                return
         else:
             engine.ship.hull = max(0, engine.ship.hull - 1)
             engine.message_log.add_message(
@@ -225,8 +244,13 @@ class StrategicState(State):
 
         # Nav unit counter
         nav_count = engine.ship.nav_units if engine.ship else 0
-        nav_str = f"NAV: {nav_count}/6"
-        nav_color = (0, 255, 200) if nav_count >= 6 else (140, 160, 180)
+        if nav_count >= 6 and self.galaxy.dreadnought_system:
+            nav_str = "NAV: LOCKED"
+            nav_color = (255, 200, 0)
+        else:
+            max_nav = engine.ship.max_nav_units
+            nav_str = f"NAV: {nav_count}/{max_nav}"
+            nav_color = (0, 255, 200) if nav_count >= max_nav else (140, 160, 180)
         console.print(x=left_w - len(nav_str) - 2, y=2, string=nav_str, fg=nav_color)
 
         # Hull gauge

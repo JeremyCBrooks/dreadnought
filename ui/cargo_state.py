@@ -166,10 +166,15 @@ class CargoState(State):
             cargo = engine.ship.cargo
             if not cargo or self.selected >= len(cargo):
                 return
+            item = cargo[self.selected]
+            if item.item and item.item.get("type") == "dreadnought_core":
+                engine.message_log.add_message(
+                    "The Dreadnought core must stay in cargo.", WARNING)
+                return
             if self._personal_count(engine) >= PLAYER_MAX_INVENTORY:
                 engine.message_log.add_message("Personal inventory full.", WARNING)
                 return
-            item = cargo.pop(self.selected)
+            cargo.pop(self.selected)
             personal.append(item)
         else:
             combined = self._combined_personal(engine)

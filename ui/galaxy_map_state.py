@@ -118,6 +118,8 @@ class GalaxyMapState(State):
                 char, fg = "@", (255, 255, 100)
             elif name == home_name:
                 char, fg = "H", (100, 255, 100)
+            elif getattr(galaxy, 'dreadnought_system', None) and name == galaxy.dreadnought_system:
+                char, fg = "D", (255, 80, 80)
             else:
                 char, fg = "*", (150, 150, 200)
             console.print(x=sx, y=sy, string=char, fg=fg)

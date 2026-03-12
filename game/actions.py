@@ -463,18 +463,30 @@ class TakeReactorCoreAction(Action):
         ]
         engine.game_map.invalidate_lights()
 
-        # Create reactor core item
+        # Create reactor core item — Dreadnought location yields special core
         from game.entity import Entity as _Entity
-        core = _Entity(
-            x=entity.x, y=entity.y,
-            char="\xea", color=(180, 80, 255), name="Reactor Core",
-            blocks_movement=False,
-            item={"type": "reactor_core", "value": 5},
-        )
+        loc = getattr(engine.current_state, 'location', None)
+        is_dreadnought = getattr(loc, 'is_dreadnought', False)
+        if is_dreadnought:
+            core = _Entity(
+                x=entity.x, y=entity.y,
+                char="\xea", color=(255, 50, 50), name="Dreadnought Core",
+                blocks_movement=False,
+                item={"type": "dreadnought_core", "value": 99},
+            )
+            msg = "You extract the Dreadnought's reactor core!"
+            msg_color = (255, 50, 50)
+        else:
+            core = _Entity(
+                x=entity.x, y=entity.y,
+                char="\xea", color=(180, 80, 255), name="Reactor Core",
+                blocks_movement=False,
+                item={"type": "reactor_core", "value": 5},
+            )
+            msg = "You extract the reactor core."
+            msg_color = (180, 80, 255)
         entity.inventory.append(core)
-        engine.message_log.add_message(
-            "You extract the reactor core.", (180, 80, 255)
-        )
+        engine.message_log.add_message(msg, msg_color)
         return 1
 
 

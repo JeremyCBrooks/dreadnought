@@ -10,6 +10,9 @@ from data.star_types import pick_star_type
 
 _LOW_GRAVITY_TYPES = frozenset({"asteroid", "derelict"})
 
+DREADNOUGHT_SYSTEM_NAME = "Dreadnought"
+DREADNOUGHT_LOCATION_NAME = "The Dreadnought"
+
 # 8 cardinal/diagonal direction vectors
 _DIRECTIONS = [
     (0, -1), (0, 1), (-1, 0), (1, 0),
@@ -33,6 +36,7 @@ class Location:
         self.visited = False
         self.system_name = system_name
         self.has_nav_unit = False
+        self.is_dreadnought = False
 
 
 class StarSystem:
@@ -94,6 +98,8 @@ class Galaxy:
         self._sw = system_words()
         self._loc_types = location_types()
         self._loc_words = location_words()
+
+        self.dreadnought_system: Optional[str] = None
 
         # Generate home system at (0, 0)
         home = self._generate_system(0, 0)
@@ -270,3 +276,69 @@ class Galaxy:
                     queue.append(neighbor)
         for name, sys in self.systems.items():
             sys.depth = distances.get(name, 0)
+
+    def spawn_dreadnought(self) -> str:
+        """Spawn the Dreadnought system beyond the deepest explored system.
+
+        Idempotent: returns existing system name if already spawned.
+        """
+        if self.dreadnought_system is not None:
+            return self.dreadnought_system
+
+        rng = random.Random(self.seed ^ 0xDEAD0000)
+
+        # Find deepest systems, deterministic tie-breaking
+        max_depth = max(s.depth for s in self.systems.values())
+        deepest = sorted(
+            [s for s in self.systems.values() if s.depth == max_depth],
+            key=lambda s: (-s.depth, s.name),
+        )
+
+        # Try each deepest system's 8 directions for an unoccupied grid position
+        parent = None
+        target_pos = None
+        for sys in deepest:
+            dirs = list(_DIRECTIONS)
+            rng.shuffle(dirs)
+            for d in dirs:
+                pos = (sys.gx + d[0], sys.gy + d[1])
+                if pos not in self._occupied_positions:
+                    parent = sys
+                    target_pos = pos
+                    break
+            if parent is not None:
+                break
+
+        if parent is None:
+            raise RuntimeError("No unoccupied position found for Dreadnought")
+
+        gx, gy = target_pos
+        name = DREADNOUGHT_SYSTEM_NAME
+        self._used_names.add(name)
+
+        loc = Location(
+            DREADNOUGHT_LOCATION_NAME, "derelict",
+            environment={"vacuum": 1, "low_gravity": 1},
+            system_name=name,
+        )
+        loc.is_dreadnought = True
+        system = StarSystem(
+            name, [loc], depth=0,
+            star_type="red_supergiant", gx=gx, gy=gy,
+        )
+        self.systems[name] = system
+        self._occupied_positions[(gx, gy)] = name
+
+        # Bidirectional connection
+        fuel = 30
+        system.connections[parent.name] = fuel
+        parent.connections[name] = fuel
+
+        # Dead end — won't expand further
+        self._generated_frontiers.add(name)
+        # Unexplored frontier — travel cost 2
+        self._unexplored_frontier.add(name)
+
+        self._assign_depths()
+        self.dreadnought_system = name
+        return name

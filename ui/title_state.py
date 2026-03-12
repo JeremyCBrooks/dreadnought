@@ -23,6 +23,7 @@ class TitleState(State):
 
         galaxy = Galaxy()
         engine.ship = Ship()
+        engine.galaxy = galaxy
         import debug
         debug.seed_ship_cargo(engine)
         engine.switch_state(StrategicState(galaxy))

@@ -50,6 +50,7 @@ class GameOverState(State):
         engine.suit = None
         engine.environment = None
         engine.ship = None
+        engine.galaxy = None
         engine.reset_to_state(TitleState())
         return True
 
@@ -66,9 +67,7 @@ class GameOverState(State):
         )
 
         subtitle = ""
-        if self.victory:
-            subtitle = "You made it back to your ship alive."
-        elif self.cause:
+        if self.cause:
             subtitle = self.cause
 
         if subtitle:

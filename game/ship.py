@@ -10,7 +10,14 @@ if TYPE_CHECKING:
 class Ship:
     """The player's ship — persists across tactical sessions."""
 
-    MAX_NAV_UNITS = 6
+    @staticmethod
+    def _max_nav_units() -> int:
+        import debug
+        return debug.MAX_NAV_UNITS if debug.MAX_NAV_UNITS is not None else 6
+
+    @property
+    def max_nav_units(self) -> int:
+        return Ship._max_nav_units()
 
     def __init__(
         self,
