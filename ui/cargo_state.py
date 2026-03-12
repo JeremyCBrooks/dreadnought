@@ -224,12 +224,15 @@ class CargoState(State):
         if not combined:
             console.print(x=bx + 2, y=row, string="(empty)", fg=DARK_GRAY)
         else:
-            for j, (item, is_equipped) in enumerate(combined[:max_visible]):
-                prefix = ">" if self._section == _PERSONAL and j == self.selected else " "
-                color = (255, 255, 255) if self._section == _PERSONAL and j == self.selected else GRAY
+            p_start = max(0, min(self.selected - max_visible + 1, len(combined) - max_visible)) if self._section == _PERSONAL else 0
+            for j in range(min(max_visible, len(combined) - p_start)):
+                i = p_start + j
+                item, is_equipped = combined[i]
+                prefix = ">" if self._section == _PERSONAL and i == self.selected else " "
+                color = (255, 255, 255) if self._section == _PERSONAL and i == self.selected else GRAY
                 eq_tag = "[E] " if is_equipped else ""
                 line = f"{prefix} {eq_tag}{item.name}"
-                if len(line) > label_width:
+                if label_width > 3 and len(line) > label_width:
                     line = line[:label_width - 3] + "..."
                 console.print(x=bx + 2, y=row + j, string=line, fg=color)
 
@@ -239,11 +242,14 @@ class CargoState(State):
         if not cargo:
             console.print(x=col_x, y=row, string="(empty)", fg=DARK_GRAY)
         else:
-            for j, item in enumerate(cargo[:max_visible]):
-                prefix = ">" if self._section == _CARGO and j == self.selected else " "
-                color = (255, 255, 255) if self._section == _CARGO and j == self.selected else GRAY
+            c_start = max(0, min(self.selected - max_visible + 1, len(cargo) - max_visible)) if self._section == _CARGO else 0
+            for j in range(min(max_visible, len(cargo) - c_start)):
+                i = c_start + j
+                item = cargo[i]
+                prefix = ">" if self._section == _CARGO and i == self.selected else " "
+                color = (255, 255, 255) if self._section == _CARGO and i == self.selected else GRAY
                 line = f"{prefix} {item.name}"
-                if len(line) > label_width:
+                if label_width > 3 and len(line) > label_width:
                     line = line[:label_width - 3] + "..."
                 console.print(x=col_x, y=row + j, string=line, fg=color)
 

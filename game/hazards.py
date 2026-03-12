@@ -108,6 +108,8 @@ def apply_dot_effects(engine: Engine) -> None:
     """Call each turn: apply all active DoT effects, decrement remaining, remove expired."""
     if not engine.active_effects or not engine.player:
         return
+    if not engine.player.fighter:
+        return
     import debug
     surviving: list[dict] = []
     for effect in engine.active_effects:

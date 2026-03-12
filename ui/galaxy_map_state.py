@@ -45,8 +45,8 @@ class GalaxyMapState(State):
             self.camera_gy = current.gy
             return True
 
-        # 'h' = center on home system (before move_keys, since h is vi-left)
-        if key == tcod.event.KeySym.h:
+        # Shift+H = center on home system
+        if key == tcod.event.KeySym.h and event.mod & tcod.event.Modifier.SHIFT:
             home = self.galaxy.systems[self.galaxy.home_system]
             self.camera_gx = home.gx
             self.camera_gy = home.gy

@@ -77,8 +77,9 @@ class GameOverState(State):
             )
 
         if alpha >= 1.0:
+            prompt = "Press Enter to continue"
             console.print(
-                x=cx - 13, y=cy + 8,
-                string="Press Enter to continue",
+                x=cx - len(prompt) // 2, y=cy + 8,
+                string=prompt,
                 fg=DARK_GRAY,
             )

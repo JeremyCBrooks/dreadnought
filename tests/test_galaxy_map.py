@@ -12,8 +12,9 @@ def _sym(name):
 
 
 class FakeEvent:
-    def __init__(self, sym):
+    def __init__(self, sym, mod=0):
         self.sym = sym
+        self.mod = mod
 
 
 def _make_system(name, gx, gy, connections, depth=0):
@@ -103,8 +104,9 @@ class TestGalaxyMapState:
         engine.push_state(state)
         # Camera starts on current (C at 4,1)
         assert state.camera_gx == 4
-        # Press 'h' to jump to home
-        state.ev_keydown(engine, FakeEvent(_sym("h")))
+        # Press Shift+H to jump to home
+        import tcod.event
+        state.ev_keydown(engine, FakeEvent(_sym("h"), mod=tcod.event.Modifier.SHIFT))
         home = galaxy.systems[galaxy.home_system]
         assert state.camera_gx == home.gx
         assert state.camera_gy == home.gy

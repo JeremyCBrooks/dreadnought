@@ -375,6 +375,8 @@ def pick_biome(rng: random.Random) -> ColonyPalette:
 
 
 def make_path_tile(palette: ColonyPalette, rng: random.Random) -> np.ndarray:
+    if not palette.path_materials:
+        return tile_types.path.copy()
     mat = rng.choice(palette.path_materials)
     base_tid = int(tile_types.path["tile_id"])
     return tile_types.new_tile(

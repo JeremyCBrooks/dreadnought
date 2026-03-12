@@ -64,6 +64,8 @@ def has_usable_ranged(entity: Entity) -> bool:
 
 def is_door_closed(game_map: GameMap, x: int, y: int) -> bool:
     """Return True if the tile at (x, y) is a closed door."""
+    if not (0 <= x < game_map.width and 0 <= y < game_map.height):
+        return False
     from world import tile_types
     return int(game_map.tiles["tile_id"][x, y]) == int(tile_types.door_closed["tile_id"])
 

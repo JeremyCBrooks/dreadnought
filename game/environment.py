@@ -441,5 +441,7 @@ def apply_environment_tick_entity(engine: Engine, entity: Entity) -> None:
         engine.message_log.add_message(
             f"The {entity.name} succumbs to the environment!", (200, 200, 200)
         )
+        from game.gore import place_death_gore
+        place_death_gore(engine.game_map, entity)
         if entity in engine.game_map.entities:
             engine.game_map.entities.remove(entity)

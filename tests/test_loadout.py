@@ -116,7 +116,7 @@ def test_equip_into_empty_slot1():
     lo = Loadout()
     w = _weapon()
     result = lo.equip(w)
-    assert result is None
+    assert result is True
     assert lo.slot1 is w
 
 def test_equip_into_slot2_when_slot1_full():
@@ -124,7 +124,7 @@ def test_equip_into_slot2_when_slot1_full():
     t = _scanner()
     lo = Loadout(slot1=w)
     result = lo.equip(t)
-    assert result is None
+    assert result is True
     assert lo.slot2 is t
 
 def test_equip_when_both_full():
@@ -133,7 +133,7 @@ def test_equip_when_both_full():
     lo = Loadout(slot1=w, slot2=t)
     new = _weapon("Pipe")
     result = lo.equip(new)
-    assert result is None  # returns None, loadout unchanged when full
+    assert result is False  # returns False when full
     assert lo.is_full()
 
 

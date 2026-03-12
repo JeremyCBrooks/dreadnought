@@ -36,7 +36,7 @@ class CreatureAI:
         from game.environment import has_low_gravity
         speed = self._cfg(owner, "move_speed")
         if owner.organic and has_low_gravity(engine):
-            speed = speed // 2
+            speed = max(1, speed // 2)
         owner.ai_energy = min(owner.ai_energy + speed, ACTION_COST * 2)
 
     def _can_spend_move(self, owner: Entity, engine: Engine) -> bool:

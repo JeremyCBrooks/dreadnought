@@ -105,8 +105,8 @@ def test_interact_loot_refused_when_full():
     assert any("full" in m[0].lower() for m in eng.message_log.messages)
 
 
-def test_interact_empty_container_refused_when_full():
-    """InteractAction should refuse to open even empty containers when inventory is full."""
+def test_interact_empty_container_allowed_when_full():
+    """InteractAction should allow opening loot-less containers even when inventory is full."""
     gm = make_arena()
     player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1),
                     max_inventory=1)
@@ -117,9 +117,9 @@ def test_interact_empty_container_refused_when_full():
     eng = MockEngine(gm, player)
 
     result = InteractAction(dx=1, dy=0).perform(eng, player)
-    assert result == 0
-    assert crate in gm.entities
-    assert any("full" in m[0].lower() for m in eng.message_log.messages)
+    # Empty container should be interactable even when inventory is full
+    assert result == 1
+    assert not any("full" in m[0].lower() for m in eng.message_log.messages)
 
 
 def test_can_carry_counts_loadout_items():

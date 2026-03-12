@@ -64,15 +64,15 @@ class Loadout:
             return True
         return False
 
-    def equip(self, item: Entity) -> Optional[Entity]:
-        """Put item in first empty slot. Returns None. Does nothing if both full."""
+    def equip(self, item: Entity) -> bool:
+        """Put item in first empty slot. Returns True on success, False if both full."""
         if self.slot1 is None:
             self.slot1 = item
-            return None
+            return True
         if self.slot2 is None:
             self.slot2 = item
-            return None
-        return None
+            return True
+        return False
 
     def unequip(self, item: Entity) -> Optional[Entity]:
         """Remove item from slot and return it. Returns None if not found."""

@@ -421,7 +421,7 @@ class GameMap:
         if glow_mask is None or glow_alpha <= 0:
             return color
         lx, ly = ex - cam_x, ey - cam_y
-        if glow_mask[lx, ly]:
+        if 0 <= lx < glow_mask.shape[0] and 0 <= ly < glow_mask.shape[1] and glow_mask[lx, ly]:
             dim = 1.0 - 0.5 * glow_alpha
             r = int(color[0] * dim)
             g = min(int(color[1] + 60 * glow_alpha), 255)

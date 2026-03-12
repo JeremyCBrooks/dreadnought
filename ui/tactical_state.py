@@ -146,6 +146,11 @@ class TacticalState(State):
             }
 
         if not rooms:
+            from ui.strategic_state import StrategicState
+            engine.game_map = game_map
+            engine.player = None
+            if hasattr(engine, 'galaxy') and engine.galaxy:
+                engine.pop_state()
             return
 
         px, py = rooms[0].center
