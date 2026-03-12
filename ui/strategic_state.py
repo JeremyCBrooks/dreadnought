@@ -230,42 +230,6 @@ class StrategicState(State):
         from ui.colors import HEADER_SEP
         console.print(x=2, y=2, string="=" * text_width, fg=HEADER_SEP)
 
-        # Fuel gauge
-        fuel = engine.ship.fuel
-        max_fuel = engine.ship.max_fuel
-        if fuel > 5:
-            fuel_color = (0, 255, 0)
-        elif fuel >= 3:
-            fuel_color = (255, 255, 0)
-        else:
-            fuel_color = (255, 0, 0)
-        fuel_str = f"FUEL: {fuel}/{max_fuel}"
-        console.print(x=left_w - len(fuel_str) - 2, y=1, string=fuel_str, fg=fuel_color)
-
-        # Nav unit counter
-        nav_count = engine.ship.nav_units if engine.ship else 0
-        if nav_count >= 6 and self.galaxy.dreadnought_system:
-            nav_str = "NAV: LOCKED"
-            nav_color = (255, 200, 0)
-        else:
-            max_nav = engine.ship.max_nav_units
-            nav_str = f"NAV: {nav_count}/{max_nav}"
-            nav_color = (0, 255, 200) if nav_count >= max_nav else (140, 160, 180)
-        console.print(x=left_w - len(nav_str) - 2, y=2, string=nav_str, fg=nav_color)
-
-        # Hull gauge
-        hull = engine.ship.hull
-        max_hull = engine.ship.max_hull
-        hull_ratio = hull / max_hull if max_hull > 0 else 0
-        if hull_ratio > 0.5:
-            hull_color = (0, 255, 0)
-        elif hull_ratio >= 0.3:
-            hull_color = (255, 255, 0)
-        else:
-            hull_color = (255, 0, 0)
-        hull_str = f"HULL: {hull}/{max_hull}"
-        console.print(x=left_w - len(hull_str) - 2, y=3, string=hull_str, fg=hull_color)
-
         # Star map section (fixed position at top)
         nav_active = self.focus == "navigation"
         nav_header_color = (180, 180, 200) if nav_active else (80, 80, 100)
@@ -280,7 +244,7 @@ class StrategicState(State):
         loc_header_color = (180, 180, 200) if loc_active else (80, 80, 100)
         console.print(x=2, y=loc_y, string="LOCATIONS:", fg=loc_header_color)
         loc_start_y = loc_y + 2
-        max_locs = min(len(system.locations), max(0, content_max_y - loc_start_y))
+        max_locs = min(len(system.locations), max(0, content_max_y - loc_start_y + 1))
         loc_start = max(0, min(self.selected - max_locs + 1, len(system.locations) - max_locs))
         for j in range(max_locs):
             i = loc_start + j
@@ -312,6 +276,48 @@ class StrategicState(State):
         vp_h = ctrl_y
         system_seed = hash(system.name) & 0xFFFFFFFF
         render_viewport(console, vp_x, 0, vp_w, vp_h, system.star_type, system_seed)
+
+        # HUD gauges (top of star map viewport, left-justified, rendered after viewport)
+        hud_x = left_w + 1
+        hud_y = 0
+
+        if engine.ship:
+            # Fuel gauge
+            fuel = engine.ship.fuel
+            max_fuel = engine.ship.max_fuel
+            fuel_ratio = fuel / max_fuel if max_fuel > 0 else 0
+            if fuel_ratio > 0.5:
+                fuel_color = (0, 255, 0)
+            elif fuel_ratio >= 0.3:
+                fuel_color = (255, 255, 0)
+            else:
+                fuel_color = (255, 0, 0)
+            fuel_str = f"FUEL: {fuel}/{max_fuel}"
+            console.print(x=hud_x, y=hud_y, string=fuel_str, fg=fuel_color)
+
+            # Hull gauge
+            hull = engine.ship.hull
+            max_hull = engine.ship.max_hull
+            hull_ratio = hull / max_hull if max_hull > 0 else 0
+            if hull_ratio > 0.5:
+                hull_color = (0, 255, 0)
+            elif hull_ratio >= 0.3:
+                hull_color = (255, 255, 0)
+            else:
+                hull_color = (255, 0, 0)
+            hull_str = f"HULL: {hull}/{max_hull}"
+            console.print(x=hud_x, y=hud_y + 1, string=hull_str, fg=hull_color)
+
+            # Nav unit counter
+            nav_count = engine.ship.nav_units
+            max_nav = engine.ship.max_nav_units
+            if nav_count >= max_nav and self.galaxy.dreadnought_system:
+                nav_str = "NAV : LOCKED"
+                nav_color = (255, 200, 0)
+            else:
+                nav_str = f"NAV : {nav_count}/{max_nav}"
+                nav_color = (0, 255, 200) if nav_count >= max_nav else (140, 160, 180)
+            console.print(x=hud_x, y=hud_y + 2, string=nav_str, fg=nav_color)
 
         engine.message_log.render(console, 0, log_y, cw, log_h)
 

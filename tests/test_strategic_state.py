@@ -288,6 +288,21 @@ class TestStrategicRender:
         console.draw_rect = lambda *a, **kw: None
         return console
 
+    def _render_collecting(self, engine, galaxy=None):
+        """Render and return list of (x, y, string, fg) tuples."""
+        if galaxy is None:
+            galaxy = _make_galaxy()
+        state = StrategicState(galaxy)
+        engine.CONSOLE_WIDTH = 160
+        engine.CONSOLE_HEIGHT = 50
+        printed = []
+        console = self._make_console()
+        console.print = lambda *, x, y, string, fg=(255, 255, 255): printed.append(
+            (x, y, string, fg)
+        )
+        state.on_render(console, engine)
+        return printed
+
     def test_on_render_smoke(self):
         galaxy = _make_galaxy()
         state = StrategicState(galaxy)
@@ -296,3 +311,50 @@ class TestStrategicRender:
         engine.CONSOLE_HEIGHT = 50
         console = self._make_console()
         state.on_render(console, engine)
+
+    def test_fuel_color_uses_ratio_not_absolute(self):
+        """Fuel at 6/200 (3%) should be red, not green."""
+        galaxy = _make_galaxy()
+        engine = _make_strategic_engine(galaxy)
+        engine.ship.fuel = 6
+        engine.ship.max_fuel = 200
+        printed = self._render_collecting(engine, galaxy)
+        fuel_entries = [(x, y, s, fg) for x, y, s, fg in printed if "FUEL:" in s]
+        assert fuel_entries, "FUEL not rendered"
+        _, _, _, fg = fuel_entries[0]
+        assert fg == (255, 0, 0), f"Fuel 6/200 should be red, got {fg}"
+
+    def test_fuel_color_green_when_above_half(self):
+        """Fuel at 150/200 (75%) should be green."""
+        galaxy = _make_galaxy()
+        engine = _make_strategic_engine(galaxy)
+        engine.ship.fuel = 150
+        engine.ship.max_fuel = 200
+        printed = self._render_collecting(engine, galaxy)
+        fuel_entries = [(x, y, s, fg) for x, y, s, fg in printed if "FUEL:" in s]
+        assert fuel_entries, "FUEL not rendered"
+        _, _, _, fg = fuel_entries[0]
+        assert fg == (0, 255, 0), f"Fuel 150/200 should be green, got {fg}"
+
+    def test_fuel_color_yellow_when_between_30_and_50(self):
+        """Fuel at 8/20 (40%) should be yellow."""
+        galaxy = _make_galaxy()
+        engine = _make_strategic_engine(galaxy)
+        engine.ship.fuel = 8
+        engine.ship.max_fuel = 20
+        printed = self._render_collecting(engine, galaxy)
+        fuel_entries = [(x, y, s, fg) for x, y, s, fg in printed if "FUEL:" in s]
+        assert fuel_entries, "FUEL not rendered"
+        _, _, _, fg = fuel_entries[0]
+        assert fg == (255, 255, 0), f"Fuel 8/20 should be yellow, got {fg}"
+
+    def test_hud_renders_without_ship(self):
+        """HUD should not crash when engine.ship is None."""
+        galaxy = _make_galaxy()
+        engine = _make_strategic_engine(galaxy)
+        engine.ship = None
+        engine.CONSOLE_WIDTH = 160
+        engine.CONSOLE_HEIGHT = 50
+        console = self._make_console()
+        state = StrategicState(galaxy)
+        state.on_render(console, engine)  # should not raise
