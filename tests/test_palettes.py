@@ -332,3 +332,18 @@ def test_make_path_tile_preserves_tile_id():
     palette = pick_biome(rng)
     tile = make_path_tile(palette, rng)
     assert int(tile["tile_id"]) == int(tile_types.path["tile_id"])
+
+
+def test_path_materials_none_returns_default():
+    """make_path_tile should not crash when palette.path_materials is None."""
+    palette = ColonyPalette(
+        name="test",
+        ground_dark_bg=(10, 10, 10),
+        ground_light_bg=(30, 30, 30),
+        wall_colors=[(50, 50, 50)],
+        noise_range=5,
+        path_materials=None,
+    )
+    rng = random.Random(42)
+    tile = make_path_tile(palette, rng)
+    assert tile is not None

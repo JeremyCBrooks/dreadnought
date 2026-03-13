@@ -404,3 +404,15 @@ class TestEnemyScaling:
     def test_depth_100_caps_at_three(self):
         state = TacticalState(depth=100)
         assert state._max_enemies() == 3
+
+
+def test_on_exit_no_crash_when_player_not_in_entities():
+    """on_exit should not crash if player was already removed from entities."""
+    from tests.conftest import make_engine
+    engine = make_engine()
+    state = TacticalState()
+    # Manually remove player from entities before calling on_exit
+    engine.game_map.entities.remove(engine.player)
+    # This should not raise ValueError
+    state.on_exit(engine)
+    assert engine.player is None

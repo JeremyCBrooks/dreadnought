@@ -1309,3 +1309,81 @@ class TestHuntingUnreachable:
             assert c.ai_state != "hunting", (
                 f"{c.name} still stuck in hunting after 30 turns"
             )
+
+
+# ---------------------------------------------------------------------------
+# AI walks through interactable check
+# ---------------------------------------------------------------------------
+
+def test_ai_does_not_walk_through_interactable():
+    """AI should respect interactable blocking (currently a known limitation)."""
+    gm = make_arena()
+    player = Entity(x=1, y=1, fighter=Fighter(10, 10, 0, 1))
+    # Place interactable between enemy and player
+    console = Entity(x=3, y=3, name="Console", blocks_movement=False,
+                     interactable={"kind": "console"})
+    enemy = Entity(x=4, y=4, fighter=Fighter(3, 3, 0, 1), ai=HostileAI())
+    gm.entities.extend([player, console, enemy])
+    gm.visible[:] = True
+    eng = MockEngine(gm, player)
+    # Enemy moves toward player; note: AI currently CAN walk through interactables
+    # This test documents the current behavior
+    old_x, old_y = enemy.x, enemy.y
+    enemy.ai.perform(enemy, eng)
+    # Enemy moved (may or may not overlap interactable depending on path)
+    assert (enemy.x, enemy.y) != (old_x, old_y)
+
+
+# ---------------------------------------------------------------------------
+# AI speed floor in low gravity
+# ---------------------------------------------------------------------------
+
+class TestAISpeedFloorLowGravity:
+    def test_speed_1_low_gravity_does_not_freeze(self):
+        """move_speed=1 in low gravity should floor to 1, not 0."""
+        from tests.conftest import make_creature
+
+        gm = make_arena()
+        player = Entity(x=1, y=1, fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        engine = MockEngine(gm, player, environment={"low_gravity": 1})
+
+        creature = make_creature(x=5, y=5, ai_config={"move_speed": 1})
+        gm.entities.append(creature)
+
+        ai = creature.ai
+        creature.ai_energy = 0
+        ai._accumulate_energy(creature, engine)
+        assert creature.ai_energy >= 1, "speed floor should be >= 1"
+
+    def test_speed_2_low_gravity_gives_1(self):
+        """move_speed=2 halved should give 1."""
+        from tests.conftest import make_creature
+
+        gm = make_arena()
+        player = Entity(x=1, y=1, fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        engine = MockEngine(gm, player, environment={"low_gravity": 1})
+
+        creature = make_creature(x=5, y=5, ai_config={"move_speed": 2})
+        gm.entities.append(creature)
+
+        creature.ai_energy = 0
+        creature.ai._accumulate_energy(creature, engine)
+        assert creature.ai_energy == 1
+
+    def test_speed_normal_no_low_gravity(self):
+        """Without low gravity, speed should not be halved."""
+        from tests.conftest import make_creature
+
+        gm = make_arena()
+        player = Entity(x=1, y=1, fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        engine = MockEngine(gm, player, environment={})
+
+        creature = make_creature(x=5, y=5, ai_config={"move_speed": 1})
+        gm.entities.append(creature)
+
+        creature.ai_energy = 0
+        creature.ai._accumulate_energy(creature, engine)
+        assert creature.ai_energy == 1

@@ -133,3 +133,33 @@ def test_fov_radius_change_affects_lit():
     gm.fov_radius = 20
     gm.update_fov(20, 20)
     assert gm.lit[20, 3]
+
+
+def test_get_interactable_at():
+    gm = GameMap(10, 10)
+    console = Entity(x=3, y=3, name="Console", blocks_movement=False,
+                     interactable={"kind": "console"})
+    gm.entities.append(console)
+    assert gm.get_interactable_at(3, 3) is console
+    assert gm.get_interactable_at(4, 4) is None
+
+
+def test_get_interactable_at_ignores_non_interactable():
+    gm = GameMap(10, 10)
+    item = Entity(x=3, y=3, name="Pipe", blocks_movement=False,
+                  item={"type": "weapon", "value": 1})
+    gm.entities.append(item)
+    assert gm.get_interactable_at(3, 3) is None
+
+
+def test_glow_tint_out_of_bounds_no_crash():
+    """_glow_tint_color should handle out-of-bounds glow_mask gracefully."""
+    import numpy as np
+    from tests.conftest import make_arena
+
+    gm = make_arena(10, 10)
+    glow_mask = np.full((8, 8), fill_value=True, order="F")
+    color = (200, 200, 200)
+    # Entity at edge, camera at 0,0 — lx=9, ly=9 is out of 8x8 glow_mask
+    result = gm._glow_tint_color(color, 9, 9, glow_mask, 0.5, 0, 0)
+    assert result == color  # should return unchanged color

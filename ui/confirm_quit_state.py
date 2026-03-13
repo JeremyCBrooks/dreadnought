@@ -38,7 +38,7 @@ class ConfirmQuitState(State):
             engine._state_stack[-2].on_render(console, engine)
 
         cw, ch = engine.CONSOLE_WIDTH, engine.CONSOLE_HEIGHT
-        bw, bh = 22, 6
+        bw, bh = 27, 6
         bx = (cw - bw) // 2
         by = (ch - bh) // 2
 

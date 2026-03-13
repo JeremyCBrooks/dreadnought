@@ -95,3 +95,66 @@ def test_game_over_default_title_victory():
     """Default title for victory should be YOU ESCAPED!."""
     state = GameOverState(victory=True)
     assert state.title == "YOU ESCAPED!"
+
+
+def test_active_effects_cleared_on_game_over():
+    from engine.game_state import State
+    from game.suit import Suit
+
+    engine = Engine()
+    engine.active_effects = [{"type": "radiation", "dot": 1, "remaining": 5}]
+    engine._saved_player = {"hp": 0}
+    engine.suit = Suit("Test", {}, 0)
+    engine.environment = {"vacuum": 1}
+
+    class DummyState(State):
+        pass
+
+    engine.push_state(DummyState())
+
+    go = GameOverState()
+    engine.switch_state(go)
+    go._fade_start = 0.0  # skip fade for test
+
+    # Simulate pressing ENTER
+    import tcod.event
+    evt = FakeEvent(sym=tcod.event.KeySym.RETURN)
+    go.ev_keydown(engine, evt)
+
+    assert engine.active_effects == []
+    assert engine._saved_player is None
+    assert engine.suit is None
+    assert engine.environment is None
+
+
+def test_state_stack_cleared_on_game_over_restart():
+    from engine.game_state import State
+
+    engine = Engine()
+
+    class DummyStrategic(State):
+        pass
+
+    class DummyTactical(State):
+        pass
+
+    # Simulate: Strategic pushed, Tactical pushed, then switch to GameOver
+    engine.push_state(DummyStrategic())
+    engine.push_state(DummyTactical())
+
+    engine.switch_state(GameOverState())
+    engine._state_stack[-1]._fade_start = 0.0  # skip fade for test
+
+    # Stack: [DummyStrategic, GameOverState]
+    assert len(engine._state_stack) == 2
+
+    import tcod.event
+    evt = FakeEvent(sym=tcod.event.KeySym.RETURN)
+
+    # Press ENTER to restart — should clear entire stack
+    engine._state_stack[-1].ev_keydown(engine, evt)
+
+    # Stack should only have TitleState (no stale DummyStrategic)
+    assert len(engine._state_stack) == 1
+    from ui.title_state import TitleState
+    assert isinstance(engine._state_stack[0], TitleState)

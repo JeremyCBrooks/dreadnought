@@ -79,3 +79,45 @@ def test_apply_damage_enemy_death_message():
     eng.game_map.entities.append(target)
     _apply_damage_and_death(eng, eng.player, target, 1)
     assert any("destroyed" in m[0].lower() for m in eng.message_log._messages)
+
+
+# -- Melee HP floor / suit defense ------------------------------------------
+
+def test_melee_hp_floor_at_zero():
+    from game.actions import MeleeAction
+    from tests.conftest import make_arena, MockEngine
+
+    gm = make_arena()
+    attacker = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 10))
+    target = Entity(x=6, y=5, name="Rat", fighter=Fighter(3, 3, 0, 1))
+    gm.entities.extend([attacker, target])
+    MeleeAction(target).perform(MockEngine(gm, attacker), attacker)
+    assert target.fighter.hp == 0  # Not negative
+
+
+def test_melee_hp_cannot_go_negative():
+    from game.actions import MeleeAction
+    from tests.conftest import make_arena, MockEngine
+
+    gm = make_arena()
+    attacker = Entity(x=5, y=5, name="Big", fighter=Fighter(10, 10, 0, 100))
+    target = Entity(x=6, y=5, name="Weak", fighter=Fighter(1, 1, 0, 1))
+    gm.entities.extend([attacker, target])
+    MeleeAction(target).perform(MockEngine(gm, attacker), attacker)
+    assert target.fighter.hp == 0
+
+
+def test_melee_suit_defense_reduces_damage():
+    from game.actions import MeleeAction
+    from game.ai import HostileAI
+    from tests.conftest import make_arena, MockEngine
+
+    gm = make_arena()
+    suit = Suit("Armor", {}, defense_bonus=2)
+    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
+    enemy = Entity(x=6, y=5, name="Rat", fighter=Fighter(3, 3, 0, 3), ai=HostileAI())
+    gm.entities.extend([player, enemy])
+    eng = MockEngine(gm, player, suit=suit)
+    # Enemy power=3, player defense=0 + suit bonus=2, so damage = max(1, 3-2) = 1
+    MeleeAction(player).perform(eng, enemy)
+    assert player.fighter.hp == 9  # Only 1 damage

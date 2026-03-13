@@ -2057,3 +2057,49 @@ def test_respawn_creatures_respects_total_cap():
     respawn_creatures(game_map, rooms, max_enemies=3, max_total_enemies=5, seed=99)
     total = sum(1 for e in game_map.entities if e.ai)
     assert total <= 5
+
+
+def test_respawn_creatures_preserves_non_ai():
+    """respawn_creatures should not remove non-AI entities (items, interactables)."""
+    from world.dungeon_gen import respawn_creatures
+    game_map, rooms, _ = generate_dungeon(seed=42, loc_type="derelict", max_enemies=2)
+    non_ai_before = [e for e in game_map.entities if not e.ai]
+    respawn_creatures(game_map, rooms, max_enemies=2, seed=99)
+    non_ai_after = [e for e in game_map.entities if not e.ai]
+    assert len(non_ai_before) == len(non_ai_after)
+
+
+def test_ship_dungeon_small_map_no_crash():
+    # This would crash before the fix
+    game_map, rooms, exit_pos = generate_dungeon(
+        width=20, height=20, seed=42, loc_type="derelict"
+    )
+    # Should not crash; rooms may be few but generation completes
+    assert game_map is not None
+
+
+def test_village_dungeon_small_map_no_crash():
+    # Test with small colony maps that previously could IndexError
+    for seed in range(20):
+        game_map, rooms, exit_pos = generate_dungeon(
+            width=15, height=15, seed=seed, loc_type="colony"
+        )
+        assert game_map is not None
+
+
+def test_generate_dungeon_no_crash_on_tiny_map():
+    # Very small map — rooms may be empty
+    game_map, rooms, exit_pos = generate_dungeon(
+        width=5, height=5, seed=99, loc_type="derelict"
+    )
+    assert game_map is not None
+
+
+def test_fallback_generator_small_map():
+    from world.dungeon_gen import _generate_fallback
+
+    gm = GameMap(8, 8)
+    rng = random.Random(42)
+    # This would crash before the fix with room_max=10 > map size
+    rooms = _generate_fallback(gm, rng, max_rooms=5, room_min=3, room_max=10, floor_tile=tile_types.floor)
+    assert isinstance(rooms, list)

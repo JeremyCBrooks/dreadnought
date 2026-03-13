@@ -83,3 +83,25 @@ def test_pool_depletion_over_time():
     # Another tick: damage continues
     _tick(engine)
     assert engine.player.fighter.hp == 8
+
+
+def test_env_pool_gives_full_turns_protection():
+    """Pool of N should give exactly N drain-cycles of protection."""
+    suit = Suit("Test", {"vacuum": 3}, defense_bonus=0)
+    engine = _make_engine(env={"vacuum": 1}, suit=suit)
+
+    # Vacuum is spatial: needs an overlay covering the player
+    gm = engine.game_map
+    overlay = np.full((gm.width, gm.height), fill_value=True, order="F")
+    gm.hazard_overlays["vacuum"] = overlay
+    gm._hazards_dirty = False
+
+    # 3 drain cycles: no damage
+    for _ in range(3 * Suit.DRAIN_INTERVAL):
+        apply_environment_tick(engine)
+    assert engine.player.fighter.hp == 10
+    assert suit.current_pools["vacuum"] == 0
+
+    # Next tick: damage
+    apply_environment_tick(engine)
+    assert engine.player.fighter.hp == 9

@@ -172,3 +172,77 @@ def test_interact_loot_succeeds_under_limit():
     result = InteractAction(dx=1, dy=0).perform(eng, player)
     assert result == 1
     assert any(i.name == "Medkit" for i in player.inventory)
+
+
+class TestInteractFullInventory:
+    def test_interact_empty_container_with_full_inventory(self):
+        """Player with full inventory should still interact with loot-less containers."""
+        gm = make_arena()
+        player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
+        player.max_inventory = PLAYER_MAX_INVENTORY
+        for i in range(PLAYER_MAX_INVENTORY):
+            player.inventory.append(Entity(name=f"Item{i}"))
+        gm.entities.append(player)
+
+        # Empty container adjacent
+        container = Entity(
+            x=6, y=5, name="Empty Crate", char="C",
+            blocks_movement=False,
+            interactable={"loot": None},
+        )
+        gm.entities.append(container)
+        engine = MockEngine(gm, player)
+
+        action = InteractAction(dx=1, dy=0)
+        result = action.perform(engine, player)
+        # Should not be blocked by inventory-full
+        # No "Inventory full" message
+        msgs = [m[0] for m in engine.message_log.messages]
+        assert not any("Inventory full" in m for m in msgs)
+
+    def test_interact_hazard_container_with_full_inventory(self):
+        """Player with full inventory should still trigger hazards on interact."""
+        import debug
+        debug.DISABLE_HAZARDS = True  # don't actually damage for this test
+
+        gm = make_arena()
+        player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
+        player.max_inventory = PLAYER_MAX_INVENTORY
+        for i in range(PLAYER_MAX_INVENTORY):
+            player.inventory.append(Entity(name=f"Item{i}"))
+        gm.entities.append(player)
+
+        container = Entity(
+            x=6, y=5, name="Trapped Console", char="C",
+            blocks_movement=False,
+            interactable={"hazard": {"type": "electric", "damage": 1}, "loot": None},
+        )
+        gm.entities.append(container)
+        engine = MockEngine(gm, player)
+
+        action = InteractAction(dx=1, dy=0)
+        result = action.perform(engine, player)
+        msgs = [m[0] for m in engine.message_log.messages]
+        assert not any("Inventory full" in m for m in msgs)
+
+    def test_interact_with_loot_and_full_inventory_blocked(self):
+        """Player with full inventory SHOULD be blocked from looting containers."""
+        gm = make_arena()
+        player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
+        player.max_inventory = PLAYER_MAX_INVENTORY
+        for i in range(PLAYER_MAX_INVENTORY):
+            player.inventory.append(Entity(name=f"Item{i}"))
+        gm.entities.append(player)
+
+        container = Entity(
+            x=6, y=5, name="Loot Crate", char="C",
+            blocks_movement=False,
+            interactable={"loot": {"char": "!", "color": [255, 0, 0], "name": "Treasure"}},
+        )
+        gm.entities.append(container)
+        engine = MockEngine(gm, player)
+
+        action = InteractAction(dx=1, dy=0)
+        result = action.perform(engine, player)
+        msgs = [m[0] for m in engine.message_log.messages]
+        assert any("Inventory full" in m for m in msgs)

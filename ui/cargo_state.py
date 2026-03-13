@@ -199,13 +199,14 @@ class CargoState(State):
         from ui.colors import DIALOG_BG, TAB_SELECTED, TAB_UNSELECTED, HEADER_TITLE
 
         cw, ch = engine.CONSOLE_WIDTH, engine.CONSOLE_HEIGHT
-        bw = min(60, cw - 10)
+        bw = min(65, cw - 10)
         bh = min(30, ch - 10)
         bx = (cw - bw) // 2
         by = (ch - bh) // 2
         console.draw_rect(bx, by, bw, bh, ch=32, bg=DIALOG_BG)
 
-        console.print(x=bx + 2, y=by + 1, string="=== CARGO MANAGEMENT ===", fg=HEADER_TITLE)
+        title = "=== CARGO MANAGEMENT ==="
+        console.print(x=bx + (bw - len(title)) // 2, y=by + 1, string=title, fg=HEADER_TITLE)
 
         # Section tabs
         p_color = TAB_SELECTED if self._section == _PERSONAL else TAB_UNSELECTED

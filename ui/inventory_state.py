@@ -97,14 +97,15 @@ class InventoryState(State):
 
     def on_render(self, console: Any, engine: Engine) -> None:
         cw, ch = engine.CONSOLE_WIDTH, engine.CONSOLE_HEIGHT
-        bw = min(50, cw - 10)
+        bw = min(55, cw - 10)
         bh = min(30, ch - 10)
         bx = (cw - bw) // 2
         by = (ch - bh) // 2
         from ui.colors import DIALOG_BG, HEADER_TITLE
         console.draw_rect(bx, by, bw, bh, ch=32, bg=DIALOG_BG)
 
-        console.print(x=bx + 2, y=by + 1, string="=== INVENTORY ===", fg=HEADER_TITLE)
+        title = "=== INVENTORY ==="
+        console.print(x=bx + (bw - len(title)) // 2, y=by + 1, string=title, fg=HEADER_TITLE)
 
         label_width = bw - 4
         max_visible = max(0, bh - 6)

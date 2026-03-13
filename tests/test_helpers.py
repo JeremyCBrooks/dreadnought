@@ -87,3 +87,17 @@ class TestDoorHelpers:
         closed_id, open_id = get_door_tile_ids()
         assert closed_id == int(tile_types.door_closed["tile_id"])
         assert open_id == int(tile_types.door_open["tile_id"])
+
+    def test_is_door_closed_out_of_bounds(self):
+        """is_door_closed should return False for out-of-bounds coords."""
+        gm = make_arena()
+        assert is_door_closed(gm, -1, 0) is False
+        assert is_door_closed(gm, 100, 100) is False
+        assert is_door_closed(gm, 0, -5) is False
+
+    def test_is_diagonal_blocked_out_of_bounds(self):
+        """is_diagonal_blocked should not crash for out-of-bounds diagonals."""
+        from game.helpers import is_diagonal_blocked
+        gm = make_arena()
+        # Top-left corner diagonal should not crash
+        assert is_diagonal_blocked(gm, 0, 0, -1, -1) is False

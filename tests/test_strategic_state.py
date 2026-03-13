@@ -358,3 +358,53 @@ class TestStrategicRender:
         console = self._make_console()
         state = StrategicState(galaxy)
         state.on_render(console, engine)  # should not raise
+
+
+def test_strategic_navigate_all_systems():
+    """Direction keys should allow navigating the graph of systems."""
+    from world.galaxy import Galaxy
+    from engine.game_state import Engine
+
+    import tcod.event
+
+    class _FakeEvent:
+        def __init__(self, sym):
+            self.sym = sym
+
+    galaxy = Galaxy(seed=42)
+    state = StrategicState(galaxy)
+
+    engine = Engine()
+    engine.ship = Ship()
+
+    # All systems should be reachable via BFS
+    visited = {galaxy.home_system}
+    queue = [galaxy.home_system]
+    while queue:
+        name = queue.pop(0)
+        for neighbor in galaxy.systems[name].connections:
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append(neighbor)
+    assert visited == set(galaxy.systems.keys()), "All systems reachable"
+
+    # Navigate from home to a connected system using the correct direction key
+    home = galaxy.systems[galaxy.home_system]
+    neighbor_name = next(iter(home.connections))
+    neighbor = galaxy.systems[neighbor_name]
+    dx = (neighbor.gx > home.gx) - (neighbor.gx < home.gx)
+    dy = (neighbor.gy > home.gy) - (neighbor.gy < home.gy)
+    _dir_to_key = {
+        (0, -1): "UP", (0, 1): "DOWN", (-1, 0): "LEFT", (1, 0): "RIGHT",
+        (-1, -1): "KP_7", (1, -1): "KP_9", (-1, 1): "KP_1", (1, 1): "KP_3",
+    }
+    key_name = _dir_to_key[(dx, dy)]
+    # Tab to navigation focus, then navigate
+    state.ev_keydown(engine, _FakeEvent(tcod.event.KeySym.TAB))
+    state.ev_keydown(engine, _FakeEvent(getattr(tcod.event.KeySym, key_name)))
+    assert galaxy.current_system == neighbor_name
+
+    # Focus stays on navigation; navigate back home
+    back_key = _dir_to_key[(-dx, -dy)]
+    state.ev_keydown(engine, _FakeEvent(getattr(tcod.event.KeySym, back_key)))
+    assert galaxy.current_system == home.name

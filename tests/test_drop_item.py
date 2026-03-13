@@ -205,3 +205,16 @@ def test_drop_clamps_selected():
 
     assert inv_state.selected == 0
     assert len(engine.player.inventory) == 0
+
+
+def test_drop_negative_index_rejected():
+    gm = make_arena()
+    p = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
+    item_a = Entity(name="A", item={"type": "weapon", "value": 1})
+    item_b = Entity(name="B", item={"type": "weapon", "value": 2})
+    p.inventory.extend([item_a, item_b])
+    gm.entities.append(p)
+    # Negative index should be rejected (not pop last item)
+    result = DropAction(-1).perform(MockEngine(gm, p), p)
+    assert result == 0
+    assert len(p.inventory) == 2

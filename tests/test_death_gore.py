@@ -429,6 +429,37 @@ class TestDeathIntegration:
         assert _count_modified_floor_tiles(gm) > 0, \
             "Killing enemy should leave gore on the floor"
 
+    def test_env_kill_places_gore(self):
+        """Enemies killed by environment damage should leave gore."""
+        from game.environment import apply_environment_tick_entity
+
+        gm = _make_gore_map()
+        player = Entity(x=1, y=1, fighter=Fighter(10, 10, 0, 1))
+        gm.entities.append(player)
+        creature = make_creature(x=5, y=5, hp=1, organic=True)
+        gm.entities.append(creature)
+
+        overlay = np.full((20, 20), fill_value=True, order="F")
+        gm.hazard_overlays["vacuum"] = overlay
+        gm._hazards_dirty = False
+
+        engine = MockEngine(gm, player, environment={"vacuum": 1})
+        apply_environment_tick_entity(engine, creature)
+
+        assert creature not in gm.entities
+        # Check that gore was placed — at least one tile around death pos
+        # should have a modified light char
+        gore_found = False
+        for dx in range(-1, 2):
+            for dy in range(-1, 2):
+                nx, ny = 5 + dx, 5 + dy
+                if 0 < nx < 19 and 0 < ny < 19:
+                    ch = int(gm.tiles["light"]["ch"][nx, ny])
+                    default_ch = int(tile_types.floor["light"]["ch"])
+                    if ch != default_ch:
+                        gore_found = True
+        assert gore_found, "Gore should be placed on tiles around death position"
+
     def test_player_death_no_gore(self):
         """Player death should NOT place gore (different handling)."""
         from game.actions import _apply_damage_and_death

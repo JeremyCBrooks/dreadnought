@@ -117,3 +117,32 @@ def test_infinite_duration():
     assert len(engine.active_effects) == 1
     assert engine.active_effects[0]["remaining"] == -1
     assert engine.player.fighter.hp == 10 - 5  # 1 dot * 5 ticks
+
+
+def test_dot_duration_zero_not_added():
+    engine = _make_engine()
+    hazard = {"type": "radiation", "damage": 1, "dot": 2, "duration": 0}
+    trigger_hazard(engine, hazard, "Reactor")
+    assert len(engine.active_effects) == 0
+
+
+def test_dot_duration_positive_still_works():
+    engine = _make_engine()
+    hazard = {"type": "radiation", "damage": 1, "dot": 1, "duration": 2}
+    trigger_hazard(engine, hazard, "Reactor")
+    assert len(engine.active_effects) == 1
+    assert engine.active_effects[0]["remaining"] == 2
+
+
+def test_dot_effects_no_fighter_no_crash():
+    """apply_dot_effects should not crash if player has no fighter."""
+    from tests.conftest import make_arena, MockEngine
+
+    gm = make_arena()
+    player = Entity(x=5, y=5, name="Player")  # no fighter
+    gm.entities.append(player)
+    engine = MockEngine(gm, player)
+    engine.active_effects = [{"type": "electric", "dot": 1, "remaining": 2}]
+
+    # Should not raise
+    apply_dot_effects(engine)
