@@ -1,0 +1,106 @@
+"""Name generation word banks for galaxy/location names."""
+from __future__ import annotations
+
+SYSTEM_WORDS: dict = {
+    "primaries": [
+        "Sol", "Vega", "Altair", "Sirius", "Rigel",
+        "Procyon", "Arcturus", "Deneb", "Polaris", "Antares",
+        "Fomalhaut", "Barnard", "Kapteyn", "Lacaille", "Kruger",
+        "Luyten", "Betelgeuse", "Canopus", "Spica", "Regulus",
+        "Aldebaran", "Castor", "Pollux", "Achernar", "Mira",
+        "Bellatrix", "Centauri", "Draconis", "Eridani", "Kepler",
+        "Ross", "Gliese", "Lalande", "Struve", "Cygni",
+        "Hydri", "Ophiuchi", "Groombridge", "Innes", "Winnecke",
+        "Vorathi", "Teskana", "Ossiren", "Pelicarn", "Zuveth",
+        "Calemir", "Dranthos", "Korvain", "Synthara", "Melvori",
+        "Askellion", "Brantus", "Ceruvia", "Draeven", "Exalon",
+        "Halcyon", "Ithkari", "Jentara", "Kelvorn", "Lorisar",
+        "Morvaine", "Nythera", "Orvanus", "Phaelon", "Quaseri",
+        "Rethani", "Selvura", "Torvalis", "Ulvaine", "Vaelstrom",
+    ],
+    "suffixes": [
+        "Proxima", "Ring", "Deep", "Gate", "Strand",
+        "Shoals", "Edge", "Threshold", "Watch", "Void",
+        "Drift", "Run", "Gap", "Passage", "Spur",
+        "Reach", "Expanse", "Crossing", "March", "Verge",
+        "Hollow", "Shallows", "Terminus", "Apex", "Cradle",
+        "Fall", "Rise", "Wake", "Shadow", "Remnant",
+    ],
+}
+
+LOCATION_TYPES: list[str] = ["derelict", "colony", "asteroid", "starbase"]
+
+LOCATION_WORDS: dict = {
+    "derelict": {
+        "adjectives": [
+            "Abandoned", "Wrecked", "Drifting", "Silent", "Gutted",
+            "Scorched", "Derelict", "Hollow", "Shattered", "Forsaken",
+            "Corroded", "Ghostly", "Sundered", "Blighted", "Stranded",
+            "Crippled", "Rusted", "Mangled", "Listing", "Blackened",
+            "Breached", "Fractured", "Scarred", "Adrift", "Burned",
+            "Disabled", "Decayed", "Ravaged", "Desolate", "Ruptured",
+        ],
+        "nouns": [
+            "Relay", "Freighter", "Hulk", "Cruiser", "Hauler",
+            "Corvette", "Transport", "Tanker", "Barge", "Brig",
+            "Carrier", "Gunship", "Scow", "Pinnace", "Clipper",
+            "Shuttle", "Liner", "Frigate", "Trawler", "Skiff",
+            "Sloop", "Cutter", "Tender", "Galleon",
+            "Tug", "Yacht", "Ferry", "Raider", "Prowler",
+        ],
+    },
+    "colony": {
+        "adjectives": [
+            "New", "Old", "Port", "Fort", "Lower",
+            "Upper", "Free", "Far", "Lost", "High",
+            "Dawn", "Iron", "Ember", "Frost", "Dusk",
+            "North", "South", "Inner", "Outer", "Deep",
+            "Gray", "Red", "Bright", "Dark", "Pale",
+            "Last", "First", "Grand", "Little", "Prime",
+        ],
+        "nouns": [
+            "Haven", "Anchorage", "Homestead", "Prospect", "Landing",
+            "Outpost", "Settlement", "Refuge", "Crossing", "Holdfast",
+            "Enclave", "Foothold", "Waypoint", "Berth", "Township",
+            "Harbor", "Reach", "Hearth", "Bulwark", "Hollow",
+            "Ridge", "Gulch", "Mesa", "Bluff", "Cradle",
+            "Roost", "Stead", "Commune", "Burrow", "Threshold",
+        ],
+    },
+    "asteroid": {
+        "adjectives": [
+            "Ore", "Rock", "Crystal", "Iron", "Cobalt",
+            "Jagged", "Shale", "Dust", "Slag", "Ember",
+            "Obsidian", "Sulfur", "Carbon", "Nickel", "Copper",
+            "Granite", "Basalt", "Quartz", "Titanium", "Zinc",
+            "Pitted", "Scarred", "Tumbling", "Fractured", "Dense",
+            "Hollow", "Molten", "Frozen", "Glinting", "Barren",
+        ],
+        "nouns": [
+            "Belt", "Field", "Drift", "Shoal", "Cluster",
+            "Vein", "Shard", "Reef", "Shelf", "Ring",
+            "Cavern", "Pit", "Seam", "Quarry", "Expanse",
+            "Reach", "Scatter", "Debris", "Gravel", "Mass",
+            "Pocket", "Ledge", "Trench", "Spire", "Fracture",
+            "Rubble", "Crater", "Gorge", "Ridge", "Fissure",
+        ],
+    },
+    "starbase": {
+        "adjectives": [
+            "Sentinel", "Signal", "Command", "Forward", "Orbital",
+            "Beacon", "Bastion", "Vanguard", "Anchor", "Prime",
+            "Apex", "Aegis", "Bulwark", "Meridian", "Zenith",
+            "Iron", "Vigilant", "Steadfast", "Resolute", "Stalwart",
+            "Eclipse", "Corona", "Rampart", "Frontier", "Central",
+            "Allied", "Outer", "Sovereign", "Warden", "Pinnacle",
+        ],
+        "nouns": [
+            "Watchtower", "Post", "Depot", "Hub", "Station",
+            "Spire", "Citadel", "Platform", "Array", "Nexus",
+            "Garrison", "Tower", "Gate", "Dock", "Keep",
+            "Fortress", "Redoubt", "Arsenal", "Pylon", "Hangar",
+            "Cradle", "Foundry", "Turret", "Bulkhead", "Barracks",
+            "Mooring", "Sanctum", "Stronghold", "Outpost", "Port",
+        ],
+    },
+}

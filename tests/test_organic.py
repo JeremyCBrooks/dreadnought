@@ -28,14 +28,14 @@ def test_entity_has_move_cooldown_default():
 
 
 # ===================================================================
-# Data integrity: entities.json organic flags
+# Data integrity: enemy organic flags
 # ===================================================================
 
 
 def test_entities_json_organic_flags():
     """Bot and Security Drone are machines; Rat and Pirate are organic."""
-    from data import db
-    enemies = {e["name"]: e.get("organic", True) for e in db.enemies()}
+    from data.enemies import ENEMIES
+    enemies = {e.name: e.organic for e in ENEMIES}
     assert enemies["Rat"] is True
     assert enemies["Pirate"] is True
     assert enemies["Bot"] is False

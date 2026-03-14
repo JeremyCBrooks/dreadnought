@@ -274,8 +274,8 @@ class InteractAction(Action):
         # Loot
         if has_loot:
             from game.entity import Entity as _Entity
-            from data import db
-            item_data = db.build_item_data(loot)
+            from data.items import build_item_data
+            item_data = build_item_data(loot)
             item_ent = _Entity(
                 x=entity.x, y=entity.y,
                 char=loot["char"], color=loot["color"], name=loot["name"],

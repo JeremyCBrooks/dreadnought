@@ -4,7 +4,7 @@ from __future__ import annotations
 import random
 from typing import Dict, List, Optional
 
-from data.db import system_words, location_types, location_words
+from data.names import SYSTEM_WORDS, LOCATION_TYPES, LOCATION_WORDS
 from data.star_types import pick_star_type
 
 
@@ -95,9 +95,9 @@ class Galaxy:
         self._nav_unit_rings: Dict[int, str] = {}
 
         # Cache data tables
-        self._sw = system_words()
-        self._loc_types = location_types()
-        self._loc_words = location_words()
+        self._sw = SYSTEM_WORDS
+        self._loc_types = LOCATION_TYPES
+        self._loc_words = LOCATION_WORDS
 
         self.dreadnought_system: Optional[str] = None
 

@@ -1,5 +1,5 @@
 """Tests for galaxy, star system, and location generation."""
-from data.db import location_types, location_words, system_words
+from data.names import LOCATION_TYPES, LOCATION_WORDS, SYSTEM_WORDS
 from data.star_types import STAR_TYPES
 from world.galaxy import Galaxy
 
@@ -38,16 +38,14 @@ def test_locations_generated():
 
 
 def test_location_words_cover_all_types():
-    words = location_words()
-    for lt in location_types():
-        assert len(words[lt]["adjectives"]) >= 20
-        assert len(words[lt]["nouns"]) >= 20
+    for lt in LOCATION_TYPES:
+        assert len(LOCATION_WORDS[lt]["adjectives"]) >= 20
+        assert len(LOCATION_WORDS[lt]["nouns"]) >= 20
 
 
 def test_enough_system_words():
-    sw = system_words()
-    assert len(sw["primaries"]) >= 20
-    assert len(sw["suffixes"]) >= 20
+    assert len(SYSTEM_WORDS["primaries"]) >= 20
+    assert len(SYSTEM_WORDS["suffixes"]) >= 20
 
 
 def test_location_names_are_unique_across_seeds():

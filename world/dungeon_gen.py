@@ -12,7 +12,12 @@ from world.loc_profiles import get_profile, LocationProfile, RoomSpec
 from world.palettes import pick_biome, make_ground_tile, make_wall_tile, make_path_tile, apply_ground_noise, scatter_flora
 from game.entity import Entity, Fighter
 from game.ai import CreatureAI
-from data import db
+from dataclasses import asdict
+
+from data.enemies import ENEMIES
+from data.items import ITEMS, build_item_data, all_loot
+from data.interactables import FLOOR_INTERACTABLES, interactable_by_name
+from data.hazards import HAZARDS
 
 import numpy as np
 
@@ -195,22 +200,22 @@ def _spawn_enemies(
             continue
         if _near_exit(x, y, exit_pos):
             continue
-        defn = rng.choice(db.enemies())
+        defn = rng.choice(ENEMIES)
         ai_config = {
-            k: defn[k] for k in (
+            k: getattr(defn, k) for k in (
                 "ai_initial_state", "aggro_distance", "sleep_aggro_distance",
                 "can_open_doors", "flee_threshold", "memory_turns", "vision_radius",
                 "move_speed",
-            ) if k in defn
+            )
         }
         entity = Entity(
-            x=x, y=y, char=defn["char"], color=defn["color"], name=defn["name"],
+            x=x, y=y, char=defn.char, color=defn.color, name=defn.name,
             blocks_movement=True,
-            fighter=Fighter(hp=defn["hp"], max_hp=defn["hp"],
-                            defense=defn["defense"], power=defn["power"]),
+            fighter=Fighter(hp=defn.hp, max_hp=defn.hp,
+                            defense=defn.defense, power=defn.power),
             ai=CreatureAI(),
-            organic=defn.get("organic", True),
-            gore_color=defn.get("gore_color"),
+            organic=defn.organic,
+            gore_color=defn.gore_color,
         )
         entity.ai_config = ai_config
         entity.ai_state = ai_config.get("ai_initial_state", "wandering")
@@ -231,12 +236,12 @@ def _spawn_items(
             continue
         if game_map.get_blocking_entity(x, y) or game_map.get_non_blocking_entity_at(x, y):
             continue
-        defn = rng.choice(db.items())
+        defn = rng.choice(ITEMS)
         game_map.entities.append(
             Entity(
-                x=x, y=y, char=defn["char"], color=defn["color"], name=defn["name"],
+                x=x, y=y, char=defn.char, color=defn.color, name=defn.name,
                 blocks_movement=False,
-                item=db.build_item_data(defn),
+                item=build_item_data(defn),
             )
         )
 
@@ -262,16 +267,17 @@ def _spawn_interactables(
     wall_interactable_name: Optional[str] = None,
     exit_pos: Optional[Tuple[int, int]] = None,
 ) -> None:
-    floor_pool = db.floor_interactables()
-    wall_defn = db.interactable_by_name(wall_interactable_name) if wall_interactable_name else None
+    floor_pool = list(FLOOR_INTERACTABLES)
+    wall_defn = interactable_by_name(wall_interactable_name) if wall_interactable_name else None
     pool = floor_pool + ([wall_defn] if wall_defn else [])
     if not pool:
         return
 
+    loot_pool = all_loot()
     for _ in range(count):
         defn = rng.choice(pool)
-        ch, color, name = defn["char"], defn["color"], defn["name"]
-        is_wall = defn.get("placement") == "wall"
+        ch, color, name = defn.char, defn.color, defn.name
+        is_wall = defn.placement == "wall"
 
         if is_wall:
             candidates = [
@@ -295,9 +301,8 @@ def _spawn_interactables(
 
         hazard = None
         if rng.random() < hazard_chance:
-            hazard = dict(rng.choice(db.hazards()))
-        all_loot = db.all_loot()
-        loot = rng.choice(all_loot) if rng.random() < 0.6 else None
+            hazard = asdict(rng.choice(HAZARDS))
+        loot = rng.choice(loot_pool) if rng.random() < 0.6 else None
         game_map.entities.append(
             Entity(
                 x=x, y=y, char=ch, color=color, name=name,
@@ -505,8 +510,8 @@ def _dress_ship_room(
     int_min, int_max = dressing["interactable_count"]
     loot_chance = dressing["loot_chance"]
     hazard_chance = dressing["hazard_chance"]
-    all_loot = db.all_loot()
-    hazard_pool = db.hazards()
+    loot_pool = all_loot()
+    hazard_pool = HAZARDS
 
     nav_placed = False
     for _ in range(rng.randint(int_min, int_max)):
@@ -514,13 +519,13 @@ def _dress_ship_room(
         if not pos:
             continue
         ch, color, name = rng.choice(dressing["interactables"])
-        hazard = dict(rng.choice(hazard_pool)) if rng.random() < hazard_chance else None
+        hazard = asdict(rng.choice(hazard_pool)) if rng.random() < hazard_chance else None
         if has_nav_unit and not nav_placed:
             loot = {"char": "\u2302", "color": [0, 255, 200], "name": "Navigation Unit",
                     "type": "nav_unit", "value": 1}
             nav_placed = True
         else:
-            loot = rng.choice(all_loot) if rng.random() < loot_chance else None
+            loot = rng.choice(loot_pool) if rng.random() < loot_chance else None
         occupied.add(pos)
         game_map.entities.append(
             Entity(x=pos[0], y=pos[1], char=ch, color=color, name=name,

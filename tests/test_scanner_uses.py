@@ -82,20 +82,20 @@ def test_uses_not_shown_to_player():
 
 def test_build_item_data_assigns_uses_to_scanner():
     """build_item_data for a scanner should assign 'uses' between 1 and 3."""
-    from data import db
+    from data.items import build_item_data
     defn = {
         "char": "]", "color": [100, 200, 255], "name": "Basic Scanner",
         "scanner_tier": 1, "range": 8, "type": "scanner", "value": 1,
     }
     rng = random.Random(42)
-    item_data = db.build_item_data(defn, rng=rng)
+    item_data = build_item_data(defn, rng=rng)
     assert "uses" in item_data
     assert 1 <= item_data["uses"] <= 3
 
 
 def test_build_item_data_uses_vary_with_rng():
     """Different RNG seeds should produce different use counts (across many seeds)."""
-    from data import db
+    from data.items import build_item_data
     defn = {
         "char": "]", "color": [100, 200, 255], "name": "Basic Scanner",
         "scanner_tier": 1, "range": 8, "type": "scanner", "value": 1,
@@ -103,7 +103,7 @@ def test_build_item_data_uses_vary_with_rng():
     values = set()
     for seed in range(100):
         rng = random.Random(seed)
-        item_data = db.build_item_data(defn, rng=rng)
+        item_data = build_item_data(defn, rng=rng)
         values.add(item_data["uses"])
     # Should see at least 2 distinct values across 100 seeds
     assert len(values) >= 2
@@ -111,9 +111,9 @@ def test_build_item_data_uses_vary_with_rng():
 
 def test_build_item_data_non_scanner_no_uses():
     """Non-scanner items should NOT get uses assigned."""
-    from data import db
+    from data.items import build_item_data
     defn = {"type": "weapon", "value": 3, "char": "/", "color": [200, 200, 200], "name": "Pipe"}
-    item_data = db.build_item_data(defn)
+    item_data = build_item_data(defn)
     assert "uses" not in item_data
 
 
