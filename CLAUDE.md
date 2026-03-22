@@ -14,6 +14,8 @@ A sci-fi roguelike built with Python and python-tcod. Vertical slice featuring d
 - **Install deps**: `uv pip install -r requirements.txt`
 - **Virtual env**: `.venv` managed with `uv`
 
+This is a Windows system with a cygwin bash shell available at `F:\software\Tools\cygwin64\bin\bash.exe`. Use Powershell or bash as needed.
+
 ## Conventions
 - Lazy-import `tcod` inside methods (not at module top level) to keep modules testable without a display
 - `TYPE_CHECKING` guards for type-hint-only imports

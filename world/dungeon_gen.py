@@ -14,7 +14,7 @@ from game.entity import Entity, Fighter
 from game.ai import CreatureAI
 from dataclasses import asdict
 
-from data.enemies import ENEMIES
+from data.enemies import ENEMIES, build_enemy_inventory
 from data.items import ITEMS, build_item_data, all_loot
 from data.interactables import FLOOR_INTERACTABLES, interactable_by_name
 from data.hazards import HAZARDS
@@ -219,6 +219,10 @@ def _spawn_enemies(
         )
         entity.ai_config = ai_config
         entity.ai_state = ai_config.get("ai_initial_state", "wandering")
+        entity.inventory = build_enemy_inventory(defn, rng)
+        entity.max_inventory = defn.max_inventory
+        from game.helpers import recalc_melee_power_ai
+        recalc_melee_power_ai(entity)
         game_map.entities.append(entity)
         spawned += 1
     return spawned

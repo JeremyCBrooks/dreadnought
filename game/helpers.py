@@ -117,6 +117,44 @@ def has_clear_shot(game_map: GameMap, x1: int, y1: int, x2: int, y2: int) -> boo
     return True
 
 
+def find_drop_tile(game_map: GameMap, x: int, y: int) -> tuple | None:
+    """Find a walkable tile at (x,y) or adjacent with no items."""
+    if not game_map.get_items_at(x, y):
+        return (x, y)
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            if dx == 0 and dy == 0:
+                continue
+            nx, ny = x + dx, y + dy
+            if game_map.in_bounds(nx, ny) and game_map.is_walkable(nx, ny) and not game_map.get_items_at(nx, ny):
+                return (nx, ny)
+    return None
+
+
+def drop_all_inventory(entity: Entity, game_map: GameMap) -> None:
+    """Drop all inventory items at or near entity's position."""
+    for item in list(entity.inventory):
+        tile = find_drop_tile(game_map, entity.x, entity.y)
+        if tile is None:
+            break
+        entity.inventory.remove(item)
+        item.x, item.y = tile
+        game_map.entities.append(item)
+
+
+def recalc_melee_power_ai(entity: Entity) -> None:
+    """Recalculate melee power for AI entities from inventory (no Loadout needed)."""
+    if not entity.fighter:
+        return
+    best_value = 0
+    for e in entity.inventory:
+        if (e.item and e.item.get("type") == "weapon"
+                and e.item.get("weapon_class") == "melee"
+                and not e.item.get("damaged")):
+            best_value = max(best_value, e.item.get("value", 0))
+    entity.fighter.power = entity.fighter.base_power + best_value
+
+
 def is_diagonal_blocked(game_map: GameMap, x: int, y: int, dx: int, dy: int) -> bool:
     """Return True if diagonal movement from (x,y) by (dx,dy) is blocked by a closed door.
 

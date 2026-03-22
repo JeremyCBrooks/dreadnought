@@ -282,6 +282,53 @@ class CreatureAI:
             # Stuck — pick a new goal next turn
             owner.ai_wander_goal = None
 
+    # ---- item usage ----
+
+    def _try_use_item(self, owner: Entity, engine: Engine) -> bool:
+        """Try to use a consumable. Returns True if used (consumes turn)."""
+        if not owner.fighter:
+            return False
+
+        # 1. Heal: organic, low HP, has heal item
+        if owner.organic and owner.fighter.hp < owner.fighter.max_hp * 0.5:
+            for item in owner.inventory:
+                if item.item and item.item.get("type") == "heal":
+                    if random.random() < 0.4:
+                        heal = item.item.get("value", 0)
+                        owner.fighter.hp = min(owner.fighter.max_hp, owner.fighter.hp + heal)
+                        owner.inventory.remove(item)
+                        engine.message_log.add_message(
+                            f"The {owner.name} uses a {item.name} and heals.", (200, 200, 100)
+                        )
+                        return True
+                    return False  # RNG said no, skip this turn
+
+        # 2. Repair: non-organic, has damaged weapon + repair kit
+        if not owner.organic:
+            damaged_weapon = None
+            for item in owner.inventory:
+                if (item.item and item.item.get("type") == "weapon"
+                        and item.item.get("damaged")):
+                    damaged_weapon = item
+                    break
+            if damaged_weapon:
+                for item in owner.inventory:
+                    if item.item and item.item.get("type") == "repair":
+                        if random.random() < 0.4:
+                            damaged_weapon.item["damaged"] = False
+                            max_dur = damaged_weapon.item.get("max_durability", 5)
+                            damaged_weapon.item["durability"] = max_dur
+                            owner.inventory.remove(item)
+                            from game.helpers import recalc_melee_power_ai
+                            recalc_melee_power_ai(owner)
+                            engine.message_log.add_message(
+                                f"The {owner.name} repairs its {damaged_weapon.name}.", (200, 200, 100)
+                            )
+                            return True
+                        return False
+
+        return False
+
     # ---- attack ----
 
     def _attack(self, owner: Entity, engine: Engine) -> None:
@@ -349,6 +396,8 @@ class CreatureAI:
                 owner.ai_wander_goal = None
                 self._do_hunting(owner, engine)
                 return
+        if self._try_use_item(owner, engine):
+            return
         self._wander(owner, engine)
 
     def _do_hunting(self, owner: Entity, engine: Engine) -> None:
@@ -363,6 +412,9 @@ class CreatureAI:
                 owner.ai_state = "fleeing"
                 self._do_fleeing(owner, engine)
                 return
+
+        if self._try_use_item(owner, engine):
+            return
 
         # Update vision
         can_see = self._can_see_player(owner, engine)
@@ -464,6 +516,9 @@ class CreatureAI:
             owner.ai_state = "wandering"
             owner.ai_target = None
             owner.ai_turns_since_seen = 0
+            return
+
+        if self._try_use_item(owner, engine):
             return
 
         # Movement — spend energy, possibly multiple steps for fast creatures

@@ -49,14 +49,37 @@ from game.helpers import chebyshev as _chebyshev
 
 # ---- Scan-tier formatting (used by perform_area_scan) ----
 
+def _get_primary_weapon(entity: Entity) -> str | None:
+    """Return the name of the first weapon in entity's inventory, or None."""
+    for e in getattr(entity, "inventory", []):
+        if e.item and e.item.get("type") == "weapon":
+            return e.name
+    return None
+
+
+def _get_inventory_summary(entity: Entity) -> str:
+    """Return comma-separated names of all inventory items."""
+    return ", ".join(e.name for e in getattr(entity, "inventory", []) if e.item)
+
+
 def _format_creature(entity: Entity, tier: int) -> Tuple[str, Tuple[int, int, int], str]:
     if tier <= 1:
         return "?", (200, 200, 200), "???"
     elif tier == 2:
-        return entity.char, entity.color, entity.name
+        weapon = _get_primary_weapon(entity)
+        if weapon:
+            label = f"{entity.name} [{weapon}]"
+        else:
+            label = entity.name
+        return entity.char, entity.color, label
     else:
         state = getattr(entity, "ai_state", "wandering")
-        return entity.char, entity.color, f"{entity.name} [{state}]"
+        inv_summary = _get_inventory_summary(entity)
+        if inv_summary:
+            label = f"{entity.name} [{state}] {inv_summary}"
+        else:
+            label = f"{entity.name} [{state}]"
+        return entity.char, entity.color, label
 
 
 def _format_item(entity: Entity, tier: int) -> Tuple[str, Tuple[int, int, int], str]:

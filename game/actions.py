@@ -40,6 +40,9 @@ def _apply_damage_and_death(engine: Engine, attacker: Entity, target: Entity, da
             engine.message_log.add_message(
                 f"The {target.name} is destroyed!", ENEMY_DEATH
             )
+            if target.inventory:
+                from game.helpers import drop_all_inventory
+                drop_all_inventory(target, engine.game_map)
             from game.gore import place_death_gore
             place_death_gore(engine.game_map, target)
             if target in engine.game_map.entities:
@@ -183,20 +186,9 @@ class DropAction(Action):
         self.item_index = item_index
 
     def _find_drop_tile(self, engine: Engine, entity: Entity) -> Optional[tuple]:
-        """Find a valid tile to drop an item: player tile first, then adjacent."""
-        gm = engine.game_map
-        # Try player's tile first
-        if not gm.get_items_at(entity.x, entity.y):
-            return (entity.x, entity.y)
-        # Try adjacent walkable tiles without items
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                if dx == 0 and dy == 0:
-                    continue
-                nx, ny = entity.x + dx, entity.y + dy
-                if gm.is_walkable(nx, ny) and not gm.get_items_at(nx, ny):
-                    return (nx, ny)
-        return None
+        """Find a valid tile to drop an item: entity tile first, then adjacent."""
+        from game.helpers import find_drop_tile
+        return find_drop_tile(engine.game_map, entity.x, entity.y)
 
     def perform(self, engine: Engine, entity: Entity) -> int:
         if self.item_index < 0 or self.item_index >= len(entity.inventory):

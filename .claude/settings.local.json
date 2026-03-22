@@ -2,7 +2,6 @@
   "permissions": {
     "allow": [
       "Bash(wc:*)",
-      "Bash(find .:*)",
       "Bash(.venv/Scripts/python:*)",
       "Bash(ls:*)",
       "Bash(python:*)",
@@ -14,12 +13,8 @@
       "Bash(done)",
       "Bash(test:*)",
       "Bash(taskkill:*)",
-      "Bash(find /f/dev/gamedev/dreadnought -type f -name \"*.py\" -exec grep -l \"console.rgb\\\\|console.print\" {} \\\\; | grep -v \".venv\" | head -20)",
-      "Bash(git show:*)",
-      "Bash(find /f/dev/gamedev/dreadnought -name \"*fighter*\" -type f 2>/dev/null | grep -v \".venv\")",
-      "Bash(find /f/dev/gamedev/dreadnought -type f -name \"*.py\" -not -path \"*\\\\.venv*\" 2>/dev/null | head -50)",
-      "Bash(xargs -I {} basename {})",
-      "Bash(cd F:/dev/gamedev/dreadnought && rm data/entities.json data/names.json data/db.py)"
+      "Bash(find:*)",
+      "Bash(git show:*)"
     ]
   }
 }

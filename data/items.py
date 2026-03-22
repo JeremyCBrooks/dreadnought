@@ -55,6 +55,14 @@ SCANNERS: list[ScannerDef] = [
                scanner_tier=3, range=20, type="scanner", value=3),
 ]
 
+_ITEMS_BY_NAME: dict[str, ItemDef] = {i.name: i for i in ITEMS}
+
+
+def item_by_name(name: str) -> ItemDef:
+    """Look up an ItemDef by its name. Raises KeyError if not found."""
+    return _ITEMS_BY_NAME[name]
+
+
 _ALL_LOOT: list[dict[str, Any]] = [asdict(i) for i in ITEMS] + [asdict(s) for s in SCANNERS]
 
 
