@@ -30,6 +30,7 @@ class EnemyDef:
     move_speed: int
     loot_table: Tuple[Tuple[str, float], ...] = ()
     max_inventory: int = 3
+    can_steal: bool = False
 
 
 _PIRATE_LOOT: Tuple[Tuple[str, float], ...] = (
@@ -59,21 +60,21 @@ ENEMIES: list[EnemyDef] = [
         hp=5, defense=1, power=3, organic=True, gore_color=(140, 20, 20),
         ai_initial_state="wandering", aggro_distance=8, sleep_aggro_distance=4,
         can_open_doors=True, flee_threshold=0.3, memory_turns=15, vision_radius=8, move_speed=4,
-        loot_table=_PIRATE_LOOT,
+        loot_table=_PIRATE_LOOT, can_steal=True,
     ),
     EnemyDef(
         char="p", color=(50, 200, 50), name="Xeno Pirate",
         hp=5, defense=1, power=3, organic=True, gore_color=(30, 120, 30),
         ai_initial_state="wandering", aggro_distance=8, sleep_aggro_distance=4,
         can_open_doors=True, flee_threshold=0.3, memory_turns=15, vision_radius=8, move_speed=4,
-        loot_table=_PIRATE_LOOT,
+        loot_table=_PIRATE_LOOT, can_steal=True,
     ),
     EnemyDef(
         char="p", color=(50, 80, 200), name="Vek Pirate",
         hp=5, defense=1, power=3, organic=True, gore_color=(30, 40, 140),
         ai_initial_state="wandering", aggro_distance=8, sleep_aggro_distance=4,
         can_open_doors=True, flee_threshold=0.3, memory_turns=15, vision_radius=8, move_speed=4,
-        loot_table=_PIRATE_LOOT,
+        loot_table=_PIRATE_LOOT, can_steal=True,
     ),
     EnemyDef(
         char="p", color=(180, 150, 150), name="Mech Pirate",

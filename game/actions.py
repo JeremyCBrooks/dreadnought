@@ -61,6 +61,39 @@ def _attack_message(engine: Engine, entity: Entity, target: Entity,
     engine.message_log.add_message(msg, color)
 
 
+_STEAL_CHANCE = 0.2
+
+
+def _try_steal(engine: Engine, thief: Entity, target: Entity) -> None:
+    """Attempt to steal a random non-equipped item from target."""
+    import random
+
+    if random.random() >= _STEAL_CHANCE:
+        return
+
+    # Collect stealable items (not in loadout)
+    loadout = getattr(target, "loadout", None)
+    stealable = [
+        item for item in target.inventory
+        if not (loadout and loadout.has_item(item))
+    ]
+    if not stealable:
+        return
+
+    stolen = random.choice(stealable)
+    target.inventory.remove(stolen)
+    thief.inventory.append(stolen)
+    thief.stolen_loot.append(stolen)
+
+    # Recalc melee power if a melee weapon was stolen
+    from game.helpers import recalc_melee_power_ai
+    recalc_melee_power_ai(thief)
+
+    engine.message_log.add_message(
+        f"The {thief.name} snatches your {stolen.name}!", WARNING
+    )
+
+
 class Action:
     def perform(self, engine: Engine, entity: Entity) -> int:
         """Execute the action. Return number of ticks consumed (0 = no-op)."""
@@ -109,6 +142,17 @@ class MeleeAction(Action):
         _attack_message(engine, entity, self.target, "hit", "hits", damage, PLAYER_ATTACK, ENEMY_ATTACK)
 
         _apply_damage_and_death(engine, entity, self.target, damage)
+
+        # Pickpocketing: enemy with can_steal attempts to snatch a non-equipped item
+        if (
+            entity is not engine.player
+            and self.target is engine.player
+            and self.target.fighter.hp > 0
+            and entity.ai_config.get("can_steal")
+            and entity.can_carry()
+        ):
+            _try_steal(engine, entity, self.target)
+
         return 1
 
 

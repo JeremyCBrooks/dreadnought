@@ -205,7 +205,7 @@ def _spawn_enemies(
             k: getattr(defn, k) for k in (
                 "ai_initial_state", "aggro_distance", "sleep_aggro_distance",
                 "can_open_doors", "flee_threshold", "memory_turns", "vision_radius",
-                "move_speed",
+                "move_speed", "can_steal",
             )
         }
         entity = Entity(

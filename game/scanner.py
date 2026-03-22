@@ -58,8 +58,14 @@ def _get_primary_weapon(entity: Entity) -> str | None:
 
 
 def _get_inventory_summary(entity: Entity) -> str:
-    """Return comma-separated names of all inventory items."""
-    return ", ".join(e.name for e in getattr(entity, "inventory", []) if e.item)
+    """Return comma-separated names of all inventory items, tagging stolen ones."""
+    stolen = set(id(i) for i in getattr(entity, "stolen_loot", []))
+    parts = []
+    for e in getattr(entity, "inventory", []):
+        if e.item:
+            tag = " (STOLEN)" if id(e) in stolen else ""
+            parts.append(f"{e.name}{tag}")
+    return ", ".join(parts)
 
 
 def _format_creature(entity: Entity, tier: int) -> Tuple[str, Tuple[int, int, int], str]:

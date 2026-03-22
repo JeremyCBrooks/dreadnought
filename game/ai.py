@@ -18,9 +18,18 @@ _DEFAULTS = {
     "memory_turns": 15,
     "vision_radius": 8,
     "move_speed": 4,
+    "can_steal": False,
 }
 
 ACTION_COST = 4  # energy needed per movement action
+_STOLEN_LOOT_FLEE_BOOST = 0.2  # extra flee threshold when carrying stolen items
+
+
+def _clean_stolen_loot(owner: Entity, item: Entity) -> None:
+    """Remove item from stolen_loot tracking if present."""
+    stolen = getattr(owner, "stolen_loot", None)
+    if stolen and item in stolen:
+        stolen.remove(item)
 
 
 class CreatureAI:
@@ -297,6 +306,7 @@ class CreatureAI:
                         heal = item.item.get("value", 0)
                         owner.fighter.hp = min(owner.fighter.max_hp, owner.fighter.hp + heal)
                         owner.inventory.remove(item)
+                        _clean_stolen_loot(owner, item)
                         engine.message_log.add_message(
                             f"The {owner.name} uses a {item.name} and heals.", (200, 200, 100)
                         )
@@ -319,6 +329,7 @@ class CreatureAI:
                             max_dur = damaged_weapon.item.get("max_durability", 5)
                             damaged_weapon.item["durability"] = max_dur
                             owner.inventory.remove(item)
+                            _clean_stolen_loot(owner, item)
                             from game.helpers import recalc_melee_power_ai
                             recalc_melee_power_ai(owner)
                             engine.message_log.add_message(
@@ -404,8 +415,10 @@ class CreatureAI:
         from game.helpers import chebyshev
         target = engine.player
 
-        # Check flee threshold
+        # Check flee threshold (boosted when carrying stolen loot)
         flee_threshold = self._cfg(owner, "flee_threshold")
+        if getattr(owner, "stolen_loot", None):
+            flee_threshold = min(1.0, flee_threshold + _STOLEN_LOOT_FLEE_BOOST)
         if flee_threshold > 0 and owner.fighter:
             hp_ratio = owner.fighter.hp / max(1, owner.fighter.max_hp)
             if hp_ratio <= flee_threshold:

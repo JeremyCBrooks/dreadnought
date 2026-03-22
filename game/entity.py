@@ -68,6 +68,7 @@ class Entity:
         self.ai_turns_since_seen: int = 0
         self.ai_stuck_turns: int = 0
         self.ai_energy: int = 0
+        self.stolen_loot: List[Entity] = []
 
     def can_carry(self) -> bool:
         """Return True if inventory has room (or is unlimited).
