@@ -1,0 +1,34 @@
+[project]
+name = "dreadnought"
+version = "0.1.0"
+description = "A sci-fi roguelike built with Python and python-tcod"
+requires-python = ">=3.12"
+dependencies = [
+    "tcod>=15.0.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "ruff>=0.15.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["data", "engine", "game", "ui", "world"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "UP",   # pyupgrade (modernize syntax)
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

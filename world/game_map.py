@@ -1,8 +1,9 @@
 """GameMap: tile grid, FOV, entity management, and rendering."""
+
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -10,6 +11,7 @@ from world import tile_types
 
 if TYPE_CHECKING:
     from game.entity import Entity
+
 
 class GameMap:
     def __init__(self, width: int, height: int, fill_tile: np.ndarray | None = None) -> None:
@@ -24,7 +26,7 @@ class GameMap:
         self.fov_radius = 8
         self.has_space = False
         self.airlocks: list = []
-        self.entities: List[Entity] = []
+        self.entities: list[Entity] = []
         self._entity_index: dict | None = None
         self._entity_index_len: int = 0
         # Per-tile hazard propagation
@@ -38,7 +40,7 @@ class GameMap:
         self.biome: str | None = None
         self.debug_visible_all: bool = False
         # Turn-scoped FOV cache for AI vision (cleared each turn)
-        self._fov_cache: dict[tuple[int, int, int], "np.ndarray"] = {}
+        self._fov_cache: dict[tuple[int, int, int], np.ndarray] = {}
         # Lighting
         self.light_sources: list = []
         self._light_map: np.ndarray | None = None
@@ -78,25 +80,22 @@ class GameMap:
         """Clear the spatial index (call when entities move or are added/removed)."""
         self._entity_index = None
 
-    def get_blocking_entity(self, x: int, y: int) -> Optional[Entity]:
+    def get_blocking_entity(self, x: int, y: int) -> Entity | None:
         for entity in self._get_entities_at(x, y):
             if entity.blocks_movement:
                 return entity
         return None
 
-    def get_items_at(self, x: int, y: int) -> List[Entity]:
-        return [
-            e for e in self._get_entities_at(x, y)
-            if not e.blocks_movement and e.item is not None
-        ]
+    def get_items_at(self, x: int, y: int) -> list[Entity]:
+        return [e for e in self._get_entities_at(x, y) if not e.blocks_movement and e.item is not None]
 
-    def get_interactable_at(self, x: int, y: int) -> Optional[Entity]:
+    def get_interactable_at(self, x: int, y: int) -> Entity | None:
         for e in self._get_entities_at(x, y):
             if getattr(e, "interactable", None):
                 return e
         return None
 
-    def get_non_blocking_entity_at(self, x: int, y: int) -> Optional[Entity]:
+    def get_non_blocking_entity_at(self, x: int, y: int) -> Entity | None:
         """Return any non-blocking entity (item or interactable) at (x, y)."""
         for e in self._get_entities_at(x, y):
             if not e.blocks_movement:
@@ -121,6 +120,7 @@ class GameMap:
 
         if vacuum_sources:
             from game.environment import _flood_fill_hazard
+
             new_vacuum = _flood_fill_hazard(self, vacuum_sources)
             self.hazard_overlays["vacuum"] = new_vacuum
 
@@ -162,20 +162,37 @@ class GameMap:
         return result
 
     def add_light_source(
-        self, x: int, y: int, radius: int, color: Tuple[int, int, int],
-        intensity: float = 1.0, flicker: bool = False,
+        self,
+        x: int,
+        y: int,
+        radius: int,
+        color: tuple[int, int, int],
+        intensity: float = 1.0,
+        flicker: bool = False,
     ) -> None:
         from world.lighting import LightSource
-        self.light_sources.append(LightSource(x=x, y=y, radius=radius, color=color, intensity=intensity, flicker=flicker))
+
+        self.light_sources.append(
+            LightSource(x=x, y=y, radius=radius, color=color, intensity=intensity, flicker=flicker)
+        )
         self._light_dirty = True
 
     @property
     def has_flickering_lights(self) -> bool:
         return any(ls.flicker for ls in self.light_sources)
 
+    def invalidate_hazards(self) -> None:
+        """Mark hazard overlays and lighting as stale after tile changes."""
+        self._hazards_dirty = True
+        self.invalidate_lights()
+
     def invalidate_lights(self) -> None:
         self._light_dirty = True
         self._light_map = None
+
+    def clear_fov_cache(self) -> None:
+        """Clear the turn-scoped AI vision cache."""
+        self._fov_cache.clear()
 
     def update_hazard_lights(self) -> None:
         """Set light colors to red if adjacent interior floors are under hazard.
@@ -221,13 +238,18 @@ class GameMap:
     def get_light_map(self) -> np.ndarray:
         if self._light_map is None or self._light_dirty or self.has_flickering_lights:
             from world.lighting import compute_light_map
+
             self._light_map = compute_light_map(self.width, self.height, self.tiles, self.light_sources)
             self._light_dirty = False
         return self._light_map
 
     def describe_at(
-        self, x: int, y: int, *, visible_only: bool = False,
-    ) -> List[Tuple[str, Tuple[int, int, int]]]:
+        self,
+        x: int,
+        y: int,
+        *,
+        visible_only: bool = False,
+    ) -> list[tuple[str, tuple[int, int, int]]]:
         """Return [(text, color), ...] describing a map position."""
         if not self.in_bounds(x, y):
             return [("Nothing there.", (100, 100, 100))]
@@ -238,27 +260,19 @@ class GameMap:
 
         tid = int(self.tiles["tile_id"][x, y])
         name, flavor = tile_types.describe_tile(tid, biome=self.biome)
-        lines: List[Tuple[str, Tuple[int, int, int]]] = [
+        lines: list[tuple[str, tuple[int, int, int]]] = [
             (f"{name} \u2014 {flavor}", (170, 170, 190)),
         ]
 
-        for entity in self.entities:
-            if entity.x != x or entity.y != y:
-                continue
+        for entity in self._get_entities_at(x, y):
             if not self.visible[entity.x, entity.y] and visible_only:
                 continue
             if entity.fighter and entity.blocks_movement:
-                lines.append(
-                    (f"{entity.name} ({entity.char}) is here.", (255, 180, 180))
-                )
+                lines.append((f"{entity.name} ({entity.char}) is here.", (255, 180, 180)))
             elif entity.item:
-                lines.append(
-                    (f"You see {entity.name} ({entity.char}) lying here.", (180, 200, 255))
-                )
+                lines.append((f"You see {entity.name} ({entity.char}) lying here.", (180, 200, 255)))
             elif getattr(entity, "interactable", None):
-                lines.append(
-                    (f"{entity.name} ({entity.char}) — [e] to interact.", (200, 220, 150))
-                )
+                lines.append((f"{entity.name} ({entity.char}) — [e] to interact.", (200, 220, 150)))
         return lines
 
     def apply_scan_glow(self, cx: int, cy: int, radius: int) -> None:
@@ -307,7 +321,7 @@ class GameMap:
         vp_y: int,
         vp_w: int,
         vp_h: int,
-        scan_glow: Optional[dict] = None,
+        scan_glow: dict | None = None,
     ) -> None:
         self._entity_index = None  # rebuild spatial index for this frame
         cam_x = max(0, min(cam_x, max(0, self.width - vp_w)))
@@ -359,14 +373,10 @@ class GameMap:
             fg_boost = int(60 * glow_alpha)
             bg_boost = int(25 * glow_alpha)
             fg[glow_mask, 0] = (fg[glow_mask, 0] * dim).astype(np.uint8)
-            fg[glow_mask, 1] = np.minimum(
-                fg[glow_mask, 1].astype(np.int16) + fg_boost, 255
-            ).astype(np.uint8)
+            fg[glow_mask, 1] = np.minimum(fg[glow_mask, 1].astype(np.int16) + fg_boost, 255).astype(np.uint8)
             fg[glow_mask, 2] = (fg[glow_mask, 2] * dim).astype(np.uint8)
             bg[glow_mask, 0] = (bg[glow_mask, 0] * dim).astype(np.uint8)
-            bg[glow_mask, 1] = np.minimum(
-                bg[glow_mask, 1].astype(np.int16) + bg_boost, 255
-            ).astype(np.uint8)
+            bg[glow_mask, 1] = np.minimum(bg[glow_mask, 1].astype(np.int16) + bg_boost, 255).astype(np.uint8)
             bg[glow_mask, 2] = (bg[glow_mask, 2] * dim).astype(np.uint8)
 
         # Apply colored light source tinting
@@ -385,12 +395,8 @@ class GameMap:
             # Reduce intensity for explored-but-not-visible tiles
             strength = np.where(vis[..., np.newaxis], 1.0, 0.5)
             tint = (light_slice * strength * 255).astype(np.int16)
-            fg[lit_mask] = np.clip(
-                fg[lit_mask].astype(np.int16) + tint[lit_mask], 0, 255
-            ).astype(np.uint8)
-            bg[lit_mask] = np.clip(
-                bg[lit_mask].astype(np.int16) + (tint[lit_mask] // 3), 0, 255
-            ).astype(np.uint8)
+            fg[lit_mask] = np.clip(fg[lit_mask].astype(np.int16) + tint[lit_mask], 0, 255).astype(np.uint8)
+            bg[lit_mask] = np.clip(bg[lit_mask].astype(np.int16) + (tint[lit_mask] // 3), 0, 255).astype(np.uint8)
 
         # Two-pass: non-blocking (items) first, then blocking entities on top
         def _draw_entity(entity):
@@ -401,8 +407,7 @@ class GameMap:
             sx = vp_x + entity.x - cam_x
             sy = vp_y + entity.y - cam_y
             if vp_x <= sx < vp_x + rw and vp_y <= sy < vp_y + rh:
-                color = self._glow_tint_color(entity.color, entity.x, entity.y,
-                                              glow_mask, glow_alpha, cam_x, cam_y)
+                color = self._glow_tint_color(entity.color, entity.x, entity.y, glow_mask, glow_alpha, cam_x, cam_y)
                 color = self._light_tint_color(color, entity.x, entity.y)
                 console.print(x=sx, y=sy, string=entity.char, fg=color)
 
@@ -414,9 +419,15 @@ class GameMap:
                 _draw_entity(entity)
 
     @staticmethod
-    def _glow_tint_color(color: Tuple[int, int, int], ex: int, ey: int,
-                         glow_mask: Optional[np.ndarray], glow_alpha: float,
-                         cam_x: int, cam_y: int) -> Tuple[int, int, int]:
+    def _glow_tint_color(
+        color: tuple[int, int, int],
+        ex: int,
+        ey: int,
+        glow_mask: np.ndarray | None,
+        glow_alpha: float,
+        cam_x: int,
+        cam_y: int,
+    ) -> tuple[int, int, int]:
         """If entity is within scan glow radius, apply fading green tint."""
         if glow_mask is None or glow_alpha <= 0:
             return color
@@ -430,8 +441,11 @@ class GameMap:
         return color
 
     def _light_tint_color(
-        self, color: Tuple[int, int, int], ex: int, ey: int,
-    ) -> Tuple[int, int, int]:
+        self,
+        color: tuple[int, int, int],
+        ex: int,
+        ey: int,
+    ) -> tuple[int, int, int]:
         """Apply light source tint to an entity's foreground color."""
         if not self.light_sources:
             return color
@@ -480,10 +494,17 @@ class GameMap:
                     entity_positions.add((ex, ey))
 
         from ui.viewport_renderer import render_starfield_bg
+
         render_starfield_bg(
-            console, vp_x, vp_y, rw, rh,
-            seed=self.space_seed, t=time.time(),
-            coord_x=cam_x, coord_y=cam_y,
+            console,
+            vp_x,
+            vp_y,
+            rw,
+            rh,
+            seed=self.space_seed,
+            t=time.time(),
+            coord_x=cam_x,
+            coord_y=cam_y,
             cell_mask=mask,
             skip_positions=entity_positions,
         )

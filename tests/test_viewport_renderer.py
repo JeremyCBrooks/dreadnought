@@ -1,4 +1,5 @@
 """Tests for the strategic viewport renderer."""
+
 import numpy as np
 
 from data.star_types import STAR_TYPES
@@ -11,8 +12,7 @@ class FakeConsole:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.rgb = np.zeros((width, height), dtype=[("ch", np.int32),
-                            ("fg", "3u1"), ("bg", "3u1")])
+        self.rgb = np.zeros((width, height), dtype=[("ch", np.int32), ("fg", "3u1"), ("bg", "3u1")])
         self.prints = []
 
     def print(self, *, x, y, string, fg=(255, 255, 255)):
@@ -136,6 +136,7 @@ class TestFlares:
         assert np.all(c.rgb["bg"][:64, :] == 0)
         assert np.all(c.rgb["bg"][:, 42:] == 0)
 
+
 class TestStarColors:
     def test_background_stars_have_color_variation(self):
         """Background stars should not all be the same hue — some yellow/red."""
@@ -146,12 +147,12 @@ class TestStarColors:
         # Star disc is at upper-right; check left portion of viewport
         region_fg = c.rgb["fg"][64:140, 0:42]
         region_ch = c.rgb["ch"][64:140, 0:42]
-        star_chars = {ord('.'), ord('*'), ord('+'), ord('x')}
+        star_chars = {ord("."), ord("*"), ord("+"), ord("x")}
         has_warm = False
         has_cool = False
         xs, ys = np.where(np.isin(region_ch, list(star_chars)))
         for i in range(len(xs)):
-            r, g, b = int(region_fg[xs[i], ys[i]][0]), int(region_fg[xs[i], ys[i]][1]), int(region_fg[xs[i], ys[i]][2])
+            r, _g, b = int(region_fg[xs[i], ys[i]][0]), int(region_fg[xs[i], ys[i]][1]), int(region_fg[xs[i], ys[i]][2])
             if r > b + 5:
                 has_warm = True
             elif b >= r:
@@ -167,7 +168,6 @@ class TestStarColors:
         render_viewport(c2, 64, 0, 96, 42, "yellow_dwarf", 42, time_override=0.0)
         assert np.array_equal(c1.rgb["ch"], c2.rgb["ch"])
         assert np.array_equal(c1.rgb["fg"], c2.rgb["fg"])
-
 
     def test_flares_are_deterministic(self):
         """Same seed + same time = same flares."""

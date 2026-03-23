@@ -1,7 +1,8 @@
 """Tests for GameMap."""
-from world.game_map import GameMap
-from world import tile_types
+
 from game.entity import Entity
+from world import tile_types
+from world.game_map import GameMap
 
 
 def test_in_bounds():
@@ -86,8 +87,8 @@ def test_tile_lit_graphic_between_dark_and_light():
     dark_fg = tuple(tile["dark"]["fg"])
     light_fg = tuple(tile["light"]["fg"])
     lit_fg = tuple(tile["lit"]["fg"])
-    for d, li, l in zip(dark_fg, lit_fg, light_fg):
-        assert d <= li <= l
+    for d, li, lv in zip(dark_fg, lit_fg, light_fg):
+        assert d <= li <= lv
 
 
 def test_fov_infinite_los():
@@ -137,8 +138,7 @@ def test_fov_radius_change_affects_lit():
 
 def test_get_interactable_at():
     gm = GameMap(10, 10)
-    console = Entity(x=3, y=3, name="Console", blocks_movement=False,
-                     interactable={"kind": "console"})
+    console = Entity(x=3, y=3, name="Console", blocks_movement=False, interactable={"kind": "console"})
     gm.entities.append(console)
     assert gm.get_interactable_at(3, 3) is console
     assert gm.get_interactable_at(4, 4) is None
@@ -146,15 +146,25 @@ def test_get_interactable_at():
 
 def test_get_interactable_at_ignores_non_interactable():
     gm = GameMap(10, 10)
-    item = Entity(x=3, y=3, name="Pipe", blocks_movement=False,
-                  item={"type": "weapon", "value": 1})
+    item = Entity(x=3, y=3, name="Pipe", blocks_movement=False, item={"type": "weapon", "value": 1})
     gm.entities.append(item)
     assert gm.get_interactable_at(3, 3) is None
+
+
+def test_invalidate_hazards_sets_dirty_and_lights():
+    """invalidate_hazards marks hazards dirty and invalidates light cache."""
+    gm = GameMap(5, 5)
+    gm._hazards_dirty = False
+    gm._light_dirty = False
+    gm.invalidate_hazards()
+    assert gm._hazards_dirty is True
+    assert gm._light_dirty is True
 
 
 def test_glow_tint_out_of_bounds_no_crash():
     """_glow_tint_color should handle out-of-bounds glow_mask gracefully."""
     import numpy as np
+
     from tests.conftest import make_arena
 
     gm = make_arena(10, 10)
@@ -163,3 +173,28 @@ def test_glow_tint_out_of_bounds_no_crash():
     # Entity at edge, camera at 0,0 — lx=9, ly=9 is out of 8x8 glow_mask
     result = gm._glow_tint_color(color, 9, 9, glow_mask, 0.5, 0, 0)
     assert result == color  # should return unchanged color
+
+
+def test_describe_at_uses_spatial_index():
+    """describe_at should use the spatial index, not iterate all entities."""
+    gm = GameMap(10, 10)
+    gm.tiles[5, 5] = tile_types.floor
+    gm.explored[5, 5] = True
+
+    item = Entity(x=5, y=5, blocks_movement=False, name="Key", item={"type": "key"})
+    far = Entity(x=9, y=9, blocks_movement=False, name="Far", item={"type": "key"})
+    gm.entities.extend([item, far])
+
+    lines = gm.describe_at(5, 5)
+    names = [line[0] for line in lines]
+    assert any("Key" in n for n in names)
+    assert not any("Far" in n for n in names)
+
+
+def test_clear_fov_cache():
+    """clear_fov_cache should empty the internal FOV cache dict."""
+    gm = GameMap(5, 5)
+    gm._fov_cache[(1, 1, 5)] = gm._empty_bool_grid()
+    assert len(gm._fov_cache) == 1
+    gm.clear_fov_cache()
+    assert len(gm._fov_cache) == 0

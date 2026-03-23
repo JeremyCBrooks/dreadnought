@@ -1,12 +1,13 @@
 """Tests for the area-scan scanner refactor (game.scanner module)."""
+
 import numpy as np
 
-from game.entity import Entity, Fighter
-from game.scanner import perform_area_scan, ScanEntry, ScanResults, build_nearby_entries, NearbyEntry
-from game.loadout import Loadout
 from game.ai import CreatureAI
+from game.entity import Entity, Fighter
+from game.loadout import Loadout
+from game.scanner import build_nearby_entries, perform_area_scan
+from tests.conftest import MockEngine, make_arena
 from world import tile_types
-from tests.conftest import make_arena, MockEngine
 
 
 def _make_engine_with_scanner(tier=1, scan_range=8):
@@ -30,6 +31,7 @@ def _make_visible(gm, x, y):
 # perform_area_scan tests
 # ====================================================================
 
+
 def test_scan_no_scanner():
     gm = make_arena()
     player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
@@ -44,8 +46,7 @@ def test_scan_no_scanner():
 
 def test_scan_finds_creature_in_range():
     engine = _make_engine_with_scanner(tier=2, scan_range=8)
-    enemy = Entity(x=8, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=8, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     engine.game_map.entities.append(enemy)
     results = perform_area_scan(engine, engine.player)
     assert results is not None
@@ -56,8 +57,7 @@ def test_scan_finds_creature_in_range():
 
 def test_scan_ignores_out_of_range():
     engine = _make_engine_with_scanner(tier=2, scan_range=3)
-    enemy = Entity(x=1, y=1, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=1, y=1, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     engine.game_map.entities.append(enemy)
     results = perform_area_scan(engine, engine.player)
     assert results is not None
@@ -68,8 +68,7 @@ def test_scan_ignores_out_of_range():
 def test_scan_through_walls():
     engine = _make_engine_with_scanner(tier=2, scan_range=8)
     engine.game_map.tiles[6, 5] = tile_types.wall
-    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     engine.game_map.entities.append(enemy)
     results = perform_area_scan(engine, engine.player)
     creatures = [e for e in results.entries if e.category == "creature"]
@@ -78,8 +77,15 @@ def test_scan_through_walls():
 
 def test_scan_finds_items():
     engine = _make_engine_with_scanner(tier=2, scan_range=8)
-    item = Entity(x=7, y=5, name="Med-kit", char="!", color=(0, 255, 100),
-                  blocks_movement=False, item={"type": "heal", "value": 5})
+    item = Entity(
+        x=7,
+        y=5,
+        name="Med-kit",
+        char="!",
+        color=(0, 255, 100),
+        blocks_movement=False,
+        item={"type": "heal", "value": 5},
+    )
     engine.game_map.entities.append(item)
     results = perform_area_scan(engine, engine.player)
     items = [e for e in results.entries if e.category == "item"]
@@ -88,9 +94,15 @@ def test_scan_finds_items():
 
 def test_scan_finds_containers():
     engine = _make_engine_with_scanner(tier=2, scan_range=8)
-    crate = Entity(x=7, y=5, name="Crate", char="=", color=(180, 160, 100),
-                   blocks_movement=False,
-                   interactable={"kind": "crate", "hazard": None, "loot": None})
+    crate = Entity(
+        x=7,
+        y=5,
+        name="Crate",
+        char="=",
+        color=(180, 160, 100),
+        blocks_movement=False,
+        interactable={"kind": "crate", "hazard": None, "loot": None},
+    )
     engine.game_map.entities.append(crate)
     results = perform_area_scan(engine, engine.player)
     containers = [e for e in results.entries if e.category == "container"]
@@ -110,8 +122,7 @@ def test_scan_finds_env_hazards():
 
 def test_tier1_creature_obscured():
     engine = _make_engine_with_scanner(tier=1, scan_range=8)
-    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     engine.game_map.entities.append(enemy)
     results = perform_area_scan(engine, engine.player)
     creatures = [e for e in results.entries if e.category == "creature"]
@@ -122,8 +133,7 @@ def test_tier1_creature_obscured():
 
 def test_tier2_creature_shows_name():
     engine = _make_engine_with_scanner(tier=2, scan_range=8)
-    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     engine.game_map.entities.append(enemy)
     results = perform_area_scan(engine, engine.player)
     creatures = [e for e in results.entries if e.category == "creature"]
@@ -133,8 +143,7 @@ def test_tier2_creature_shows_name():
 
 def test_tier3_creature_shows_state():
     engine = _make_engine_with_scanner(tier=3, scan_range=8)
-    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     enemy.ai_state = "hunting"
     engine.game_map.entities.append(enemy)
     results = perform_area_scan(engine, engine.player)
@@ -147,9 +156,15 @@ def test_tier1_container_shows_generic():
     engine = _make_engine_with_scanner(tier=1, scan_range=8)
     loot = {"char": "!", "color": (0, 255, 100), "name": "Med-kit", "type": "heal", "value": 5}
     hazard = {"type": "electric", "severity": "severe", "damage": 2, "equipment_damage": True}
-    crate = Entity(x=7, y=5, name="Crate", char="=", color=(180, 160, 100),
-                   blocks_movement=False,
-                   interactable={"kind": "crate", "hazard": hazard, "loot": loot})
+    crate = Entity(
+        x=7,
+        y=5,
+        name="Crate",
+        char="=",
+        color=(180, 160, 100),
+        blocks_movement=False,
+        interactable={"kind": "crate", "hazard": hazard, "loot": loot},
+    )
     engine.game_map.entities.append(crate)
     results = perform_area_scan(engine, engine.player)
     containers = [e for e in results.entries if e.category == "container"]
@@ -162,9 +177,15 @@ def test_tier2_container_shows_item():
     engine = _make_engine_with_scanner(tier=2, scan_range=8)
     loot = {"char": "!", "color": (0, 255, 100), "name": "Med-kit", "type": "heal", "value": 5}
     hazard = {"type": "electric", "severity": "severe", "damage": 2, "equipment_damage": True}
-    crate = Entity(x=7, y=5, name="Crate", char="=", color=(180, 160, 100),
-                   blocks_movement=False,
-                   interactable={"kind": "crate", "hazard": hazard, "loot": loot})
+    crate = Entity(
+        x=7,
+        y=5,
+        name="Crate",
+        char="=",
+        color=(180, 160, 100),
+        blocks_movement=False,
+        interactable={"kind": "crate", "hazard": hazard, "loot": loot},
+    )
     engine.game_map.entities.append(crate)
     results = perform_area_scan(engine, engine.player)
     containers = [e for e in results.entries if e.category == "container"]
@@ -176,9 +197,15 @@ def test_tier3_container_shows_hazard_type():
     engine = _make_engine_with_scanner(tier=3, scan_range=8)
     loot = {"char": "!", "color": (0, 255, 100), "name": "Med-kit", "type": "heal", "value": 5}
     hazard = {"type": "electric", "severity": "severe", "damage": 2, "equipment_damage": True}
-    crate = Entity(x=7, y=5, name="Crate", char="=", color=(180, 160, 100),
-                   blocks_movement=False,
-                   interactable={"kind": "crate", "hazard": hazard, "loot": loot})
+    crate = Entity(
+        x=7,
+        y=5,
+        name="Crate",
+        char="=",
+        color=(180, 160, 100),
+        blocks_movement=False,
+        interactable={"kind": "crate", "hazard": hazard, "loot": loot},
+    )
     engine.game_map.entities.append(crate)
     results = perform_area_scan(engine, engine.player)
     containers = [e for e in results.entries if e.category == "container"]
@@ -188,9 +215,15 @@ def test_tier3_container_shows_hazard_type():
 
 def test_scan_marks_containers_scanned():
     engine = _make_engine_with_scanner(tier=1, scan_range=8)
-    crate = Entity(x=7, y=5, name="Crate", char="=", color=(180, 160, 100),
-                   blocks_movement=False,
-                   interactable={"kind": "crate", "hazard": None, "loot": None})
+    crate = Entity(
+        x=7,
+        y=5,
+        name="Crate",
+        char="=",
+        color=(180, 160, 100),
+        blocks_movement=False,
+        interactable={"kind": "crate", "hazard": None, "loot": None},
+    )
     engine.game_map.entities.append(crate)
     perform_area_scan(engine, engine.player)
     assert crate.interactable["scanned"] is True
@@ -198,10 +231,10 @@ def test_scan_marks_containers_scanned():
 
 def test_scan_results_on_engine():
     engine = _make_engine_with_scanner(tier=1, scan_range=8)
-    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     engine.game_map.entities.append(enemy)
     from game.actions import ScanAction
+
     consumed = ScanAction().perform(engine, engine.player)
     assert consumed == 1
     assert engine.scan_results is not None
@@ -211,6 +244,7 @@ def test_scan_results_on_engine():
 def test_scan_costs_turn():
     engine = _make_engine_with_scanner(tier=1, scan_range=8)
     from game.actions import ScanAction
+
     consumed = ScanAction().perform(engine, engine.player)
     assert consumed == 1
 
@@ -218,13 +252,20 @@ def test_scan_costs_turn():
 def test_scan_then_interact_bypasses_hazard():
     engine = _make_engine_with_scanner(tier=1, scan_range=8)
     hazard = {"type": "electric", "severity": "severe", "damage": 2, "equipment_damage": True}
-    crate = Entity(x=6, y=5, name="Crate", char="=", color=(180, 160, 100),
-                   blocks_movement=False,
-                   interactable={"kind": "crate", "hazard": hazard, "loot": None})
+    crate = Entity(
+        x=6,
+        y=5,
+        name="Crate",
+        char="=",
+        color=(180, 160, 100),
+        blocks_movement=False,
+        interactable={"kind": "crate", "hazard": hazard, "loot": None},
+    )
     engine.game_map.entities.append(crate)
     perform_area_scan(engine, engine.player)
     assert crate.interactable["scanned"] is True
     from game.actions import InteractAction
+
     InteractAction(dx=-1, dy=0).perform(engine, engine.player)
     assert engine.player.fighter.hp == 10
 
@@ -232,9 +273,15 @@ def test_scan_then_interact_bypasses_hazard():
 def test_tier1_container_hazard_only():
     engine = _make_engine_with_scanner(tier=1, scan_range=8)
     hazard = {"type": "electric", "severity": "severe", "damage": 2, "equipment_damage": True}
-    crate = Entity(x=7, y=5, name="Crate", char="=", color=(180, 160, 100),
-                   blocks_movement=False,
-                   interactable={"kind": "crate", "hazard": hazard, "loot": None})
+    crate = Entity(
+        x=7,
+        y=5,
+        name="Crate",
+        char="=",
+        color=(180, 160, 100),
+        blocks_movement=False,
+        interactable={"kind": "crate", "hazard": hazard, "loot": None},
+    )
     engine.game_map.entities.append(crate)
     results = perform_area_scan(engine, engine.player)
     containers = [e for e in results.entries if e.category == "container"]
@@ -244,9 +291,15 @@ def test_tier1_container_hazard_only():
 
 def test_container_empty():
     engine = _make_engine_with_scanner(tier=1, scan_range=8)
-    crate = Entity(x=7, y=5, name="Crate", char="=", color=(180, 160, 100),
-                   blocks_movement=False,
-                   interactable={"kind": "crate", "hazard": None, "loot": None})
+    crate = Entity(
+        x=7,
+        y=5,
+        name="Crate",
+        char="=",
+        color=(180, 160, 100),
+        blocks_movement=False,
+        interactable={"kind": "crate", "hazard": None, "loot": None},
+    )
     engine.game_map.entities.append(crate)
     results = perform_area_scan(engine, engine.player)
     containers = [e for e in results.entries if e.category == "container"]
@@ -276,6 +329,7 @@ def test_env_hazard_tier2_label():
 def test_scan_all_clear():
     engine = _make_engine_with_scanner(tier=1, scan_range=8)
     from game.actions import ScanAction
+
     ScanAction().perform(engine, engine.player)
     msgs = [m[0] for m in engine.message_log.messages]
     assert any("all clear" in m.lower() for m in msgs)
@@ -283,10 +337,10 @@ def test_scan_all_clear():
 
 def test_scan_contacts_message():
     engine = _make_engine_with_scanner(tier=2, scan_range=8)
-    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     engine.game_map.entities.append(enemy)
     from game.actions import ScanAction
+
     ScanAction().perform(engine, engine.player)
     msgs = [m[0] for m in engine.message_log.messages]
     assert any("1 contact" in m.lower() for m in msgs)
@@ -317,8 +371,7 @@ def test_scan_with_explicit_scanner():
     # Scanner not in loadout at all
     engine = MockEngine(gm, player)
     engine.scan_results = None
-    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     gm.entities.append(enemy)
     results = perform_area_scan(engine, player, scanner=scanner)
     assert results is not None
@@ -368,6 +421,7 @@ def test_scan_action_with_explicit_scanner():
     engine.scan_results = None
     engine.scan_glow = None
     from game.actions import ScanAction
+
     consumed = ScanAction(scanner=scanner).perform(engine, player)
     assert consumed == 1
     assert engine.scan_results is not None
@@ -377,13 +431,13 @@ def test_scan_action_with_explicit_scanner():
 # build_nearby_entries tests (unified NEARBY HUD)
 # ====================================================================
 
+
 def test_nearby_visible_creature():
     """Visible creature appears in nearby with full detail."""
     gm = make_arena()
     player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
     gm.entities.append(player)
-    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     enemy.ai_state = "hunting"
     gm.entities.append(enemy)
     _make_visible(gm, 7, 5)
@@ -402,8 +456,15 @@ def test_nearby_visible_item():
     gm = make_arena()
     player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
     gm.entities.append(player)
-    item = Entity(x=7, y=5, name="Med-kit", char="!", color=(0, 255, 100),
-                  blocks_movement=False, item={"type": "heal", "value": 5})
+    item = Entity(
+        x=7,
+        y=5,
+        name="Med-kit",
+        char="!",
+        color=(0, 255, 100),
+        blocks_movement=False,
+        item={"type": "heal", "value": 5},
+    )
     gm.entities.append(item)
     _make_visible(gm, 7, 5)
     engine = MockEngine(gm, player)
@@ -419,9 +480,15 @@ def test_nearby_visible_container():
     gm = make_arena()
     player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
     gm.entities.append(player)
-    crate = Entity(x=7, y=5, name="Crate", char="=", color=(180, 160, 100),
-                   blocks_movement=False,
-                   interactable={"kind": "crate", "hazard": None, "loot": None})
+    crate = Entity(
+        x=7,
+        y=5,
+        name="Crate",
+        char="=",
+        color=(180, 160, 100),
+        blocks_movement=False,
+        interactable={"kind": "crate", "hazard": None, "loot": None},
+    )
     gm.entities.append(crate)
     _make_visible(gm, 7, 5)
     engine = MockEngine(gm, player)
@@ -435,8 +502,7 @@ def test_nearby_visible_container():
 def test_nearby_scanned_creature_not_visible():
     """Scanned-only creature (not visible) uses scan-tier label."""
     engine = _make_engine_with_scanner(tier=1, scan_range=8)
-    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     engine.game_map.entities.append(enemy)
     engine.game_map.visible[:] = False
     engine.scan_results = perform_area_scan(engine, engine.player)
@@ -449,8 +515,7 @@ def test_nearby_scanned_creature_not_visible():
 def test_nearby_deduplicates_visible_and_scanned():
     """Entity that is both visible and scanned appears only once, with visible detail."""
     engine = _make_engine_with_scanner(tier=1, scan_range=8)
-    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     enemy.ai_state = "hunting"
     engine.game_map.entities.append(enemy)
     _make_visible(engine.game_map, 7, 5)
@@ -467,14 +532,16 @@ def test_nearby_deduplicates_visible_and_scanned():
 def test_nearby_visible_creature_plus_scanned_creature():
     """One visible creature and one scanned-only creature: two entries, no duplicates."""
     engine = _make_engine_with_scanner(tier=2, scan_range=8)
-    visible_enemy = Entity(x=6, y=5, name="Rat", char="r", color=(127, 127, 0),
-                           fighter=Fighter(1, 1, 0, 1), ai=CreatureAI())
+    visible_enemy = Entity(
+        x=6, y=5, name="Rat", char="r", color=(127, 127, 0), fighter=Fighter(1, 1, 0, 1), ai=CreatureAI()
+    )
     visible_enemy.ai_state = "wandering"
     engine.game_map.entities.append(visible_enemy)
     _make_visible(engine.game_map, 6, 5)
 
-    hidden_enemy = Entity(x=8, y=5, name="Bot", char="b", color=(127, 0, 180),
-                          fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    hidden_enemy = Entity(
+        x=8, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI()
+    )
     engine.game_map.entities.append(hidden_enemy)
     # 8,5 NOT visible
 
@@ -535,11 +602,17 @@ def test_nearby_no_scan_no_visible_empty():
 def test_nearby_sorted_by_category_then_distance():
     """Entries sorted: creatures first, then hazards, containers, items; within by distance."""
     engine = _make_engine_with_scanner(tier=2, scan_range=8)
-    enemy = Entity(x=8, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=8, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     engine.game_map.entities.append(enemy)
-    item = Entity(x=6, y=5, name="Med-kit", char="!", color=(0, 255, 100),
-                  blocks_movement=False, item={"type": "heal", "value": 5})
+    item = Entity(
+        x=6,
+        y=5,
+        name="Med-kit",
+        char="!",
+        color=(0, 255, 100),
+        blocks_movement=False,
+        item={"type": "heal", "value": 5},
+    )
     engine.game_map.entities.append(item)
     engine.scan_results = perform_area_scan(engine, engine.player)
     entries = build_nearby_entries(engine)
@@ -579,8 +652,15 @@ def test_nearby_visible_item_not_at_player_pos():
     gm = make_arena()
     player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
     gm.entities.append(player)
-    item = Entity(x=5, y=5, name="Med-kit", char="!", color=(0, 255, 100),
-                  blocks_movement=False, item={"type": "heal", "value": 5})
+    item = Entity(
+        x=5,
+        y=5,
+        name="Med-kit",
+        char="!",
+        color=(0, 255, 100),
+        blocks_movement=False,
+        item={"type": "heal", "value": 5},
+    )
     gm.entities.append(item)
     _make_visible(gm, 5, 5)
     engine = MockEngine(gm, player)
@@ -608,11 +688,11 @@ def test_nearby_scanned_hull_breach():
 # Regression / edge-case tests for review fixes
 # ====================================================================
 
+
 def test_nearby_stale_scan_entry_filtered():
     """Dead creature (removed from map) should not appear from stale scan results."""
     engine = _make_engine_with_scanner(tier=2, scan_range=8)
-    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     engine.game_map.entities.append(enemy)
     engine.scan_results = perform_area_scan(engine, engine.player)
     # Verify it's there initially
@@ -628,8 +708,15 @@ def test_nearby_stale_scan_entry_filtered():
 def test_nearby_dist0_scan_entry_excluded():
     """Scanned item at player position should NOT appear (UNDERFOOT territory)."""
     engine = _make_engine_with_scanner(tier=2, scan_range=8)
-    item = Entity(x=5, y=5, name="Med-kit", char="!", color=(0, 255, 100),
-                  blocks_movement=False, item={"type": "heal", "value": 5})
+    item = Entity(
+        x=5,
+        y=5,
+        name="Med-kit",
+        char="!",
+        color=(0, 255, 100),
+        blocks_movement=False,
+        item={"type": "heal", "value": 5},
+    )
     engine.game_map.entities.append(item)
     engine.scan_results = perform_area_scan(engine, engine.player)
     entries = build_nearby_entries(engine)
@@ -642,9 +729,15 @@ def test_nearby_visible_scanned_container_shows_scan_detail():
     engine = _make_engine_with_scanner(tier=2, scan_range=8)
     loot = {"char": "!", "color": (0, 255, 100), "name": "Med-kit", "type": "heal", "value": 5}
     hazard = {"type": "electric", "severity": "severe", "damage": 2, "equipment_damage": True}
-    crate = Entity(x=7, y=5, name="Crate", char="=", color=(180, 160, 100),
-                   blocks_movement=False,
-                   interactable={"kind": "crate", "hazard": hazard, "loot": loot})
+    crate = Entity(
+        x=7,
+        y=5,
+        name="Crate",
+        char="=",
+        color=(180, 160, 100),
+        blocks_movement=False,
+        interactable={"kind": "crate", "hazard": hazard, "loot": loot},
+    )
     engine.game_map.entities.append(crate)
     _make_visible(engine.game_map, 7, 5)
     engine.scan_results = perform_area_scan(engine, engine.player)
@@ -676,14 +769,29 @@ def test_scan_contact_count_excludes_player_position():
     """ScanAction contact count should not include items at the player's position."""
     engine = _make_engine_with_scanner(tier=1, scan_range=8)
     # Item at player position (should NOT count as a contact)
-    item_under = Entity(x=5, y=5, name="Med-kit", char="!", color=(0, 255, 100),
-                        blocks_movement=False, item={"type": "heal", "value": 5})
+    item_under = Entity(
+        x=5,
+        y=5,
+        name="Med-kit",
+        char="!",
+        color=(0, 255, 100),
+        blocks_movement=False,
+        item={"type": "heal", "value": 5},
+    )
     engine.game_map.entities.append(item_under)
     # Item elsewhere (should count)
-    item_away = Entity(x=7, y=5, name="Bent Pipe", char="/", color=(0, 191, 255),
-                       blocks_movement=False, item={"type": "weapon", "value": 2})
+    item_away = Entity(
+        x=7,
+        y=5,
+        name="Bent Pipe",
+        char="/",
+        color=(0, 191, 255),
+        blocks_movement=False,
+        item={"type": "weapon", "value": 2},
+    )
     engine.game_map.entities.append(item_away)
     from game.actions import ScanAction
+
     ScanAction().perform(engine, engine.player)
     msgs = [m[0] for m in engine.message_log.messages]
     # Should say "1 contact", not "2 contacts"
@@ -697,8 +805,7 @@ def test_scan_contact_count_excludes_player_position():
 def test_scan_entry_distance_updates_after_player_moves():
     """Scan entry distances should reflect current player position, not scan-time position."""
     engine = _make_engine_with_scanner(tier=2, scan_range=8)
-    enemy = Entity(x=8, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=8, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     engine.game_map.entities.append(enemy)
     engine.scan_results = perform_area_scan(engine, engine.player)
     # Player was at (5,5), enemy at (8,5) -> dist 3
@@ -716,8 +823,15 @@ def test_scan_entry_distance_updates_after_player_moves():
 def test_scan_item_at_player_pos_not_scanned():
     """Item at player position is not included in scan results (it's underfoot, not a contact)."""
     engine = _make_engine_with_scanner(tier=2, scan_range=8)
-    item = Entity(x=5, y=5, name="Med-kit", char="!", color=(0, 255, 100),
-                  blocks_movement=False, item={"type": "heal", "value": 5})
+    item = Entity(
+        x=5,
+        y=5,
+        name="Med-kit",
+        char="!",
+        color=(0, 255, 100),
+        blocks_movement=False,
+        item={"type": "heal", "value": 5},
+    )
     engine.game_map.entities.append(item)
     results = perform_area_scan(engine, engine.player)
     # Item at player position should not be in scan results at all
@@ -739,7 +853,9 @@ SCAN_GLOW_DURATION = 3.0  # mirror the constant from game_map
 def test_scan_action_sets_scan_glow():
     """ScanAction sets engine.scan_glow with center, radius, and start_time."""
     import time
+
     from game.actions import ScanAction
+
     engine = _make_engine_with_scanner(tier=1, scan_range=8)
     before = time.time()
     ScanAction().perform(engine, engine.player)
@@ -753,6 +869,7 @@ def test_scan_action_sets_scan_glow():
 def test_scan_glow_not_set_without_scanner():
     """ScanAction without scanner does not set scan_glow."""
     from game.actions import ScanAction
+
     gm = make_arena()
     player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
     gm.entities.append(player)
@@ -766,6 +883,7 @@ def test_scan_glow_not_set_without_scanner():
 def test_scan_glow_is_circular():
     """Scan glow uses Euclidean distance (circular), not Chebyshev (square)."""
     import tcod.console
+
     engine = _make_engine_with_scanner(tier=1, scan_range=3)
     gm = engine.game_map
     gm.visible[:] = False
@@ -776,8 +894,7 @@ def test_scan_glow_is_circular():
 
     scan_glow = {"cx": 5, "cy": 5, "radius": 3, "start_time": 0.0}
     console = tcod.console.Console(10, 10, order="F")
-    gm.render(console, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10,
-              scan_glow=scan_glow)
+    gm.render(console, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10, scan_glow=scan_glow)
 
     shroud_ch = int(tile_types.SHROUD["ch"])
     # (5, 2) is dist 3 along cardinal — should be visible
@@ -791,6 +908,7 @@ def test_scan_glow_is_circular():
 def test_scan_glow_expands_visibility_during_render():
     """Tiles within circular scan glow radius are rendered as visible."""
     import tcod.console
+
     engine = _make_engine_with_scanner(tier=1, scan_range=3)
     gm = engine.game_map
     gm.visible[:] = False
@@ -800,8 +918,7 @@ def test_scan_glow_expands_visibility_during_render():
 
     scan_glow = {"cx": 5, "cy": 5, "radius": 3, "start_time": 0.0}
     console = tcod.console.Console(10, 10, order="F")
-    gm.render(console, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10,
-              scan_glow=scan_glow)
+    gm.render(console, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10, scan_glow=scan_glow)
 
     shroud_ch = int(tile_types.SHROUD["ch"])
     # Center should be rendered
@@ -815,7 +932,9 @@ def test_scan_glow_expands_visibility_during_render():
 def test_scan_glow_tints_green_at_full_intensity(monkeypatch):
     """At start of glow (alpha=1.0), tiles have full green tint."""
     import time
+
     import tcod.console
+
     engine = _make_engine_with_scanner(tier=1, scan_range=3)
     gm = engine.game_map
     gm.visible[:] = False
@@ -834,8 +953,7 @@ def test_scan_glow_tints_green_at_full_intensity(monkeypatch):
     gm.apply_scan_glow(5, 5, 3)
     scan_glow = {"cx": 5, "cy": 5, "radius": 3, "start_time": start}
     console_glow = tcod.console.Console(10, 10, order="F")
-    gm.render(console_glow, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10,
-              scan_glow=scan_glow)
+    gm.render(console_glow, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10, scan_glow=scan_glow)
     glow_fg = console_glow.rgb["fg"][5, 5]
 
     # The green channel should be boosted
@@ -845,7 +963,9 @@ def test_scan_glow_tints_green_at_full_intensity(monkeypatch):
 def test_scan_glow_fades_over_time(monkeypatch):
     """Green tint decreases as time passes, fully gone after DURATION."""
     import time
+
     import tcod.console
+
     engine = _make_engine_with_scanner(tier=1, scan_range=3)
     gm = engine.game_map
     gm.visible[:] = False
@@ -856,15 +976,13 @@ def test_scan_glow_fades_over_time(monkeypatch):
     monkeypatch.setattr(time, "time", lambda: start)
     scan_glow = {"cx": 5, "cy": 5, "radius": 3, "start_time": start}
     c1 = tcod.console.Console(10, 10, order="F")
-    gm.render(c1, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10,
-              scan_glow=scan_glow)
+    gm.render(c1, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10, scan_glow=scan_glow)
     green_full = int(c1.rgb["fg"][5, 5][1])
 
     # Half faded (t = duration/2)
     monkeypatch.setattr(time, "time", lambda: start + SCAN_GLOW_DURATION / 2)
     c2 = tcod.console.Console(10, 10, order="F")
-    gm.render(c2, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10,
-              scan_glow=scan_glow)
+    gm.render(c2, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10, scan_glow=scan_glow)
     green_half = int(c2.rgb["fg"][5, 5][1])
 
     # Half intensity should have less green tint than full
@@ -873,8 +991,7 @@ def test_scan_glow_fades_over_time(monkeypatch):
     # Fully expired (t = duration + 1)
     monkeypatch.setattr(time, "time", lambda: start + SCAN_GLOW_DURATION + 1)
     c3 = tcod.console.Console(10, 10, order="F")
-    gm.render(c3, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10,
-              scan_glow=scan_glow)
+    gm.render(c3, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10, scan_glow=scan_glow)
     # After expiry, tiles not in visible/explored should be shroud
     shroud_ch = int(tile_types.SHROUD["ch"])
     assert c3.rgb["ch"][5, 5] == shroud_ch
@@ -883,19 +1000,27 @@ def test_scan_glow_fades_over_time(monkeypatch):
 def test_scan_glow_reveals_entities():
     """Entities within scan glow radius are rendered even if not normally visible."""
     import tcod.console
+
     engine = _make_engine_with_scanner(tier=1, scan_range=4)
     gm = engine.game_map
     gm.visible[:] = False
 
-    enemy = Entity(x=7, y=5, name="Rat", char="r", color=(200, 100, 0),
-                   blocks_movement=True, fighter=Fighter(1, 1, 0, 1), ai=CreatureAI())
+    enemy = Entity(
+        x=7,
+        y=5,
+        name="Rat",
+        char="r",
+        color=(200, 100, 0),
+        blocks_movement=True,
+        fighter=Fighter(1, 1, 0, 1),
+        ai=CreatureAI(),
+    )
     gm.entities.append(enemy)
 
     gm.apply_scan_glow(5, 5, 4)
     scan_glow = {"cx": 5, "cy": 5, "radius": 4, "start_time": 0.0}
     console = tcod.console.Console(10, 10, order="F")
-    gm.render(console, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10,
-              scan_glow=scan_glow)
+    gm.render(console, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10, scan_glow=scan_glow)
 
     # Entity at (7, 5) dist=2, should be rendered
     assert chr(console.rgb["ch"][7, 5]) == "r"

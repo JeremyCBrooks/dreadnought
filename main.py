@@ -1,4 +1,5 @@
 """Dreadnought roguelike -- entry point."""
+
 from engine.game_state import Engine
 from ui.title_state import TitleState
 

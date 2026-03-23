@@ -1,18 +1,23 @@
 """Tests for ranged combat: RangedAction, AI ranged attacks, and AI wander."""
-from game.entity import Entity, Fighter
+
 from game.actions import RangedAction
+from game.ai import HostileAI
+from game.entity import Entity, Fighter
 from game.helpers import get_equipped_ranged_weapon
 from game.loadout import Loadout
-from game.ai import HostileAI
-from tests.conftest import make_engine, make_arena, MockEngine
+from tests.conftest import make_engine
 
 
 def _ranged_weapon(ammo=5, range_=5, value=3):
     return Entity(
         name="Blaster",
         item={
-            "type": "weapon", "weapon_class": "ranged",
-            "value": value, "range": range_, "ammo": ammo, "max_ammo": 20,
+            "type": "weapon",
+            "weapon_class": "ranged",
+            "value": value,
+            "range": range_,
+            "ammo": ammo,
+            "max_ammo": 20,
         },
     )
 
@@ -25,6 +30,7 @@ def _melee_weapon():
 
 
 # --- get_equipped_ranged_weapon ---
+
 
 def test_get_ranged_weapon_found():
     player = Entity(name="Player", fighter=Fighter(10, 10, 0, 1))
@@ -69,8 +75,7 @@ def test_unequipped_ranged_weapon_cannot_fire():
     spare = _ranged_weapon(ammo=10)
     engine.player.loadout = Loadout(slot1=equipped)
     engine.player.inventory = [equipped, spare]
-    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = True
     result = RangedAction(target).perform(engine, engine.player)
@@ -81,9 +86,8 @@ def test_unequipped_ranged_weapon_cannot_fire():
 
 def test_ai_uses_inventory_ranged_weapon():
     """AI enemies (no loadout) should still fire from inventory."""
-    engine = make_engine()
-    enemy = Entity(x=8, y=5, name="Drone", fighter=Fighter(4, 4, 0, 3),
-                   blocks_movement=True, ai=HostileAI())
+    make_engine()
+    enemy = Entity(x=8, y=5, name="Drone", fighter=Fighter(4, 4, 0, 3), blocks_movement=True, ai=HostileAI())
     weapon = _ranged_weapon(ammo=5, range_=5, value=3)
     enemy.inventory = [weapon]
     assert get_equipped_ranged_weapon(enemy) is weapon  # AI can use inventory
@@ -91,11 +95,11 @@ def test_ai_uses_inventory_ranged_weapon():
 
 # --- RangedAction ---
 
+
 def test_ranged_hit():
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon())
-    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 2),
-                    blocks_movement=True)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 2), blocks_movement=True)
     engine.game_map.entities.append(target)
     # Make target visible
     engine.game_map.visible[7, 5] = True
@@ -108,8 +112,7 @@ def test_ranged_ammo_decrement():
     engine = make_engine()
     weapon = _ranged_weapon(ammo=3)
     engine.player.loadout = Loadout(slot1=weapon)
-    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(10, 10, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(10, 10, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = True
     RangedAction(target).perform(engine, engine.player)
@@ -119,8 +122,7 @@ def test_ranged_ammo_decrement():
 def test_ranged_out_of_range():
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon(range_=2))
-    target = Entity(x=8, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=8, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[8, 5] = True
     result = RangedAction(target).perform(engine, engine.player)
@@ -131,8 +133,7 @@ def test_ranged_out_of_range():
 
 def test_ranged_no_weapon():
     engine = make_engine()
-    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = True
     result = RangedAction(target).perform(engine, engine.player)
@@ -145,8 +146,7 @@ def test_ranged_no_ammo():
     """Weapon equipped but ammo=0 → blocked, message mentions ammo."""
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon(ammo=0))
-    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = True
     result = RangedAction(target).perform(engine, engine.player)
@@ -161,8 +161,7 @@ def test_ranged_no_ammo_message_distinct_from_no_weapon():
     engine = make_engine()
     # Case 1: weapon equipped, no ammo
     engine.player.loadout = Loadout(slot1=_ranged_weapon(ammo=0))
-    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = True
     RangedAction(target).perform(engine, engine.player)
@@ -171,8 +170,7 @@ def test_ranged_no_ammo_message_distinct_from_no_weapon():
     # Case 2: no weapon at all
     engine2 = make_engine()
     engine2.player.loadout = Loadout()  # empty loadout
-    target2 = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
-                     blocks_movement=True)
+    target2 = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0), blocks_movement=True)
     engine2.game_map.entities.append(target2)
     engine2.game_map.visible[7, 5] = True
     RangedAction(target2).perform(engine2, engine2.player)
@@ -187,8 +185,7 @@ def test_ranged_last_bullet_then_blocked():
     engine = make_engine()
     weapon = _ranged_weapon(ammo=1)
     engine.player.loadout = Loadout(slot1=weapon)
-    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(50, 50, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(50, 50, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = True
     # Fire last bullet
@@ -206,8 +203,7 @@ def test_ranged_ammo_never_negative():
     engine = make_engine()
     weapon = _ranged_weapon(ammo=0)
     engine.player.loadout = Loadout(slot1=weapon)
-    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(10, 10, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(10, 10, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = True
     RangedAction(target).perform(engine, engine.player)
@@ -222,15 +218,14 @@ def test_ranged_exhaust_all_ammo_then_blocked():
     engine.player.loadout = Loadout(slot1=weapon)
     # Also place weapon in inventory (matching real gameplay)
     engine.player.inventory.append(weapon)
-    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(500, 500, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(500, 500, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = True
 
     # Fire all shots
     for i in range(starting_ammo):
         result = RangedAction(target).perform(engine, engine.player)
-        assert result == 1, f"Shot {i+1} should fire (ammo was {starting_ammo - i})"
+        assert result == 1, f"Shot {i + 1} should fire (ammo was {starting_ammo - i})"
         assert weapon.item["ammo"] == starting_ammo - i - 1
 
     assert weapon.item["ammo"] == 0
@@ -251,8 +246,7 @@ def test_ui_enter_ranged_blocked_when_no_ammo():
     weapon = _ranged_weapon(ammo=0)
     engine.player.loadout = Loadout(slot1=weapon)
     engine.player.inventory.append(weapon)
-    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = True
 
@@ -267,14 +261,14 @@ def test_ui_enter_ranged_blocked_when_no_ammo():
 def test_ui_confirm_blocked_when_ammo_depleted_mid_targeting():
     """If ammo somehow reaches 0 while in targeting mode, confirm must not fire."""
     import tcod.event
+
     from ui.tactical_state import TacticalState
 
     engine = make_engine()
     weapon = _ranged_weapon(ammo=1)
     engine.player.loadout = Loadout(slot1=weapon)
     engine.player.inventory.append(weapon)
-    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(500, 500, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(500, 500, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = True
 
@@ -296,8 +290,7 @@ def test_ui_confirm_blocked_when_ammo_depleted_mid_targeting():
 def test_ranged_kills_removes():
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon(value=10))
-    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(1, 1, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(1, 1, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = True
     RangedAction(target).perform(engine, engine.player)
@@ -307,8 +300,7 @@ def test_ranged_kills_removes():
 def test_ranged_not_visible():
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon())
-    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=7, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[7, 5] = False
     result = RangedAction(target).perform(engine, engine.player)
@@ -317,10 +309,10 @@ def test_ranged_not_visible():
 
 # --- AI ranged attack ---
 
+
 def test_ai_ranged_attack():
     engine = make_engine()
-    enemy = Entity(x=8, y=5, name="Drone", fighter=Fighter(4, 4, 0, 3),
-                   blocks_movement=True, ai=HostileAI())
+    enemy = Entity(x=8, y=5, name="Drone", fighter=Fighter(4, 4, 0, 3), blocks_movement=True, ai=HostileAI())
     enemy.inventory = [_ranged_weapon(ammo=5, range_=5, value=3)]
     engine.game_map.entities.append(enemy)
     # Make both enemy and player positions visible (FOV is player-centric)
@@ -335,8 +327,7 @@ def test_ai_ranged_attack():
 
 def test_ai_wander_when_not_visible():
     engine = make_engine()
-    enemy = Entity(x=3, y=3, name="Rat", fighter=Fighter(1, 1, 0, 1),
-                   blocks_movement=True, ai=HostileAI())
+    enemy = Entity(x=3, y=3, name="Rat", fighter=Fighter(1, 1, 0, 1), blocks_movement=True, ai=HostileAI())
     engine.game_map.entities.append(enemy)
     engine.game_map.visible[3, 3] = False
     old_x, old_y = enemy.x, enemy.y
@@ -351,8 +342,7 @@ def test_ai_boxed_in_no_crash():
     engine = make_engine()
     # Place enemy at (1, 1) — surrounded by walls on all sides in the 10x10 arena
     # Actually (1,1) is floor, but let's put it in a corner where 3 sides are walls
-    enemy = Entity(x=1, y=1, name="Rat", fighter=Fighter(1, 1, 0, 1),
-                   blocks_movement=True, ai=HostileAI())
+    enemy = Entity(x=1, y=1, name="Rat", fighter=Fighter(1, 1, 0, 1), blocks_movement=True, ai=HostileAI())
     engine.game_map.entities.append(enemy)
     engine.game_map.visible[1, 1] = False
     # Fill surrounding tiles with blocking entities to box in

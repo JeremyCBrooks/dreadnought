@@ -1,6 +1,8 @@
 """Tests for ranged targeting: auto-target closest, up/down cycling, no free cursor."""
-import tcod.event
+
 from types import SimpleNamespace
+
+import tcod.event
 
 from game.ai import HostileAI
 from game.entity import Entity, Fighter
@@ -13,15 +15,27 @@ def _ranged_weapon(ammo=5, range_=5, value=3):
     return Entity(
         name="Blaster",
         item={
-            "type": "weapon", "weapon_class": "ranged",
-            "value": value, "range": range_, "ammo": ammo, "max_ammo": 20,
+            "type": "weapon",
+            "weapon_class": "ranged",
+            "value": value,
+            "range": range_,
+            "ammo": ammo,
+            "max_ammo": 20,
         },
     )
 
 
 def _add_enemy(engine, x, y, name="Bot", hp=5):
-    e = Entity(x=x, y=y, name=name, fighter=Fighter(hp, hp, 0, 0),
-               blocks_movement=True, ai=HostileAI(), char="B", color=(255, 0, 0))
+    e = Entity(
+        x=x,
+        y=y,
+        name=name,
+        fighter=Fighter(hp, hp, 0, 0),
+        blocks_movement=True,
+        ai=HostileAI(),
+        char="B",
+        color=(255, 0, 0),
+    )
     engine.game_map.entities.append(e)
     engine.game_map.visible[x, y] = True
     return e
@@ -29,11 +43,12 @@ def _add_enemy(engine, x, y, name="Bot", hp=5):
 
 # --- Auto-target closest enemy on enter ---
 
+
 def test_enter_ranged_targets_closest_enemy():
     """Pressing fire should auto-target the closest visible enemy."""
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon())
-    far = _add_enemy(engine, 8, 5, "Far")   # distance 3
+    _add_enemy(engine, 8, 5, "Far")  # distance 3
     close = _add_enemy(engine, 6, 5, "Close")  # distance 1
     state = TacticalState()
     state._enter_ranged(engine)
@@ -54,13 +69,14 @@ def test_enter_ranged_no_enemies_shows_message():
 
 # --- Up/Down cycling ---
 
+
 def test_up_down_cycles_enemies():
     """Up/Down keys should cycle through visible enemies sorted by distance."""
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon())
-    close = _add_enemy(engine, 6, 5, "Close")   # distance 1
-    mid = _add_enemy(engine, 7, 5, "Mid")        # distance 2
-    far = _add_enemy(engine, 8, 5, "Far")        # distance 3
+    close = _add_enemy(engine, 6, 5, "Close")  # distance 1
+    mid = _add_enemy(engine, 7, 5, "Mid")  # distance 2
+    far = _add_enemy(engine, 8, 5, "Far")  # distance 3
     state = TacticalState()
     state._enter_ranged(engine)
     # Should start on closest
@@ -80,8 +96,8 @@ def test_up_cycles_reverse():
     """Up key should cycle in reverse order (toward closer enemies)."""
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon())
-    close = _add_enemy(engine, 6, 5, "Close")   # distance 1
-    far = _add_enemy(engine, 8, 5, "Far")        # distance 3
+    close = _add_enemy(engine, 6, 5, "Close")  # distance 1
+    far = _add_enemy(engine, 8, 5, "Far")  # distance 3
     state = TacticalState()
     state._enter_ranged(engine)
     assert state._ranged_cursor == (close.x, close.y)
@@ -95,11 +111,12 @@ def test_up_cycles_reverse():
 
 # --- Arrow keys no longer move cursor freely ---
 
+
 def test_left_right_do_not_move_cursor():
     """Left/Right arrow keys should NOT move the cursor freely."""
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon())
-    enemy = _add_enemy(engine, 7, 5, "Bot")
+    _add_enemy(engine, 7, 5, "Bot")
     state = TacticalState()
     state._enter_ranged(engine)
     original = state._ranged_cursor
@@ -110,6 +127,7 @@ def test_left_right_do_not_move_cursor():
 
 
 # --- Confirm still fires ---
+
 
 def test_confirm_fires_at_targeted_enemy():
     """Enter should fire at the currently targeted enemy."""
@@ -124,6 +142,7 @@ def test_confirm_fires_at_targeted_enemy():
 
 # --- Escape cancels ---
 
+
 def test_escape_cancels_targeting():
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon())
@@ -136,6 +155,7 @@ def test_escape_cancels_targeting():
 
 
 # --- NEARBY list shows target marker ---
+
 
 def _mock_console():
     calls = []
@@ -155,7 +175,7 @@ def test_nearby_marks_targeted_enemy():
     """The targeted enemy in the NEARBY list should be prefixed with '>' and white."""
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon())
-    enemy = _add_enemy(engine, 7, 5, "Bot")
+    _add_enemy(engine, 7, 5, "Bot")
     state = TacticalState()
     state._enter_ranged(engine)
     console, calls = _mock_console()

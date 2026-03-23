@@ -1,11 +1,9 @@
 """Data-driven location profiles controlling dungeon generation style."""
-from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List
 
 
-@dataclass
+@dataclass(slots=True)
 class RoomSpec:
     label: str
     min_w: int
@@ -16,21 +14,21 @@ class RoomSpec:
     max_count: int = -1  # -1 = unlimited
 
 
-@dataclass
+@dataclass(slots=True)
 class LocationProfile:
     loc_type: str
-    wall_tile: str       # attribute name on tile_types module
+    wall_tile: str  # attribute name on tile_types module
     floor_tile: str
-    room_specs: List[RoomSpec] = field(default_factory=list)
+    room_specs: list[RoomSpec] = field(default_factory=list)
     max_rooms: int = 12
-    corridor_style: str = "straight"   # "straight" | "winding" | "open"
-    generator: str = "standard"        # "standard" | "ship" | "organic" | "village"
+    corridor_style: str = "straight"  # "straight" | "winding" | "open"
+    generator: str = "standard"  # "standard" | "ship" | "organic" | "village"
     wall_interactable: str = "Mineral seam"  # name of wall-embedded interactable
     fully_lit: bool = False  # terrain always rendered lit; entities still need LOS
-    fov_radius: int = 8     # vision range; larger in lit areas
+    fov_radius: int = 8  # vision range; larger in lit areas
 
 
-PROFILES: Dict[str, LocationProfile] = {
+PROFILES: dict[str, LocationProfile] = {
     "derelict": LocationProfile(
         loc_type="derelict",
         wall_tile="wall",

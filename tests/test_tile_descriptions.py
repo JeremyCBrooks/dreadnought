@@ -1,12 +1,23 @@
 """Tests for tile flavor text and map position descriptions."""
-from world.tile_types import (
-    describe_tile, TILE_FLAVORS, floor, wall, exit_tile,
-    rock_floor, rock_wall, dirt_floor, structure_wall, ground, path,
-    flora_low, flora_tall,
-)
-from world.game_map import GameMap
-from world import tile_types
+
 from game.entity import Entity, Fighter
+from world import tile_types
+from world.game_map import GameMap
+from world.tile_types import (
+    TILE_FLAVORS,
+    describe_tile,
+    dirt_floor,
+    exit_tile,
+    floor,
+    flora_low,
+    flora_tall,
+    ground,
+    path,
+    rock_floor,
+    rock_wall,
+    structure_wall,
+    wall,
+)
 
 
 def test_describe_floor():
@@ -62,6 +73,7 @@ def test_describe_ground():
 def test_describe_ground_with_biome():
     """Biome-specific flavor text is used when biome is provided."""
     from world.palettes import BIOME_FLAVORS
+
     tid = int(ground["tile_id"])
     for biome_name in ("desert", "grassland", "frozen", "alien"):
         name, flavor = describe_tile(tid, biome=biome_name)
@@ -81,6 +93,7 @@ def test_describe_ground_without_biome_uses_default():
 def test_describe_path_with_biome():
     """Path tiles also get biome-specific flavor text."""
     from world.palettes import BIOME_FLAVORS
+
     tid = int(path["tile_id"])
     for biome_name in ("desert", "frozen", "alien"):
         name, flavor = describe_tile(tid, biome=biome_name)
@@ -92,6 +105,7 @@ def test_describe_path_with_biome():
 def test_describe_flora_with_biome():
     """Flora tiles get biome-specific flavor text."""
     from world.palettes import BIOME_FLAVORS
+
     for biome_name in ("grassland", "alien", "frozen"):
         for flora_tile in (flora_low, flora_tall):
             tid = int(flora_tile["tile_id"])
@@ -186,10 +200,11 @@ def test_game_map_describe_at_explored_not_visible():
 
 # ---- Ground-lines on TacticalState (non-persistent) ----
 
+
 def test_ground_lines_update_on_underfoot():
     """_update_ground_underfoot replaces _ground_lines, not the message log."""
-    from ui.tactical_state import TacticalState
     from engine.message_log import MessageLog
+    from ui.tactical_state import TacticalState
 
     class FakeEngine:
         pass
@@ -201,8 +216,9 @@ def test_ground_lines_update_on_underfoot():
     gm.visible[:] = True
     gm.explored[:] = True
 
-    player = Entity(x=5, y=5, char="@", color=(255, 255, 255), name="Player",
-                    blocks_movement=True, fighter=Fighter(10, 10, 0, 1))
+    player = Entity(
+        x=5, y=5, char="@", color=(255, 255, 255), name="Player", blocks_movement=True, fighter=Fighter(10, 10, 0, 1)
+    )
     gm.entities.append(player)
 
     item = Entity(x=5, y=5, char="/", name="Pipe", blocks_movement=False, item={"type": "weapon"})

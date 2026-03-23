@@ -1,9 +1,10 @@
 """Tests for GameMap helper methods added in current changes."""
-from tests.conftest import make_arena
-from game.entity import Entity
 
+from game.entity import Entity
+from tests.conftest import make_arena
 
 # -- get_non_blocking_entity_at -----------------------------------------------
+
 
 def test_get_non_blocking_entity_returns_item():
     gm = make_arena()
@@ -15,6 +16,7 @@ def test_get_non_blocking_entity_returns_item():
 def test_get_non_blocking_entity_ignores_blocking():
     gm = make_arena()
     from game.entity import Fighter
+
     enemy = Entity(x=3, y=3, name="Drone", blocks_movement=True, fighter=Fighter(5, 5, 0, 1))
     gm.entities.append(enemy)
     assert gm.get_non_blocking_entity_at(3, 3) is None

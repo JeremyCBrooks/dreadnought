@@ -1,11 +1,12 @@
 """Tests for airlock switch mechanism."""
+
 import pytest
 
+from game.actions import ToggleDoorAction, ToggleSwitchAction
+from game.entity import Entity, Fighter
+from tests.conftest import MockEngine
 from world import tile_types
 from world.game_map import GameMap
-from game.entity import Entity, Fighter
-from game.actions import ToggleDoorAction, ToggleSwitchAction
-from tests.conftest import MockEngine
 
 
 def _make_airlock_map():
@@ -30,12 +31,14 @@ def _make_airlock_map():
     gm.tiles[1, 6] = tile_types.airlock_ext_closed
     gm.tiles[1, 3] = tile_types.airlock_switch_off
 
-    gm.airlocks.append({
-        "interior_door": (1, 4),
-        "exterior_door": (1, 6),
-        "direction": (0, 1),
-        "switch": (1, 3),
-    })
+    gm.airlocks.append(
+        {
+            "interior_door": (1, 4),
+            "exterior_door": (1, 6),
+            "direction": (0, 1),
+            "switch": (1, 3),
+        }
+    )
 
     player = Entity(x=2, y=3, name="Player", fighter=Fighter(10, 10, 0, 1))
     gm.entities.append(player)
@@ -45,6 +48,7 @@ def _make_airlock_map():
 # ---------------------------------------------------------------------------
 # Tile type properties
 # ---------------------------------------------------------------------------
+
 
 class TestSwitchTileProperties:
     def test_switch_off_not_walkable(self):
@@ -83,6 +87,7 @@ class TestSwitchTileProperties:
 # ToggleSwitchAction
 # ---------------------------------------------------------------------------
 
+
 class TestToggleSwitchAction:
     def test_switch_opens_exterior_door(self):
         gm, player = _make_airlock_map()
@@ -120,8 +125,7 @@ class TestToggleSwitchAction:
         ToggleSwitchAction(-1, 0).perform(engine, player)
 
         # Place blocking entity on exterior door
-        blocker = Entity(x=1, y=6, name="Blocker", blocks_movement=True,
-                         fighter=Fighter(5, 5, 0, 1))
+        blocker = Entity(x=1, y=6, name="Blocker", blocks_movement=True, fighter=Fighter(5, 5, 0, 1))
         gm.entities.append(blocker)
 
         # Try to close — should fail
@@ -153,6 +157,7 @@ class TestToggleSwitchAction:
 # ---------------------------------------------------------------------------
 # ToggleDoorAction blocks exterior doors
 # ---------------------------------------------------------------------------
+
 
 class TestToggleDoorBlocksExterior:
     def test_cannot_manually_open_exterior_closed(self):
@@ -200,9 +205,11 @@ class TestToggleDoorBlocksExterior:
 # Interact direction detection
 # ---------------------------------------------------------------------------
 
+
 class TestAdjacentInteractDirs:
     def test_detects_switch_kind(self):
         from ui.tactical_state import TacticalState
+
         gm, player = _make_airlock_map()
         engine = MockEngine(gm, player)
         dirs = TacticalState._adjacent_interact_dirs(engine)
@@ -212,6 +219,7 @@ class TestAdjacentInteractDirs:
 
     def test_detects_switch_on_kind(self):
         from ui.tactical_state import TacticalState
+
         gm, player = _make_airlock_map()
         gm.tiles[1, 3] = tile_types.airlock_switch_on
         engine = MockEngine(gm, player)
@@ -221,6 +229,7 @@ class TestAdjacentInteractDirs:
 
     def test_detects_door_kind(self):
         from ui.tactical_state import TacticalState
+
         gm, player = _make_airlock_map()
         # Player at (2,3), door at (1,4) is diagonal — should be detected
         engine = MockEngine(gm, player)
@@ -233,6 +242,7 @@ class TestAdjacentInteractDirs:
 # Dungeon generation placement
 # ---------------------------------------------------------------------------
 
+
 class TestSwitchPlacement:
     @pytest.mark.parametrize("seed", [42, 100, 7, 999, 2024])
     def test_dungeon_gen_places_switches(self, seed):
@@ -240,8 +250,12 @@ class TestSwitchPlacement:
         from world.dungeon_gen import generate_dungeon
 
         gm, rooms, exit_pos = generate_dungeon(
-            width=80, height=60, max_enemies=0, max_items=0,
-            seed=seed, loc_type="derelict",
+            width=80,
+            height=60,
+            max_enemies=0,
+            max_items=0,
+            seed=seed,
+            loc_type="derelict",
         )
         for al in gm.airlocks:
             assert "switch" in al, "Airlock dict must have 'switch' key"
@@ -256,8 +270,12 @@ class TestSwitchPlacement:
         from world.dungeon_gen import generate_dungeon
 
         gm, rooms, exit_pos = generate_dungeon(
-            width=80, height=60, max_enemies=0, max_items=0,
-            seed=seed, loc_type="derelict",
+            width=80,
+            height=60,
+            max_enemies=0,
+            max_items=0,
+            seed=seed,
+            loc_type="derelict",
         )
         for al in gm.airlocks:
             if al["switch"] is None:
@@ -281,8 +299,12 @@ class TestSwitchPlacement:
         from world.dungeon_gen import generate_dungeon
 
         gm, rooms, exit_pos = generate_dungeon(
-            width=80, height=60, max_enemies=0, max_items=0,
-            seed=42, loc_type="derelict",
+            width=80,
+            height=60,
+            max_enemies=0,
+            max_items=0,
+            seed=42,
+            loc_type="derelict",
         )
         switch_off_tid = int(tile_types.airlock_switch_off["tile_id"])
         space_tid = int(tile_types.space["tile_id"])
@@ -292,6 +314,5 @@ class TestSwitchPlacement:
             sx, sy = al["switch"]
             tid = int(gm.tiles["tile_id"][sx, sy])
             assert tid == switch_off_tid, (
-                f"Switch at ({sx},{sy}) has tid={tid}, expected {switch_off_tid} "
-                f"(space={space_tid})"
+                f"Switch at ({sx},{sy}) has tid={tid}, expected {switch_off_tid} (space={space_tid})"
             )

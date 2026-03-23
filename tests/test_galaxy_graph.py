@@ -1,4 +1,5 @@
 """Tests for graph-based galaxy generation."""
+
 from world.galaxy import Galaxy
 
 
@@ -65,9 +66,7 @@ class TestGalaxyGraph:
         _explore_n(g, 15)
         for name, sys in g.systems.items():
             for neighbor, fuel in sys.connections.items():
-                assert name in g.systems[neighbor].connections, (
-                    f"{name} -> {neighbor} but not reverse"
-                )
+                assert name in g.systems[neighbor].connections, f"{name} -> {neighbor} but not reverse"
 
     def test_no_direction_conflicts(self):
         """Each system should have at most one connection per direction."""
@@ -78,10 +77,8 @@ class TestGalaxyGraph:
                 directions_used = set()
                 for neighbor in sys.connections:
                     d = _direction(sys, g.systems[neighbor])
-                    assert d not in directions_used, (
-                        f"seed={seed}: {name} has two connections in direction {d}"
-                    )
-                    assert d != (0, 0), f"Connection to self-position"
+                    assert d not in directions_used, f"seed={seed}: {name} has two connections in direction {d}"
+                    assert d != (0, 0), "Connection to self-position"
                     directions_used.add(d)
 
     def test_depth_based_on_graph_distance(self):
@@ -97,9 +94,7 @@ class TestGalaxyGraph:
                     distances[neighbor] = distances[name] + 1
                     queue.append(neighbor)
         for name, sys in g.systems.items():
-            assert sys.depth == distances[name], (
-                f"{name}: depth={sys.depth} but BFS distance={distances[name]}"
-            )
+            assert sys.depth == distances[name], f"{name}: depth={sys.depth} but BFS distance={distances[name]}"
 
     def test_fuel_cost_positive(self):
         g = Galaxy(seed=1)
@@ -143,9 +138,7 @@ class TestGalaxyGraph:
         for name, sys in g.systems.items():
             for neighbor, fuel in sys.connections.items():
                 reverse_fuel = g.systems[neighbor].connections[name]
-                assert fuel == reverse_fuel, (
-                    f"{name}->{neighbor} fuel={fuel} but reverse={reverse_fuel}"
-                )
+                assert fuel == reverse_fuel, f"{name}->{neighbor} fuel={fuel} but reverse={reverse_fuel}"
 
     def test_dead_ends_exist(self):
         """Some systems should be dead ends (only 1 connection) after exploration."""
@@ -176,19 +169,13 @@ class TestGalaxyGraph:
             for _ in range(10):
                 # Find an unexplored frontier system
                 unexplored = [
-                    n for name in g.systems
-                    for n in g.systems[name].connections
-                    if n not in g._generated_frontiers
+                    n for name in g.systems for n in g.systems[name].connections if n not in g._generated_frontiers
                 ]
                 if not unexplored:
                     break
                 g.arrive_at(unexplored[0])
             # After 10 steps, there should still be unexplored frontier systems
-            frontier = [
-                n for name in g.systems
-                for n in g.systems[name].connections
-                if n not in g._generated_frontiers
-            ]
+            frontier = [n for name in g.systems for n in g.systems[name].connections if n not in g._generated_frontiers]
             assert len(frontier) > 0, f"seed={seed}: graph closed after exploration"
 
     def test_revisit_depths_still_correct(self):
@@ -209,9 +196,7 @@ class TestGalaxyGraph:
                     distances[nb] = distances[name] + 1
                     queue.append(nb)
         for name, sys in g.systems.items():
-            assert sys.depth == distances[name], (
-                f"{name}: depth={sys.depth} but BFS={distances[name]}"
-            )
+            assert sys.depth == distances[name], f"{name}: depth={sys.depth} but BFS={distances[name]}"
 
     def test_backtracking_preserves(self):
         """Visiting a system, leaving, and returning preserves everything."""
@@ -220,9 +205,9 @@ class TestGalaxyGraph:
         neighbor_name = next(iter(home.connections))
         g.arrive_at(neighbor_name)
         snapshot_connections = dict(g.systems[neighbor_name].connections)
-        snapshot_locations = [l.name for l in g.systems[neighbor_name].locations]
+        snapshot_locations = [loc.name for loc in g.systems[neighbor_name].locations]
         # Go back and return
         g.arrive_at(g.home_system)
         g.arrive_at(neighbor_name)
         assert dict(g.systems[neighbor_name].connections) == snapshot_connections
-        assert [l.name for l in g.systems[neighbor_name].locations] == snapshot_locations
+        assert [loc.name for loc in g.systems[neighbor_name].locations] == snapshot_locations

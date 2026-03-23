@@ -1,15 +1,12 @@
 """Tests for navigation unit collection and installation."""
-import random
 
-import pytest
-
-from game.entity import Entity, Fighter
+from game.entity import Entity
 from game.ship import Ship
-from tests.conftest import make_engine, MockEngine
+from tests.conftest import make_engine
 from world.galaxy import Galaxy, Location
 
-
 # ---- Galaxy assignment tests ----
+
 
 class TestLocationHasNavUnit:
     def test_default_false(self):
@@ -52,12 +49,11 @@ class TestLocationHasNavUnit:
         for sys in galaxy.systems.values():
             for loc in sys.locations:
                 if loc.has_nav_unit:
-                    assert loc.loc_type == "derelict", (
-                        f"{loc.name} is {loc.loc_type}, not derelict"
-                    )
+                    assert loc.loc_type == "derelict", f"{loc.name} is {loc.loc_type}, not derelict"
 
     def test_deterministic_assignment(self):
         """Same seed must produce same nav unit assignments."""
+
         def get_nav_locations(seed):
             galaxy = Galaxy(seed=seed)
             for _ in range(15):
@@ -78,6 +74,7 @@ class TestLocationHasNavUnit:
 
 # ---- Ship counter tests ----
 
+
 class TestShipNavUnits:
     def test_starts_at_zero(self):
         ship = Ship()
@@ -86,10 +83,13 @@ class TestShipNavUnits:
 
 # ---- Mission exit: install nav units ----
 
+
 class TestNavUnitInstallOnExit:
     def _make_nav_unit(self):
         return Entity(
-            char="\u2302", color=(0, 255, 200), name="Navigation Unit",
+            char="\u2302",
+            color=(0, 255, 200),
+            name="Navigation Unit",
             blocks_movement=False,
             item={"type": "nav_unit", "value": 1},
         )
@@ -110,9 +110,7 @@ class TestNavUnitInstallOnExit:
 
         assert engine.ship.nav_units == 1
         saved_inv = engine._saved_player["inventory"]
-        assert all(
-            i.item.get("type") != "nav_unit" for i in saved_inv
-        ), "Nav unit should be removed from inventory"
+        assert all(i.item.get("type") != "nav_unit" for i in saved_inv), "Nav unit should be removed from inventory"
 
     def test_multiple_nav_units_installed(self):
         """Multiple nav units should all convert."""
@@ -150,12 +148,17 @@ class TestNavUnitInstallOnExit:
 
 # ---- Dungeon generation: nav unit in bridge ----
 
+
 class TestNavUnitInDungeon:
     def test_has_nav_unit_parameter_accepted(self):
         """generate_dungeon should accept has_nav_unit without error."""
         from world.dungeon_gen import generate_dungeon
+
         game_map, rooms, exit_pos = generate_dungeon(
-            width=80, height=50, seed=42, loc_type="derelict",
+            width=80,
+            height=50,
+            seed=42,
+            loc_type="derelict",
             has_nav_unit=True,
         )
         assert game_map is not None
@@ -163,20 +166,24 @@ class TestNavUnitInDungeon:
     def test_nav_unit_placed_in_bridge(self):
         """When has_nav_unit=True, a nav unit entity should appear in the map."""
         from world.dungeon_gen import generate_dungeon
+
         # Try several seeds — ship gen is variable; we need one that produces a bridge
         found = False
         for seed in range(50):
             game_map, rooms, exit_pos = generate_dungeon(
-                width=80, height=50, seed=seed, loc_type="derelict",
+                width=80,
+                height=50,
+                seed=seed,
+                loc_type="derelict",
                 has_nav_unit=True,
             )
             bridge_rooms = [r for r in rooms if r.label == "bridge"]
             if not bridge_rooms:
                 continue
             nav_ents = [
-                e for e in game_map.entities
-                if e.interactable and e.interactable.get("loot")
-                and e.interactable["loot"].get("type") == "nav_unit"
+                e
+                for e in game_map.entities
+                if e.interactable and e.interactable.get("loot") and e.interactable["loot"].get("type") == "nav_unit"
             ]
             if nav_ents:
                 found = True
@@ -186,14 +193,18 @@ class TestNavUnitInDungeon:
     def test_no_nav_unit_when_false(self):
         """When has_nav_unit=False, no nav_unit loot should appear."""
         from world.dungeon_gen import generate_dungeon
+
         for seed in range(20):
             game_map, rooms, exit_pos = generate_dungeon(
-                width=80, height=50, seed=seed, loc_type="derelict",
+                width=80,
+                height=50,
+                seed=seed,
+                loc_type="derelict",
                 has_nav_unit=False,
             )
             nav_ents = [
-                e for e in game_map.entities
-                if e.interactable and e.interactable.get("loot")
-                and e.interactable["loot"].get("type") == "nav_unit"
+                e
+                for e in game_map.entities
+                if e.interactable and e.interactable.get("loot") and e.interactable["loot"].get("type") == "nav_unit"
             ]
             assert not nav_ents, f"Nav unit found with has_nav_unit=False (seed={seed})"

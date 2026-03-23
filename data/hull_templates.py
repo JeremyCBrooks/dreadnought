@@ -4,17 +4,15 @@ Each ship is composed of bow + mid + stern sections.  Every section has a
 Y-profile array giving the half-width (top offset from centerline) at each
 x-position.  The hull is symmetric: bottom offset = -top offset.
 """
-from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Tuple
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class HullSection:
     name: str
-    profile: list[int]  # top_offset per x (bottom = -top, symmetric)
+    profile: tuple[int, ...]  # top_offset per x (bottom = -top, symmetric)
     room_type: str | None  # "bridge", "engine_room", or None (mid)
 
 
@@ -24,23 +22,23 @@ class HullSection:
 
 BOW_POINTED = HullSection(
     name="pointed",
-    profile=[1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 10, 10, 10, 10],
+    profile=(1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 10, 10, 10, 10),
     room_type="bridge",
 )
 
 BOW_BLUNT = HullSection(
     name="blunt",
-    profile=[6, 7, 8, 9, 9, 10, 10, 10, 10, 10],
+    profile=(6, 7, 8, 9, 9, 10, 10, 10, 10, 10),
     room_type="bridge",
 )
 
 BOW_WEDGE = HullSection(
     name="wedge",
-    profile=[1, 2, 3, 4, 5, 6, 7, 8, 8, 9, 10, 10, 10, 10, 10, 10],
+    profile=(1, 2, 3, 4, 5, 6, 7, 8, 8, 9, 10, 10, 10, 10, 10, 10),
     room_type="bridge",
 )
 
-BOWS = [BOW_POINTED, BOW_BLUNT, BOW_WEDGE]
+BOWS = (BOW_POINTED, BOW_BLUNT, BOW_WEDGE)
 
 # -------------------------------------------------------------------
 # Mid templates (room_type=None)
@@ -48,29 +46,23 @@ BOWS = [BOW_POINTED, BOW_BLUNT, BOW_WEDGE]
 
 MID_WIDE = HullSection(
     name="wide",
-    profile=[11, 11, 12, 12, 12, 12, 13, 13, 13, 13, 13, 13, 13, 13,
-             13, 13, 13, 13, 13, 13, 13, 13, 12, 12, 12, 12, 11, 11,
-             11, 11, 11, 11, 11, 11, 11, 11],
+    profile=(10,) + (11,) * 2 + (12,) * 4 + (13,) * 16 + (12,) * 4 + (11,) * 2 + (10,) * 7,
     room_type=None,
 )
 
 MID_UNIFORM = HullSection(
     name="uniform",
-    profile=[10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-             10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-             10, 10, 10, 10, 10, 10, 10, 10],
+    profile=(10,) * 40,
     room_type=None,
 )
 
 MID_TAPERED = HullSection(
     name="tapered",
-    profile=[10, 11, 11, 12, 12, 12, 13, 13, 13, 13, 13, 13, 13, 13,
-             13, 13, 13, 13, 13, 12, 12, 12, 11, 11, 11, 10, 10, 10,
-             10, 10, 10, 10, 10, 10],
+    profile=(10,) + (11,) * 2 + (12,) * 3 + (13,) * 13 + (12,) * 3 + (11,) * 3 + (10,) * 9,
     room_type=None,
 )
 
-MIDS = [MID_WIDE, MID_UNIFORM, MID_TAPERED]
+MIDS = (MID_WIDE, MID_UNIFORM, MID_TAPERED)
 
 # -------------------------------------------------------------------
 # Stern templates (room_type="engine_room")
@@ -78,28 +70,28 @@ MIDS = [MID_WIDE, MID_UNIFORM, MID_TAPERED]
 
 STERN_TAPERED = HullSection(
     name="tapered",
-    profile=[10, 10, 9, 9, 8, 8, 7, 6, 5, 5, 4, 3, 2, 2, 1, 1],
+    profile=(10, 10, 9, 9, 8, 8, 7, 6, 5, 5, 4, 3, 2, 2, 1, 1),
     room_type="engine_room",
 )
 
 STERN_FLARED = HullSection(
     name="flared",
-    profile=[10, 10, 11, 11, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 1, 1],
+    profile=(10, 10, 11, 11, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 1, 1),
     room_type="engine_room",
 )
 
 STERN_BLUNT = HullSection(
     name="blunt",
-    profile=[10, 10, 9, 9, 9, 8, 8, 8, 7, 7, 6, 6],
+    profile=(10, 10, 9, 9, 9, 8, 8, 8, 7, 7, 6, 6),
     room_type="engine_room",
 )
 
-STERNS = [STERN_TAPERED, STERN_FLARED, STERN_BLUNT]
+STERNS = (STERN_TAPERED, STERN_FLARED, STERN_BLUNT)
 
 
 def get_random_hull(
     rng: random.Random,
-) -> Tuple[HullSection, HullSection, HullSection]:
+) -> tuple[HullSection, HullSection, HullSection]:
     """Pick one random bow, mid, and stern template."""
     bow = rng.choice(BOWS)
     mid = rng.choice(MIDS)

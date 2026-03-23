@@ -1,13 +1,19 @@
 """Loadout: 2 generic equipment slots for mission gear (weapon or tool)."""
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from game.entity import Entity
 
-
 from ui.colors import EQUIP_MSG, NEUTRAL, WARNING
+
+
+def has_usable_durability(entity: Entity) -> bool:
+    """Return True if *entity* has an item dict with durability > 0."""
+    return bool(entity.item and entity.item.get("durability", 0) > 0)
+
 
 _EQUIPPABLE_TYPES = {"weapon", "scanner"}
 
@@ -27,8 +33,12 @@ def recalc_melee_power(player: Entity) -> None:
     bonus = 0
     if player.loadout:
         for item in player.loadout.all_items():
-            if (item.item and item.item.get("weapon_class", "melee") == "melee"
-                    and not item.item.get("damaged")):
+            if (
+                item.item
+                and item.item.get("type") == "weapon"
+                and item.item.get("weapon_class") == "melee"
+                and not item.item.get("damaged")
+            ):
                 bonus = item.item.get("value", 0)
                 break
     player.fighter.power = base + bonus
@@ -41,28 +51,23 @@ class Loadout:
 
     def __init__(
         self,
-        slot1: Optional[Entity] = None,
-        slot2: Optional[Entity] = None,
+        slot1: Entity | None = None,
+        slot2: Entity | None = None,
     ) -> None:
         self.slot1 = slot1
         self.slot2 = slot2
 
-    def all_items(self) -> List[Entity]:
+    @property
+    def _slots(self) -> tuple[Entity | None, Entity | None]:
+        """Return both slots as a tuple for iteration."""
+        return (self.slot1, self.slot2)
+
+    def all_items(self) -> list[Entity]:
         """Return all non-None items across both slots."""
-        return [s for s in (self.slot1, self.slot2) if s is not None]
+        return [s for s in self._slots if s is not None]
 
     def has_item(self, item: Entity) -> bool:
-        return item is self.slot1 or item is self.slot2
-
-    def remove_item(self, item: Entity) -> bool:
-        """Clear whichever slot holds item. Returns True if found."""
-        if self.slot1 is item:
-            self.slot1 = None
-            return True
-        if self.slot2 is item:
-            self.slot2 = None
-            return True
-        return False
+        return item in self._slots
 
     def equip(self, item: Entity) -> bool:
         """Put item in first empty slot. Returns True on success, False if both full."""
@@ -74,7 +79,7 @@ class Loadout:
             return True
         return False
 
-    def unequip(self, item: Entity) -> Optional[Entity]:
+    def unequip(self, item: Entity) -> Entity | None:
         """Remove item from slot and return it. Returns None if not found."""
         if self.slot1 is item:
             self.slot1 = None
@@ -87,9 +92,9 @@ class Loadout:
     def is_full(self) -> bool:
         return self.slot1 is not None and self.slot2 is not None
 
-    def get_ranged_weapon(self) -> Optional[Entity]:
+    def get_ranged_weapon(self) -> Entity | None:
         """Return a ranged weapon with ammo from either slot."""
-        for s in (self.slot1, self.slot2):
+        for s in self._slots:
             if (
                 s is not None
                 and s.item
@@ -100,27 +105,24 @@ class Loadout:
                 return s
         return None
 
-    def get_scanner(self) -> Optional[Entity]:
+    def get_scanner(self) -> Entity | None:
         """Return the first scanner from either slot."""
-        for s in (self.slot1, self.slot2):
+        for s in self._slots:
             if s is not None and s.item and not s.item.get("damaged") and s.item.get("type") == "scanner":
                 return s
         return None
 
-    def get_all_scanners(self) -> List[Entity]:
-        """Return all scanner items across both slots."""
+    def get_all_scanners(self) -> list[Entity]:
+        """Return all non-damaged scanner items across both slots."""
         return [
-            s for s in (self.slot1, self.slot2)
-            if s is not None and s.item and s.item.get("type") == "scanner"
+            s
+            for s in self._slots
+            if s is not None and s.item and not s.item.get("damaged") and s.item.get("type") == "scanner"
         ]
 
-    def items_with_durability(self) -> List[Entity]:
+    def items_with_durability(self) -> list[Entity]:
         """Return all loadout items that have a durability stat > 0."""
-        result = []
-        for item in self.all_items():
-            if item.item and item.item.get("durability") is not None and item.item.get("durability", 0) > 0:
-                result.append(item)
-        return result
+        return [item for item in self.all_items() if has_usable_durability(item)]
 
 
 def combined_items(inventory: list, loadout: Loadout | None) -> list:
@@ -152,6 +154,4 @@ def toggle_equip(engine: object, player: Entity, item: Entity) -> None:
             recalc_melee_power(player)
         engine.message_log.add_message(f"Equipped {item.name}.", EQUIP_MSG)
     elif lo and lo.is_full():
-        engine.message_log.add_message(
-            "Equipment slots full. Unequip something first.", WARNING
-        )
+        engine.message_log.add_message("Equipment slots full. Unequip something first.", WARNING)

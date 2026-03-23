@@ -1,11 +1,11 @@
 """Tests for the light source and lighting system."""
+
 import numpy as np
 import pytest
 
+from tests.conftest import make_arena
 from world import tile_types
 from world.lighting import LightSource, compute_light_map
-from world.game_map import GameMap
-from tests.conftest import make_arena
 
 
 class TestLightSourceFields:
@@ -152,7 +152,6 @@ class TestFlickerLights:
 
     def test_flicker_light_varies_intensity(self):
         """A flickering light should produce different intensities at different times."""
-        import time
         from unittest.mock import patch
 
         gm = make_arena(20, 20)
@@ -170,6 +169,21 @@ class TestFlickerLights:
         # At least one of the two samples should differ from full intensity
         # (the flicker modulates between ~0.2 and 1.0)
         assert val1 != pytest.approx(val2, abs=0.01) or val1 < 1.0
+
+    def test_flicker_never_negative_intensity(self):
+        """Flickering should never produce negative light contributions."""
+        from unittest.mock import patch
+
+        gm = make_arena(20, 20)
+        # Test multiple positions to vary the phase offset
+        positions = [(0, 0), (1, 3), (5, 7), (10, 10), (15, 2)]
+        for px, py in positions:
+            sources = [LightSource(x=px, y=py, radius=5, color=(255, 255, 255), intensity=1.0, flicker=True)]
+            with patch("world.lighting.time") as mock_time:
+                for t in [i * 0.007 for i in range(500)]:
+                    mock_time.time.return_value = t
+                    lm = compute_light_map(gm.width, gm.height, gm.tiles, sources)
+                    assert np.all(lm >= 0), f"Negative light at pos=({px},{py}) t={t:.3f}: min={lm.min()}"
 
     def test_non_flicker_light_stable(self):
         """A non-flickering light should produce the same intensity regardless of time."""
@@ -212,6 +226,7 @@ class TestDerelictLightReduction:
         """Derelict corridor lights should be at most 50% of what a
         fully-lit ship would have (plus fixture lights like reactors)."""
         from world.dungeon_gen import generate_dungeon
+
         for seed in range(10):
             gm, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
             # Should have at least 1 light
@@ -220,6 +235,7 @@ class TestDerelictLightReduction:
     def test_derelict_has_some_flickering_lights(self):
         """25-75% of derelict corridor lights should be flickering."""
         from world.dungeon_gen import generate_dungeon
+
         any_flicker = False
         for seed in range(10):
             gm, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
@@ -232,10 +248,10 @@ class TestDerelictLightReduction:
     def test_derelict_corridor_flicker_max_two(self):
         """At most 2 corridor lights should flicker on a derelict."""
         from world.dungeon_gen import generate_dungeon
+
         for seed in range(10):
             gm, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
-            corridor_flicker = sum(1 for ls in gm.light_sources
-                                   if ls.color == (200, 190, 170) and ls.flicker)
+            corridor_flicker = sum(1 for ls in gm.light_sources if ls.color == (200, 190, 170) and ls.flicker)
             assert corridor_flicker <= 2, f"seed={seed}: {corridor_flicker} flickering corridor lights"
 
 
@@ -243,6 +259,7 @@ class TestDerelictFixtureFlicker:
     def test_fixture_lights_sometimes_flicker(self):
         """Engine room and bridge fixture lights should sometimes flicker (5% each)."""
         from world.dungeon_gen import generate_dungeon
+
         fixture_colors = {(120, 60, 220), (80, 160, 255)}
         any_flicker = False
         for seed in range(200):
@@ -258,6 +275,7 @@ class TestDerelictFixtureFlicker:
     def test_no_corridor_lights_in_bridge_or_engine(self):
         """Corridor lights should not appear inside bridge or engine rooms."""
         from world.dungeon_gen import generate_dungeon
+
         corridor_color = (200, 190, 170)
         for seed in range(10):
             gm, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
@@ -272,6 +290,7 @@ class TestDerelictFixtureFlicker:
     def test_fixture_lights_always_present(self):
         """Fixture lights should always be placed (never skipped)."""
         from world.dungeon_gen import generate_dungeon
+
         fixture_colors = {(120, 60, 220), (80, 160, 255)}
         for seed in range(10):
             gm, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
@@ -285,11 +304,13 @@ class TestDerelictFixtureFlicker:
 class TestDungeonGenLights:
     def test_ship_has_light_sources(self):
         from world.dungeon_gen import generate_dungeon
+
         game_map, rooms, _ = generate_dungeon(seed=42, loc_type="derelict")
         assert len(game_map.light_sources) > 0
 
     def test_village_has_street_lights(self):
         from world.dungeon_gen import generate_dungeon
+
         game_map, rooms, _ = generate_dungeon(seed=42, loc_type="colony")
         assert len(game_map.light_sources) > 0
         # Should have street_lamp tiles
@@ -299,6 +320,7 @@ class TestDungeonGenLights:
     def test_street_lights_not_too_numerous(self):
         """Street lamps should be sparse — spacing >= 12 spine tiles."""
         from world.dungeon_gen import generate_dungeon
+
         for seed in range(5):
             game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
             lamp_tid = int(tile_types.street_lamp["tile_id"])
@@ -308,17 +330,20 @@ class TestDungeonGenLights:
 
     def test_starbase_has_light_sources(self):
         from world.dungeon_gen import generate_dungeon
+
         game_map, rooms, _ = generate_dungeon(seed=42, loc_type="starbase")
         assert len(game_map.light_sources) > 0
 
     def test_asteroid_has_light_sources(self):
         from world.dungeon_gen import generate_dungeon
+
         game_map, rooms, _ = generate_dungeon(seed=42, loc_type="asteroid")
         assert len(game_map.light_sources) > 0
 
     def test_ship_engine_room_has_reactor_core_tile(self):
         """Engine rooms should have a non-walkable reactor_core tile that is a light source."""
         from world.dungeon_gen import generate_dungeon
+
         reactor_tid = int(tile_types.reactor_core["tile_id"])
         found = False
         for seed in range(10):
@@ -332,14 +357,14 @@ class TestDungeonGenLights:
                     # Verify it's a light source
                     core_positions = np.argwhere(game_map.tiles["tile_id"] == reactor_tid)
                     for pos in core_positions:
-                        light_at = [ls for ls in game_map.light_sources
-                                    if ls.x == pos[0] and ls.y == pos[1]]
+                        light_at = [ls for ls in game_map.light_sources if ls.x == pos[0] and ls.y == pos[1]]
                         assert len(light_at) > 0, f"Reactor core at {pos} has no light source"
         assert found, "No reactor_core tiles found in engine rooms across 10 seeds"
 
     def test_ship_bridge_has_control_console_tile(self):
         """Bridge rooms should have a non-walkable control_console tile that is a light source."""
         from world.dungeon_gen import generate_dungeon
+
         console_tid = int(tile_types.control_console["tile_id"])
         found = False
         for seed in range(10):
@@ -352,8 +377,7 @@ class TestDungeonGenLights:
                     found = True
                     console_positions = np.argwhere(game_map.tiles["tile_id"] == console_tid)
                     for pos in console_positions:
-                        light_at = [ls for ls in game_map.light_sources
-                                    if ls.x == pos[0] and ls.y == pos[1]]
+                        light_at = [ls for ls in game_map.light_sources if ls.x == pos[0] and ls.y == pos[1]]
                         assert len(light_at) > 0, f"Control console at {pos} has no light source"
         assert found, "No control_console tiles found in bridges across 10 seeds"
 
@@ -366,7 +390,7 @@ class TestDungeonGenLights:
     def test_colony_buildings_sometimes_have_indoor_lights(self):
         """Some colony buildings should have interior light sources."""
         from world.dungeon_gen import generate_dungeon
-        from world.lighting import LightSource
+
         found_indoor = False
         for seed in range(20):
             game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
@@ -374,7 +398,7 @@ class TestDungeonGenLights:
             for ls in game_map.light_sources:
                 for room in rooms:
                     xs, ys = room.inner
-                    if (xs.start <= ls.x < xs.stop and ys.start <= ls.y < ys.stop):
+                    if xs.start <= ls.x < xs.stop and ys.start <= ls.y < ys.stop:
                         found_indoor = True
                         break
                 if found_indoor:
@@ -386,6 +410,7 @@ class TestDungeonGenLights:
     def test_colony_indoor_lights_not_on_doors_or_windows(self):
         """Indoor light sources must not be on door or window tiles."""
         from world.dungeon_gen import generate_dungeon
+
         door_tids = {int(tile_types.door_closed["tile_id"]), int(tile_types.door_open["tile_id"])}
         window_tid = int(tile_types.structure_window["tile_id"])
         for seed in range(20):
@@ -394,26 +419,20 @@ class TestDungeonGenLights:
                 if not game_map.in_bounds(ls.x, ls.y):
                     continue
                 tid = int(game_map.tiles["tile_id"][ls.x, ls.y])
-                assert tid not in door_tids, (
-                    f"seed={seed}: light at ({ls.x},{ls.y}) on door tile"
-                )
-                assert tid != window_tid, (
-                    f"seed={seed}: light at ({ls.x},{ls.y}) on window tile"
-                )
+                assert tid not in door_tids, f"seed={seed}: light at ({ls.x},{ls.y}) on door tile"
+                assert tid != window_tid, f"seed={seed}: light at ({ls.x},{ls.y}) on window tile"
 
     def test_colony_not_every_building_lit(self):
         """Not every colony building should have lights — some randomness."""
         from world.dungeon_gen import generate_dungeon
+
         any_unlit = False
         for seed in range(20):
             game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
             light_positions = {(ls.x, ls.y) for ls in game_map.light_sources}
             for room in rooms:
                 xs, ys = room.inner
-                has_light = any(
-                    xs.start <= lx < xs.stop and ys.start <= ly < ys.stop
-                    for lx, ly in light_positions
-                )
+                has_light = any(xs.start <= lx < xs.stop and ys.start <= ly < ys.stop for lx, ly in light_positions)
                 if not has_light:
                     any_unlit = True
                     break

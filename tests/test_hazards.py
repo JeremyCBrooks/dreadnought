@@ -1,7 +1,8 @@
 """Tests for hazard triggering and DoT effects."""
-from game.entity import Entity, Fighter
-from game.hazards import trigger_hazard, apply_dot_effects
+
 from engine.game_state import Engine
+from game.entity import Entity
+from game.hazards import apply_dot_effects, trigger_hazard
 from game.suit import Suit
 from tests.conftest import make_engine as _make_engine
 
@@ -136,7 +137,7 @@ def test_dot_duration_positive_still_works():
 
 def test_dot_effects_no_fighter_no_crash():
     """apply_dot_effects should not crash if player has no fighter."""
-    from tests.conftest import make_arena, MockEngine
+    from tests.conftest import MockEngine, make_arena
 
     gm = make_arena()
     player = Entity(x=5, y=5, name="Player")  # no fighter
@@ -146,3 +147,118 @@ def test_dot_effects_no_fighter_no_crash():
 
     # Should not raise
     apply_dot_effects(engine)
+
+
+def test_hazard_by_type_lookup():
+    """HAZARD_BY_TYPE provides O(1) lookup keyed by hazard type string."""
+    from data.hazards import HAZARD_BY_TYPE, HAZARDS
+
+    assert isinstance(HAZARD_BY_TYPE, dict)
+    assert len(HAZARD_BY_TYPE) == len(HAZARDS)
+    for h in HAZARDS:
+        assert HAZARD_BY_TYPE[h.type] is h
+
+
+def test_unknown_hazard_type_does_not_say_structural():
+    """An unknown hazard type must NOT produce 'Structural collapse' message."""
+    engine = _make_engine()
+    hazard = {"type": "unknown_type", "damage": 1, "equipment_damage": False, "dot": 0, "duration": 0}
+    trigger_hazard(engine, hazard, "Widget")
+    msgs = [text for text, _color in engine.message_log.messages]
+    assert len(msgs) == 1
+    assert "Structural" not in msgs[0]
+    assert "Widget" in msgs[0]
+
+
+def test_all_hazard_types_produce_messages():
+    """Every defined hazard type produces a message when triggered."""
+    from dataclasses import asdict
+
+    from data.hazards import HAZARDS
+
+    for hdef in HAZARDS:
+        engine = _make_engine()
+        hazard = asdict(hdef)
+        trigger_hazard(engine, hazard, "TestSource")
+        msgs = [text for text, _color in engine.message_log.messages]
+        assert len(msgs) >= 1, f"No message for hazard type '{hdef.type}'"
+        assert "TestSource" in msgs[0], f"Source name missing for '{hdef.type}'"
+
+
+def test_equipment_damage_inventory_fallback(monkeypatch):
+    """When player has no loadout, equipment damage falls back to inventory items."""
+    import random
+
+    from game.hazards import _apply_equipment_damage
+
+    engine = _make_engine()
+    engine.player.loadout = None
+    weapon = Entity(name="Pistol", item={"type": "weapon", "durability": 2, "max_durability": 5})
+    engine.player.inventory.append(weapon)
+
+    monkeypatch.setattr(random, "random", lambda: 0.1)
+    monkeypatch.setattr(random, "choice", lambda lst: lst[0])
+
+    _apply_equipment_damage(engine, engine.player)
+    assert weapon.item["durability"] == 1
+
+
+def test_equipment_damage_inventory_fallback_skips_zero_durability(monkeypatch):
+    """Inventory fallback skips items with durability <= 0."""
+    import random
+
+    from game.hazards import _apply_equipment_damage
+
+    engine = _make_engine()
+    engine.player.loadout = None
+    broken = Entity(name="Broken", item={"type": "weapon", "durability": 0, "max_durability": 5})
+    engine.player.inventory.append(broken)
+
+    monkeypatch.setattr(random, "random", lambda: 0.1)
+
+    _apply_equipment_damage(engine, engine.player)
+    assert broken.item["durability"] == 0  # unchanged — no candidates
+
+
+def test_equipment_damage_is_data_driven(monkeypatch):
+    """Any hazard type with equipment_damage=True should trigger equipment damage, not just electric."""
+    import random
+
+    engine = _make_engine()
+    weapon = Entity(name="Rifle", item={"type": "weapon", "durability": 3, "max_durability": 5})
+    engine.player.inventory.append(weapon)
+    from game.loadout import Loadout
+
+    engine.player.loadout = Loadout(slot1=weapon)
+
+    monkeypatch.setattr(random, "random", lambda: 0.1)
+    monkeypatch.setattr(random, "choice", lambda lst: lst[0])
+
+    # A non-electric hazard with equipment_damage=True should still damage equipment
+    hazard = {"type": "explosive", "damage": 2, "equipment_damage": True, "dot": 0, "duration": 0}
+    trigger_hazard(engine, hazard, "Crate")
+    assert weapon.item["durability"] == 2
+
+
+def test_god_mode_prevents_trigger_hazard_damage():
+    """GOD_MODE should prevent HP damage from trigger_hazard, like all other damage sources."""
+    import debug
+
+    engine = _make_engine()
+    hp_before = engine.player.fighter.hp
+    debug.GOD_MODE = True
+    hazard = {"type": "electric", "damage": 5, "equipment_damage": False, "dot": 0, "duration": 0}
+    trigger_hazard(engine, hazard, "Console")
+    assert engine.player.fighter.hp == hp_before
+
+
+def test_gas_o2_drain_respects_disable_oxygen():
+    """DISABLE_OXYGEN should prevent gas hazard from draining suit O2."""
+    import debug
+
+    engine = _make_engine()
+    engine.suit = Suit("Test", {"vacuum": 50}, defense_bonus=0)
+    debug.DISABLE_OXYGEN = True
+    hazard = {"type": "gas", "damage": 1, "equipment_damage": False, "dot": 0, "duration": 0}
+    trigger_hazard(engine, hazard, "Vent")
+    assert engine.suit.current_pools["vacuum"] == 50

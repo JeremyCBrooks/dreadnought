@@ -1,4 +1,5 @@
 """Modal confirmation dialog for quitting the game."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -14,8 +15,10 @@ class ConfirmQuitState(State):
 
     def __init__(self, abandon: bool = False) -> None:
         self.abandon = abandon
+        self.title = "Abandon mission?" if abandon else "Quit game?"
+        self.confirm_label = "[Y] Yes, abandon" if abandon else "[Y] Yes, exit"
 
-    def ev_keydown(self, engine: Engine, event: Any) -> bool:
+    def ev_key(self, engine: Engine, event: Any) -> bool:
         import tcod.event
 
         key = event.sym
@@ -24,6 +27,7 @@ class ConfirmQuitState(State):
         if key == K.y:
             if self.abandon:
                 from ui.game_over_state import GameOverState
+
                 engine.switch_state(GameOverState(victory=False, title="MISSION ABANDONED"))
                 return True
             raise SystemExit
@@ -37,13 +41,14 @@ class ConfirmQuitState(State):
         if len(engine._state_stack) >= 2:
             engine._state_stack[-2].on_render(console, engine)
 
-        cw, ch = engine.CONSOLE_WIDTH, engine.CONSOLE_HEIGHT
+        con_w, con_h = engine.CONSOLE_WIDTH, engine.CONSOLE_HEIGHT
         bw, bh = 27, 6
-        bx = (cw - bw) // 2
-        by = (ch - bh) // 2
+        bx = (con_w - bw) // 2
+        by = (con_h - bh) // 2
 
         from ui.colors import DIALOG_BG, GRAY, HEADER_TITLE
+
         console.draw_rect(bx, by, bw, bh, ch=32, bg=DIALOG_BG)
-        console.print(x=bx + 2, y=by + 1, string="Quit game?", fg=HEADER_TITLE)
-        console.print(x=bx + 2, y=by + 3, string="[Y] Yes, exit", fg=GRAY)
+        console.print(x=bx + 2, y=by + 1, string=self.title, fg=HEADER_TITLE)
+        console.print(x=bx + 2, y=by + 3, string=self.confirm_label, fg=GRAY)
         console.print(x=bx + 2, y=by + 4, string="[N] No, stay", fg=GRAY)

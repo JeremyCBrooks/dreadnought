@@ -1,18 +1,23 @@
 """Tests for ranged weapon UI enhancements in the tactical stats panel."""
+
 from types import SimpleNamespace
 
-from game.entity import Entity, Fighter
+from game.entity import Entity
 from game.loadout import Loadout
 from tests.conftest import make_engine
-from ui.tactical_state import TacticalState, CTRL_LINES
+from ui.tactical_state import TacticalState
 
 
 def _ranged_weapon(ammo=15, max_ammo=20, range_=5, value=3):
     return Entity(
         name="Blaster",
         item={
-            "type": "weapon", "weapon_class": "ranged",
-            "value": value, "range": range_, "ammo": ammo, "max_ammo": max_ammo,
+            "type": "weapon",
+            "weapon_class": "ranged",
+            "value": value,
+            "range": range_,
+            "ammo": ammo,
+            "max_ammo": max_ammo,
         },
     )
 
@@ -42,6 +47,7 @@ def _find_print(calls, substring):
 
 # --- Weapon / ammo display ---
 
+
 def test_stats_show_equipped_ranged_weapon():
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon(ammo=15, max_ammo=20))
@@ -68,6 +74,7 @@ def test_stats_no_ranged_weapon():
 
 
 # --- Ground text header ---
+
 
 def test_targeting_keeps_underfoot_header():
     """While targeting, ground header should remain UNDERFOOT (not change to TARGETING)."""
@@ -106,6 +113,7 @@ def test_underfoot_header():
 
 
 # --- Distance / range display in controls ---
+
 
 def test_targeting_distance_display():
     engine = make_engine()

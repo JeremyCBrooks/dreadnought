@@ -1,4 +1,5 @@
 """Tests for inventory item usage via consumables module."""
+
 from game.entity import Entity
 from game.loadout import Loadout
 from tests.conftest import make_engine as _make_engine

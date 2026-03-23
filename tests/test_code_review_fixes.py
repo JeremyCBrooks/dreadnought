@@ -1,8 +1,9 @@
 """Tests for code review fixes: loadout guard and entity index invalidation."""
+
+from game.actions import MovementAction
 from game.entity import Entity, Fighter
 from game.loadout import recalc_melee_power
-from game.actions import MovementAction
-from tests.conftest import make_arena, MockEngine
+from tests.conftest import MockEngine, make_arena
 
 
 def test_recalc_melee_power_no_fighter():

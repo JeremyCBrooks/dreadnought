@@ -3,15 +3,16 @@
 Items should maintain their insertion order regardless of equip/unequip operations.
 New items should always appear at the end of the list.
 """
+
 import tcod.event
 
-from game.entity import Entity, Fighter
+from engine.game_state import Engine
+from game.entity import Entity
 from game.loadout import Loadout
 from game.ship import Ship
-from engine.game_state import Engine
-from ui.inventory_state import InventoryState
-from ui.cargo_state import CargoState, _PERSONAL, _CARGO
 from tests.conftest import make_engine
+from ui.cargo_state import _CARGO, _PERSONAL, CargoState
+from ui.inventory_state import InventoryState
 
 
 class FakeEvent:
@@ -20,12 +21,13 @@ class FakeEvent:
 
 
 def _press(state, engine, sym):
-    return state.ev_keydown(engine, FakeEvent(sym))
+    return state.ev_key(engine, FakeEvent(sym))
 
 
 # ---------------------------------------------------------------------------
 # InventoryState: stable order
 # ---------------------------------------------------------------------------
+
 
 def test_equip_does_not_change_item_order():
     """Equipping an item should NOT move it in the combined list."""
@@ -67,7 +69,7 @@ def test_unequip_does_not_change_item_order():
     combined = state._combined_items(engine)
     names = [item.name for item, _ in combined]
     assert names == ["Sword", "Medkit", "Scanner"]
-    assert combined[0] == (sword, False)   # now unequipped
+    assert combined[0] == (sword, False)  # now unequipped
     assert combined[1] == (medkit, False)
     assert combined[2] == (scanner, True)  # still equipped
 
@@ -142,20 +144,25 @@ def test_consuming_item_does_not_reorder_others():
 # CargoState: stable order
 # ---------------------------------------------------------------------------
 
+
 def _make_strategic_engine(inventory_items=None, loadout_slot1=None, loadout_slot2=None, cargo_items=None):
     from game.loadout import Loadout
+
     engine = Engine()
     engine.ship = Ship()
     engine.mission_loadout = []
     lo = Loadout(slot1=loadout_slot1, slot2=loadout_slot2)
     inv = list(inventory_items or [])
     engine._saved_player = {
-        "hp": 10, "max_hp": 10, "defense": 0,
-        "power": 1, "base_power": 1,
+        "hp": 10,
+        "max_hp": 10,
+        "defense": 0,
+        "power": 1,
+        "base_power": 1,
         "inventory": inv,
         "loadout": lo,
     }
-    for item in (cargo_items or []):
+    for item in cargo_items or []:
         engine.ship.cargo.append(item)
     return engine
 
@@ -170,7 +177,7 @@ def test_cargo_equip_does_not_change_personal_order():
     state = CargoState()
     state._section = _PERSONAL
     state.selected = 0  # sword
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.e))
+    state.ev_key(engine, FakeEvent(tcod.event.KeySym.e))
 
     combined = state._combined_personal(engine)
     names = [item.name for item, _ in combined]
@@ -183,13 +190,14 @@ def test_cargo_unequip_does_not_change_personal_order():
     sword = Entity(name="Sword", item={"type": "weapon", "value": 3})
     medkit = Entity(name="Medkit", item={"type": "heal", "value": 5})
     engine = _make_strategic_engine(
-        inventory_items=[sword, medkit], loadout_slot1=sword,
+        inventory_items=[sword, medkit],
+        loadout_slot1=sword,
     )
 
     state = CargoState()
     state._section = _PERSONAL
     state.selected = 0  # sword (equipped)
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.e))
+    state.ev_key(engine, FakeEvent(tcod.event.KeySym.e))
 
     combined = state._combined_personal(engine)
     names = [item.name for item, _ in combined]
@@ -207,7 +215,7 @@ def test_cargo_transfer_preserves_cargo_order():
     state = CargoState()
     state._section = _CARGO
     state.selected = 1  # transfer B
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RETURN))
+    state.ev_key(engine, FakeEvent(tcod.event.KeySym.RETURN))
 
     cargo_names = [item.name for item in engine.ship.cargo]
     assert cargo_names == ["A", "C"]
@@ -222,7 +230,7 @@ def test_cargo_transfer_to_personal_goes_to_end():
     state = CargoState()
     state._section = _CARGO
     state.selected = 0
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RETURN))
+    state.ev_key(engine, FakeEvent(tcod.event.KeySym.RETURN))
 
     combined = state._combined_personal(engine)
     names = [item.name for item, _ in combined]

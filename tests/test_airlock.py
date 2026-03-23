@@ -1,17 +1,18 @@
 """Tests for airlock placement and drift mechanics."""
+
 import numpy as np
 
-from game.actions import BumpAction, WaitAction
+from game.actions import BumpAction
 from game.entity import Entity, Fighter
 from tests.conftest import MockEngine
 from world import tile_types
 from world.dungeon_gen import generate_dungeon
 from world.game_map import GameMap
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_airlock_map(w=20, h=20):
     """Build a small map with a hand-placed airlock facing east.
@@ -26,25 +27,28 @@ def _make_airlock_map(w=20, h=20):
         for y in range(1, h - 1):
             gm.tiles[x, y] = tile_types.floor
     # Airlock structure at y=5
-    gm.tiles[6, 5] = tile_types.door_closed         # interior door
-    gm.tiles[7, 5] = tile_types.airlock_floor      # airlock chamber
+    gm.tiles[6, 5] = tile_types.door_closed  # interior door
+    gm.tiles[7, 5] = tile_types.airlock_floor  # airlock chamber
     gm.tiles[8, 5] = tile_types.airlock_ext_closed  # exterior door (hull-colored)
     # Space beyond
     for x in range(9, w):
         for y in range(0, h):
             gm.tiles[x, y] = tile_types.space
     gm.has_space = True
-    gm.airlocks = [{
-        "interior_door": (6, 5),
-        "exterior_door": (8, 5),
-        "direction": (1, 0),
-    }]
+    gm.airlocks = [
+        {
+            "interior_door": (6, 5),
+            "exterior_door": (8, 5),
+            "direction": (1, 0),
+        }
+    ]
     return gm
 
 
 # ---------------------------------------------------------------------------
 # Airlock generation tests
 # ---------------------------------------------------------------------------
+
 
 def test_airlocks_placed_on_ship():
     """Ship-type maps should have at least one airlock per rib tip."""
@@ -76,8 +80,7 @@ def test_rib_airlock_switch_adjacent_to_door():
             sx, sy = switch
             dist = abs(sx - ix) + abs(sy - iy)
             assert dist == 1, (
-                f"seed={seed}: switch at ({sx},{sy}) is {dist} tiles from "
-                f"interior door at ({ix},{iy}), expected 1"
+                f"seed={seed}: switch at ({sx},{sy}) is {dist} tiles from interior door at ({ix},{iy}), expected 1"
             )
 
 
@@ -149,6 +152,7 @@ def test_airlock_floor_between_doors():
 # ---------------------------------------------------------------------------
 # Drift mechanic tests
 # ---------------------------------------------------------------------------
+
 
 def test_bump_into_space_from_airlock_starts_drift():
     """Stepping from open exterior door onto space tile initiates drift."""
@@ -229,7 +233,7 @@ def test_enemy_drift():
 
     p = Entity(x=3, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
     gm.entities.append(p)
-    eng = MockEngine(gm, p)
+    MockEngine(gm, p)
 
     # Simulate the drift processing from _after_player_turn
     # Enemy at x=10 drifts to x=11
@@ -262,7 +266,6 @@ def test_airlock_corridor_walls_intact():
 
     This prevents diagonal movement through gaps next to airlocks.
     """
-    wall_tid = int(tile_types.wall["tile_id"])
     space_tid = int(tile_types.space["tile_id"])
     for seed in range(20):
         game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
@@ -283,8 +286,7 @@ def test_airlock_corridor_walls_intact():
                         continue
                     tid = int(game_map.tiles["tile_id"][nx, ny])
                     assert tid != space_tid, (
-                        f"seed={seed}: airlock wall at ({nx},{ny}) next to "
-                        f"({px},{py}) is space — diagonal leak!"
+                        f"seed={seed}: airlock wall at ({nx},{ny}) next to ({px},{py}) is space — diagonal leak!"
                     )
 
 
@@ -306,8 +308,8 @@ def test_airlock_floor_flavor_text():
 def test_drift_death_on_hull_collision():
     """Drifting into a wall/hull tile kills the player."""
     from engine.game_state import Engine
-    from ui.tactical_state import TacticalState
     from game.suit import Suit
+    from ui.tactical_state import TacticalState
 
     gm = GameMap(20, 20)
     # Floor interior
@@ -383,8 +385,8 @@ def test_vacuum_drains_during_drift():
     Space tiles should automatically get vacuum overlay from
     recalculate_hazards, so no manual overlay setup needed.
     """
-    from game.suit import Suit
     from game.environment import apply_environment_tick
+    from game.suit import Suit
 
     gm = _make_airlock_map()
     p = Entity(x=10, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
@@ -424,22 +426,18 @@ def test_space_tiles_always_have_vacuum_overlay():
     # Every space tile has vacuum
     xs, ys = np.where(space_mask)
     for i in range(len(xs)):
-        assert overlay[xs[i], ys[i]], (
-            f"Space tile ({xs[i]}, {ys[i]}) should have vacuum overlay"
-        )
+        assert overlay[xs[i], ys[i]], f"Space tile ({xs[i]}, {ys[i]}) should have vacuum overlay"
     # No non-space tile has vacuum (no breach/open door)
     non_space_vacuum = overlay & ~space_mask
-    assert not np.any(non_space_vacuum), (
-        "Only space tiles should have vacuum when no breach or airlock is open"
-    )
+    assert not np.any(non_space_vacuum), "Only space tiles should have vacuum when no breach or airlock is open"
 
 
 def test_drift_into_non_space_non_wall_tile_kills():
     """Drifting into any non-space tile (e.g. floor, hull_breach, window) should
     kill the entity, not let them pass through."""
     from engine.game_state import Engine
-    from ui.tactical_state import TacticalState
     from game.suit import Suit
+    from ui.tactical_state import TacticalState
 
     for tile, label in [
         (tile_types.floor, "floor"),
@@ -483,9 +481,7 @@ def test_drift_into_non_space_non_wall_tile_kills():
 
         # Tick 2: x=13 → x=14 (non-space tile, should die on impact)
         state._after_player_turn(eng)
-        assert p.fighter.hp == 0, (
-            f"{label}: drifting into {label} should be fatal"
-        )
+        assert p.fighter.hp == 0, f"{label}: drifting into {label} should be fatal"
 
 
 def test_enemy_drift_into_non_space_tile_removed():
@@ -508,8 +504,8 @@ def test_enemy_drift_into_non_space_tile_removed():
     gm.entities.append(p)
 
     from engine.game_state import Engine
-    from ui.tactical_state import TacticalState
     from game.suit import Suit
+    from ui.tactical_state import TacticalState
 
     eng = Engine()
     eng.game_map = gm

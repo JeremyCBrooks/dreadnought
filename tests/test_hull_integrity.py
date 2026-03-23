@@ -1,28 +1,39 @@
 """Tests for hull integrity: drift damage, repair kits, clamping."""
+
 from types import SimpleNamespace
 
-from tests.conftest import FakeEvent, MockEngine, make_arena
 from game.entity import Entity, Fighter
 from game.ship import Ship
+from tests.conftest import FakeEvent, MockEngine, make_arena
 from ui.strategic_state import StrategicState
 
 
 def _sym(name):
     import tcod.event
+
     return getattr(tcod.event.KeySym, name)
 
 
 def _make_two_system_galaxy():
     """Build a galaxy with two connected systems (OtherSystem to the right)."""
-    locs = [SimpleNamespace(name="Loc_0", loc_type="derelict",
-                            visited=False, environment={"vacuum": 1})]
+    locs = [SimpleNamespace(name="Loc_0", loc_type="derelict", visited=False, environment={"vacuum": 1})]
     system = SimpleNamespace(
-        name="TestSystem", gx=0, gy=0, locations=locs,
-        connections={"OtherSystem": 30}, depth=0, star_type="yellow_dwarf",
+        name="TestSystem",
+        gx=0,
+        gy=0,
+        locations=locs,
+        connections={"OtherSystem": 30},
+        depth=0,
+        star_type="yellow_dwarf",
     )
     other = SimpleNamespace(
-        name="OtherSystem", gx=1, gy=0, locations=[],
-        connections={"TestSystem": 30}, depth=1, star_type="red_dwarf",
+        name="OtherSystem",
+        gx=1,
+        gy=0,
+        locations=[],
+        connections={"TestSystem": 30},
+        depth=1,
+        star_type="red_dwarf",
     )
     galaxy = SimpleNamespace(
         systems={"TestSystem": system, "OtherSystem": other},
@@ -46,6 +57,7 @@ def _make_strategic_engine(galaxy):
 
 # --- Ship defaults ---
 
+
 def test_ship_has_hull_defaults():
     ship = Ship()
     assert ship.hull == 10
@@ -54,6 +66,7 @@ def test_ship_has_hull_defaults():
 
 # --- Drift hull damage ---
 
+
 def test_drift_no_cargo_damages_hull():
     """Drifting with empty cargo damages hull by 1."""
     galaxy = _make_two_system_galaxy()
@@ -61,8 +74,8 @@ def test_drift_no_cargo_damages_hull():
     engine = _make_strategic_engine(galaxy)
     engine.ship.fuel = 0
     engine.ship.cargo = []
-    state.ev_keydown(engine, FakeEvent(_sym("TAB")))
-    state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+    state.ev_key(engine, FakeEvent(_sym("TAB")))
+    state.ev_key(engine, FakeEvent(_sym("RIGHT")))
     assert engine.ship.hull == 9
 
 
@@ -74,8 +87,8 @@ def test_drift_with_cargo_no_hull_damage():
     engine.ship.fuel = 0
     item = Entity(name="Fuel Cell", char="f", color=(255, 255, 0))
     engine.ship.cargo = [item]
-    state.ev_keydown(engine, FakeEvent(_sym("TAB")))
-    state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+    state.ev_key(engine, FakeEvent(_sym("TAB")))
+    state.ev_key(engine, FakeEvent(_sym("RIGHT")))
     assert engine.ship.hull == 10
 
 
@@ -87,8 +100,8 @@ def test_drift_hull_zero_game_over():
     engine.ship.fuel = 0
     engine.ship.hull = 1
     engine.ship.cargo = []
-    state.ev_keydown(engine, FakeEvent(_sym("TAB")))
-    state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+    state.ev_key(engine, FakeEvent(_sym("TAB")))
+    state.ev_key(engine, FakeEvent(_sym("RIGHT")))
     assert engine.ship.hull == 0
     assert engine._switched_state is not None
     assert engine._switched_state.title == "SHIP DESTROYED"
@@ -104,11 +117,12 @@ def test_hull_cannot_go_negative():
 
 # --- Hull repair on mission exit ---
 
+
 def test_hull_repair_auto_apply():
     """hull_repair items in saved_inventory restore hull and are removed."""
-    from ui.tactical_state import TacticalState
     from engine.game_state import Engine
     from game.loadout import Loadout
+    from ui.tactical_state import TacticalState
 
     engine = Engine()
     engine.ship = Ship()
@@ -122,12 +136,10 @@ def test_hull_repair_auto_apply():
     engine.player.inventory = []
     engine.player.loadout = Loadout()
 
-    hull_kit = Entity(name="Hull Patch", char="#", color=(80, 200, 180),
-                      item={"type": "hull_repair", "value": 3})
+    hull_kit = Entity(name="Hull Patch", char="#", color=(80, 200, 180), item={"type": "hull_repair", "value": 3})
     engine.player.inventory.append(hull_kit)
 
-    loc = SimpleNamespace(name="TestLoc", loc_type="derelict", visited=False,
-                          environment={"vacuum": 1})
+    loc = SimpleNamespace(name="TestLoc", loc_type="derelict", visited=False, environment={"vacuum": 1})
     ts = TacticalState(location=loc, depth=0)
     ts.exit_pos = (1, 1)
     ts.on_exit(engine)
@@ -139,9 +151,9 @@ def test_hull_repair_auto_apply():
 
 def test_hull_repair_clamped_at_max():
     """hull_repair should not exceed max_hull."""
-    from ui.tactical_state import TacticalState
     from engine.game_state import Engine
     from game.loadout import Loadout
+    from ui.tactical_state import TacticalState
 
     engine = Engine()
     engine.ship = Ship()
@@ -155,12 +167,10 @@ def test_hull_repair_clamped_at_max():
     engine.player.inventory = []
     engine.player.loadout = Loadout()
 
-    hull_kit = Entity(name="Hull Patch", char="#", color=(80, 200, 180),
-                      item={"type": "hull_repair", "value": 3})
+    hull_kit = Entity(name="Hull Patch", char="#", color=(80, 200, 180), item={"type": "hull_repair", "value": 3})
     engine.player.inventory.append(hull_kit)
 
-    loc = SimpleNamespace(name="TestLoc", loc_type="derelict", visited=False,
-                          environment={"vacuum": 1})
+    loc = SimpleNamespace(name="TestLoc", loc_type="derelict", visited=False, environment={"vacuum": 1})
     ts = TacticalState(location=loc, depth=0)
     ts.exit_pos = (1, 1)
     ts.on_exit(engine)
@@ -170,11 +180,12 @@ def test_hull_repair_clamped_at_max():
 
 # --- Nav unit clamping ---
 
+
 def test_nav_units_clamped_at_6():
     """Nav units should not exceed MAX_NAV_UNITS (6)."""
-    from ui.tactical_state import TacticalState
     from engine.game_state import Engine
     from game.loadout import Loadout
+    from ui.tactical_state import TacticalState
 
     engine = Engine()
     engine.ship = Ship()
@@ -189,14 +200,11 @@ def test_nav_units_clamped_at_6():
     engine.player.loadout = Loadout()
 
     # Add 2 nav units — only 1 should be installed (5+1=6, second clamped)
-    nav1 = Entity(name="Nav Unit 1", char="n", color=(0, 200, 255),
-                  item={"type": "nav_unit", "value": 1})
-    nav2 = Entity(name="Nav Unit 2", char="n", color=(0, 200, 255),
-                  item={"type": "nav_unit", "value": 1})
+    nav1 = Entity(name="Nav Unit 1", char="n", color=(0, 200, 255), item={"type": "nav_unit", "value": 1})
+    nav2 = Entity(name="Nav Unit 2", char="n", color=(0, 200, 255), item={"type": "nav_unit", "value": 1})
     engine.player.inventory.extend([nav1, nav2])
 
-    loc = SimpleNamespace(name="TestLoc", loc_type="derelict", visited=False,
-                          environment={"vacuum": 1})
+    loc = SimpleNamespace(name="TestLoc", loc_type="derelict", visited=False, environment={"vacuum": 1})
     ts = TacticalState(location=loc, depth=0)
     ts.exit_pos = (1, 1)
     ts.on_exit(engine)

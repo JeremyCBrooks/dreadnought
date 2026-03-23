@@ -1,10 +1,10 @@
 """Tests for low gravity environment hazard."""
+
+from game.actions import BumpAction, MovementAction, WaitAction
 from game.entity import Entity, Fighter
-from game.actions import MovementAction, BumpAction, WaitAction
 from game.environment import apply_environment_tick, has_low_gravity
 from game.suit import Suit
-from tests.conftest import make_arena, make_engine, MockEngine
-
+from tests.conftest import MockEngine, make_arena, make_engine
 
 # -- has_low_gravity helper --
 
@@ -107,23 +107,27 @@ def test_low_gravity_with_other_hazards():
 
 def test_low_gravity_allowed_on_asteroid():
     from world.galaxy import Location
+
     loc = Location("Test Rock", "asteroid", environment={"vacuum": 1, "low_gravity": 1})
     assert loc.environment.get("low_gravity") == 1
 
 
 def test_low_gravity_allowed_on_derelict():
     from world.galaxy import Location
+
     loc = Location("Ghost Ship", "derelict", environment={"vacuum": 1, "low_gravity": 1})
     assert loc.environment.get("low_gravity") == 1
 
 
 def test_low_gravity_stripped_from_colony():
     from world.galaxy import Location
+
     loc = Location("Greenville", "colony", environment={"low_gravity": 1})
     assert "low_gravity" not in loc.environment
 
 
 def test_low_gravity_stripped_from_starbase():
     from world.galaxy import Location
+
     loc = Location("Station Alpha", "starbase", environment={"low_gravity": 1})
     assert "low_gravity" not in loc.environment

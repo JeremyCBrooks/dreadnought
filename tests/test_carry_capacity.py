@@ -1,7 +1,8 @@
 """Tests for limited carry capacity (max_inventory on Entity)."""
-from game.entity import Entity, Fighter, PLAYER_MAX_INVENTORY
-from game.actions import PickupAction, InteractAction
-from tests.conftest import make_arena, MockEngine
+
+from game.actions import InteractAction, PickupAction
+from game.entity import PLAYER_MAX_INVENTORY, Entity, Fighter
+from tests.conftest import MockEngine, make_arena
 
 
 def test_can_carry_unlimited_when_none():
@@ -37,10 +38,8 @@ def test_player_max_inventory_constant():
 
 def test_pickup_succeeds_under_limit():
     gm = make_arena()
-    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1),
-                    max_inventory=3)
-    item = Entity(x=5, y=5, name="Wrench", blocks_movement=False,
-                  item={"type": "weapon", "value": 1})
+    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1), max_inventory=3)
+    item = Entity(x=5, y=5, name="Wrench", blocks_movement=False, item={"type": "weapon", "value": 1})
     gm.entities.extend([player, item])
     eng = MockEngine(gm, player)
 
@@ -51,11 +50,9 @@ def test_pickup_succeeds_under_limit():
 
 def test_pickup_refused_when_full():
     gm = make_arena()
-    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1),
-                    max_inventory=1)
+    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1), max_inventory=1)
     player.inventory.append(Entity(name="Existing"))
-    item = Entity(x=5, y=5, name="Wrench", blocks_movement=False,
-                  item={"type": "weapon", "value": 1})
+    item = Entity(x=5, y=5, name="Wrench", blocks_movement=False, item={"type": "weapon", "value": 1})
     gm.entities.extend([player, item])
     eng = MockEngine(gm, player)
 
@@ -72,8 +69,7 @@ def test_pickup_unlimited_when_no_max():
     player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
     for i in range(20):
         player.inventory.append(Entity(name=f"Item{i}"))
-    item = Entity(x=5, y=5, name="NewItem", blocks_movement=False,
-                  item={"type": "weapon", "value": 1})
+    item = Entity(x=5, y=5, name="NewItem", blocks_movement=False, item={"type": "weapon", "value": 1})
     gm.entities.extend([player, item])
     eng = MockEngine(gm, player)
 
@@ -85,15 +81,18 @@ def test_pickup_unlimited_when_no_max():
 def test_interact_loot_refused_when_full():
     """InteractAction should refuse to open container when inventory is full."""
     gm = make_arena()
-    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1),
-                    max_inventory=1)
+    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1), max_inventory=1)
     player.inventory.append(Entity(name="Existing"))
-    crate = Entity(x=6, y=5, name="Crate", blocks_movement=False,
-                   interactable={
-                       "kind": "crate",
-                       "loot": {"char": "!", "color": (255, 255, 255),
-                                "name": "Medkit", "type": "consumable", "value": 5},
-                   })
+    crate = Entity(
+        x=6,
+        y=5,
+        name="Crate",
+        blocks_movement=False,
+        interactable={
+            "kind": "crate",
+            "loot": {"char": "!", "color": (255, 255, 255), "name": "Medkit", "type": "consumable", "value": 5},
+        },
+    )
     gm.entities.extend([player, crate])
     eng = MockEngine(gm, player)
 
@@ -108,11 +107,9 @@ def test_interact_loot_refused_when_full():
 def test_interact_empty_container_allowed_when_full():
     """InteractAction should allow opening loot-less containers even when inventory is full."""
     gm = make_arena()
-    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1),
-                    max_inventory=1)
+    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1), max_inventory=1)
     player.inventory.append(Entity(name="Existing"))
-    crate = Entity(x=6, y=5, name="Crate", blocks_movement=False,
-                   interactable={"kind": "crate"})
+    crate = Entity(x=6, y=5, name="Crate", blocks_movement=False, interactable={"kind": "crate"})
     gm.entities.extend([player, crate])
     eng = MockEngine(gm, player)
 
@@ -125,6 +122,7 @@ def test_interact_empty_container_allowed_when_full():
 def test_can_carry_counts_loadout_items():
     """Equipped items are in inventory, so they count toward capacity."""
     from game.loadout import Loadout
+
     weapon = Entity(name="Weapon")
     scanner = Entity(name="Scanner")
     e = Entity(name="Player", max_inventory=5)
@@ -139,6 +137,7 @@ def test_can_carry_counts_loadout_items():
 
 def test_can_carry_with_loadout_under_limit():
     from game.loadout import Loadout
+
     weapon = Entity(name="Weapon")
     e = Entity(name="Player", max_inventory=10)
     e.inventory.append(weapon)
@@ -158,14 +157,17 @@ def test_can_carry_no_loadout_unchanged():
 
 def test_interact_loot_succeeds_under_limit():
     gm = make_arena()
-    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1),
-                    max_inventory=3)
-    crate = Entity(x=6, y=5, name="Crate", blocks_movement=False,
-                   interactable={
-                       "kind": "crate",
-                       "loot": {"char": "!", "color": (255, 255, 255),
-                                "name": "Medkit", "type": "consumable", "value": 5},
-                   })
+    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1), max_inventory=3)
+    crate = Entity(
+        x=6,
+        y=5,
+        name="Crate",
+        blocks_movement=False,
+        interactable={
+            "kind": "crate",
+            "loot": {"char": "!", "color": (255, 255, 255), "name": "Medkit", "type": "consumable", "value": 5},
+        },
+    )
     gm.entities.extend([player, crate])
     eng = MockEngine(gm, player)
 
@@ -186,7 +188,10 @@ class TestInteractFullInventory:
 
         # Empty container adjacent
         container = Entity(
-            x=6, y=5, name="Empty Crate", char="C",
+            x=6,
+            y=5,
+            name="Empty Crate",
+            char="C",
             blocks_movement=False,
             interactable={"loot": None},
         )
@@ -194,7 +199,7 @@ class TestInteractFullInventory:
         engine = MockEngine(gm, player)
 
         action = InteractAction(dx=1, dy=0)
-        result = action.perform(engine, player)
+        action.perform(engine, player)
         # Should not be blocked by inventory-full
         # No "Inventory full" message
         msgs = [m[0] for m in engine.message_log.messages]
@@ -203,6 +208,7 @@ class TestInteractFullInventory:
     def test_interact_hazard_container_with_full_inventory(self):
         """Player with full inventory should still trigger hazards on interact."""
         import debug
+
         debug.DISABLE_HAZARDS = True  # don't actually damage for this test
 
         gm = make_arena()
@@ -213,7 +219,10 @@ class TestInteractFullInventory:
         gm.entities.append(player)
 
         container = Entity(
-            x=6, y=5, name="Trapped Console", char="C",
+            x=6,
+            y=5,
+            name="Trapped Console",
+            char="C",
             blocks_movement=False,
             interactable={"hazard": {"type": "electric", "damage": 1}, "loot": None},
         )
@@ -221,7 +230,7 @@ class TestInteractFullInventory:
         engine = MockEngine(gm, player)
 
         action = InteractAction(dx=1, dy=0)
-        result = action.perform(engine, player)
+        action.perform(engine, player)
         msgs = [m[0] for m in engine.message_log.messages]
         assert not any("Inventory full" in m for m in msgs)
 
@@ -235,7 +244,10 @@ class TestInteractFullInventory:
         gm.entities.append(player)
 
         container = Entity(
-            x=6, y=5, name="Loot Crate", char="C",
+            x=6,
+            y=5,
+            name="Loot Crate",
+            char="C",
             blocks_movement=False,
             interactable={"loot": {"char": "!", "color": [255, 0, 0], "name": "Treasure"}},
         )
@@ -243,6 +255,6 @@ class TestInteractFullInventory:
         engine = MockEngine(gm, player)
 
         action = InteractAction(dx=1, dy=0)
-        result = action.perform(engine, player)
+        action.perform(engine, player)
         msgs = [m[0] for m in engine.message_log.messages]
         assert any("Inventory full" in m for m in msgs)

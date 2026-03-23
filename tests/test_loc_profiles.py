@@ -1,5 +1,6 @@
 """Tests for location profile registry."""
-from world.loc_profiles import get_profile, PROFILES, LocationProfile, RoomSpec
+
+from world.loc_profiles import PROFILES, LocationProfile, get_profile
 
 
 def test_all_four_profiles_exist():

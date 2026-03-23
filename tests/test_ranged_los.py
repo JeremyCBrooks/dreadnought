@@ -1,23 +1,29 @@
 """Tests for ranged line-of-sight: shots must not pass through non-walkable tiles."""
-from game.entity import Entity, Fighter
+
 from game.actions import RangedAction
+from game.entity import Entity, Fighter
 from game.helpers import has_clear_shot
 from game.loadout import Loadout
+from tests.conftest import make_arena, make_engine
 from world import tile_types
-from tests.conftest import make_engine, make_arena, MockEngine
 
 
 def _ranged_weapon(ammo=5, range_=10, value=3):
     return Entity(
         name="Blaster",
         item={
-            "type": "weapon", "weapon_class": "ranged",
-            "value": value, "range": range_, "ammo": ammo, "max_ammo": 20,
+            "type": "weapon",
+            "weapon_class": "ranged",
+            "value": value,
+            "range": range_,
+            "ammo": ammo,
+            "max_ammo": 20,
         },
     )
 
 
 # --- has_clear_shot helper ---
+
 
 def test_clear_shot_open_floor():
     """Clear line on open floor returns True."""
@@ -92,12 +98,12 @@ def test_clear_shot_target_tile_not_checked():
 
 # --- RangedAction integration ---
 
+
 def test_ranged_blocked_by_wall():
     """RangedAction fails when a wall is between shooter and target."""
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon())
-    target = Entity(x=8, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=8, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[8, 5] = True
     # Place wall between player (5,5) and target (8,5)
@@ -112,8 +118,7 @@ def test_ranged_blocked_by_window():
     """RangedAction fails when a window is between shooter and target."""
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon())
-    target = Entity(x=8, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=8, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[8, 5] = True
     engine.game_map.tiles[7, 5] = tile_types.structure_window
@@ -125,8 +130,7 @@ def test_ranged_succeeds_clear_path():
     """RangedAction succeeds when path is clear."""
     engine = make_engine()
     engine.player.loadout = Loadout(slot1=_ranged_weapon())
-    target = Entity(x=8, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0),
-                    blocks_movement=True)
+    target = Entity(x=8, y=5, name="Bot", fighter=Fighter(5, 5, 0, 0), blocks_movement=True)
     engine.game_map.entities.append(target)
     engine.game_map.visible[8, 5] = True
     result = RangedAction(target).perform(engine, engine.player)

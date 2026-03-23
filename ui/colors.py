@@ -1,13 +1,11 @@
 """Shared UI color constants (RGB tuples) used across UI states."""
-from typing import Tuple
 
-Color = Tuple[int, int, int]
+Color = tuple[int, int, int]
 
 # General
 WHITE: Color = (255, 255, 255)
 GRAY: Color = (150, 150, 150)
 DARK_GRAY: Color = (100, 100, 100)
-HINT_COLOR: Color = (80, 80, 80)
 
 # Dialog / panel backgrounds
 DIALOG_BG: Color = (15, 15, 30)
@@ -58,4 +56,3 @@ HAZARD_GAS: Color = (100, 255, 100)
 HAZARD_STRUCTURAL: Color = (180, 180, 180)
 HAZARD_ENV_DAMAGE: Color = (255, 100, 100)
 HAZARD_VOID: Color = (200, 100, 255)
-

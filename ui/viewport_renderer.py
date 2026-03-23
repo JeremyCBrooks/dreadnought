@@ -1,5 +1,4 @@
 """Render a starfield viewport with a procedural star disc for the strategic state."""
-from __future__ import annotations
 
 import time
 
@@ -8,22 +7,21 @@ import numpy as np
 from data.star_types import STAR_TYPES
 from world.noise import coord_fractal_noise
 
-
 # Background star color tints: (r_mult, g_mult, b_mult)
 # Derived from hash bits — most white/blue, some yellow/red
 _STAR_TINTS = [
-    (1.0, 1.0, 1.0),    # white
-    (0.9, 0.9, 1.0),    # blue-white
+    (1.0, 1.0, 1.0),  # white
+    (0.9, 0.9, 1.0),  # blue-white
     (0.85, 0.85, 1.0),  # blue
-    (1.0, 1.0, 0.7),    # yellow
-    (1.0, 0.8, 0.5),    # orange
-    (1.0, 0.6, 0.5),    # red
+    (1.0, 1.0, 0.7),  # yellow
+    (1.0, 0.8, 0.5),  # orange
+    (1.0, 0.6, 0.5),  # red
 ]
 # Lookup: 60% white/blue-white, 20% blue, 12% yellow, 8% red/orange
-_TINT_INDEX = [0]*30 + [1]*30 + [2]*20 + [3]*12 + [4]*5 + [5]*3
+_TINT_INDEX = [0] * 30 + [1] * 30 + [2] * 20 + [3] * 12 + [4] * 5 + [5] * 3
 _TINT_INDEX_ARR = np.array(_TINT_INDEX, dtype=np.int32)
 _STAR_TINTS_ARR = np.array(_STAR_TINTS, dtype=np.float64)
-
+_BRIGHT_CHARS = np.array([ord("*"), ord("+"), ord("x"), ord("*"), ord(".")], dtype=np.int32)
 
 # Cache for noise fields that don't change between frames
 _noise_cache: dict[tuple, dict[str, np.ndarray]] = {}
@@ -54,11 +52,7 @@ def _get_cached_noise(seed: int, coord_x: int, coord_y: int, vp_w: int, vp_h: in
     filament_weight = np.clip(1.0 - np.abs(neb_morph - 0.5) * 4.0, 0, 1)
     cloud_weight = np.clip(3.0 * neb_morph - 2.0, 0, 1)
     total_w = blob_weight + filament_weight + cloud_weight + 1e-8
-    nebula_shape = (
-        blob_weight * neb_blob
-        + filament_weight * neb_filament
-        + cloud_weight * neb_cloud
-    ) / total_w
+    nebula_shape = (blob_weight * neb_blob + filament_weight * neb_filament + cloud_weight * neb_cloud) / total_w
     nebula_density = nebula_shape * (0.5 + 0.5 * neb_detail) * neb_presence
     nebula_hue = coord_fractal_noise(seed + 2, xs, ys, octaves=2, base_period=8)
     star_brightness = np.clip((noise - 0.20) / 0.60, 0, 1) ** 5
@@ -77,11 +71,11 @@ def _get_cached_noise(seed: int, coord_x: int, coord_y: int, vp_w: int, vp_h: in
 
 
 _NEBULA_PALETTES = [
-    (20, 5, 35),   # purple
-    (6, 18, 35),   # blue
+    (20, 5, 35),  # purple
+    (6, 18, 35),  # blue
     (28, 10, 18),  # warm
-    (8, 22, 28),   # teal
-    (24, 6, 28),   # magenta
+    (8, 22, 28),  # teal
+    (24, 6, 28),  # magenta
 ]
 
 
@@ -138,21 +132,19 @@ def render_starfield_bg(
         nebula_mask &= cell_mask
     if np.any(nebula_mask):
         neb_intensity = np.zeros_like(nebula_density)
-        neb_intensity[nebula_mask] = (
-            (nebula_density[nebula_mask] - nebula_threshold) / (1.0 - nebula_threshold)
-        )
+        neb_intensity[nebula_mask] = (nebula_density[nebula_mask] - nebula_threshold) / (1.0 - nebula_threshold)
         neb_intensity *= neb_intensity
-        neb_intensity *= (1.0 - glow_atten)
+        neb_intensity *= 1.0 - glow_atten
         nebula_mask = nebula_mask & (neb_intensity > 0.001)
         n_pal = len(_NEBULA_PALETTES)
         neb_brightness = 1.25 + ((seed * 2654435761) & 0xFFFF) / 0xFFFF * 1.75
+        idx_f = nebula_hue * (n_pal - 1)
+        idx_lo = np.clip(idx_f.astype(int), 0, n_pal - 2)
+        idx_hi = idx_lo + 1
+        frac = idx_f - idx_lo
+        pal_arr = np.array(_NEBULA_PALETTES, dtype=np.float64)
         for ch in range(3):
-            idx_f = nebula_hue * (n_pal - 1)
-            idx_lo = np.clip(idx_f.astype(int), 0, n_pal - 2)
-            idx_hi = idx_lo + 1
-            frac = idx_f - idx_lo
-            pal_arr = np.array([p[ch] for p in _NEBULA_PALETTES], dtype=np.float64)
-            nebula_color = pal_arr[idx_lo] * (1 - frac) + pal_arr[idx_hi] * frac
+            nebula_color = pal_arr[idx_lo, ch] * (1 - frac) + pal_arr[idx_hi, ch] * frac
             addition = (nebula_color * neb_intensity * neb_brightness).astype(np.int16)
             current = bg_slice["bg"][..., ch].astype(np.int16)
             current[nebula_mask] += addition[nebula_mask]
@@ -204,19 +196,16 @@ def render_starfield_bg(
     # Skip stars dimmer than bg
     bg_max = np.maximum(
         bg_slice["bg"][..., 0].astype(np.int16),
-        np.maximum(bg_slice["bg"][..., 1].astype(np.int16),
-                   bg_slice["bg"][..., 2].astype(np.int16))
+        np.maximum(bg_slice["bg"][..., 1].astype(np.int16), bg_slice["bg"][..., 2].astype(np.int16)),
     )
-    fg_max = np.maximum(fg_r.astype(np.int16),
-                        np.maximum(fg_g.astype(np.int16), fg_b.astype(np.int16)))
+    fg_max = np.maximum(fg_r.astype(np.int16), np.maximum(fg_g.astype(np.int16), fg_b.astype(np.int16)))
     star_mask = star_mask & (fg_max >= bg_max)
 
     if not np.any(star_mask):
         return
 
     # Character codes: dim='.' bright=animated from "*+x*."
-    _BRIGHT_CHARS = np.array([ord('*'), ord('+'), ord('x'), ord('*'), ord('.')], dtype=np.int32)
-    char_codes = np.full((vp_w, vp_h), ord('.'), dtype=np.int32)
+    char_codes = np.full((vp_w, vp_h), ord("."), dtype=np.int32)
     if np.any(bright_mask & star_mask):
         char_phase_b = ((h >> 3) & 0xFF) / 64.0
         char_speed_b = 0.25 + (h % 11) * 0.01
@@ -225,11 +214,10 @@ def render_starfield_bg(
         char_codes[bm] = _BRIGHT_CHARS[char_idx[bm]]
 
     # Apply to console in bulk
-    console_slice = console.rgb[vp_x:vp_x + vp_w, vp_y:vp_y + vp_h]
-    console_slice["ch"][star_mask] = char_codes[star_mask]
-    console_slice["fg"][..., 0][star_mask] = fg_r[star_mask]
-    console_slice["fg"][..., 1][star_mask] = fg_g[star_mask]
-    console_slice["fg"][..., 2][star_mask] = fg_b[star_mask]
+    bg_slice["ch"][star_mask] = char_codes[star_mask]
+    bg_slice["fg"][..., 0][star_mask] = fg_r[star_mask]
+    bg_slice["fg"][..., 1][star_mask] = fg_g[star_mask]
+    bg_slice["fg"][..., 2][star_mask] = fg_b[star_mask]
 
 
 def render_viewport(
@@ -273,8 +261,13 @@ def render_viewport(
 
     # Render starfield background (bg fill, nebula clouds, background stars)
     render_starfield_bg(
-        console, vp_x, vp_y, vp_w, vp_h,
-        seed=system_seed, t=t,
+        console,
+        vp_x,
+        vp_y,
+        vp_w,
+        vp_h,
+        seed=system_seed,
+        t=t,
         glow=glow,
     )
 
@@ -315,7 +308,7 @@ def render_viewport(
     if st.render_hint == "black_hole":
         # Accretion disc first, then darken center on top — so the
         # darkening smoothly eats into the inner disc edge
-        disc_inner = radius * 1.0
+        disc_inner = float(radius)
         disc_outer = radius * 3.0
         disc_peak = radius * 1.8
         ring_mask = (dist > disc_inner) & (dist < disc_outer)
@@ -339,7 +332,7 @@ def render_viewport(
             current = bg_slice["bg"][..., ch].astype(np.float64)
             darken_factor = np.zeros_like(dist)
             darken_factor[darken_mask] = (1.0 - dist[darken_mask] / darken_radius) ** 0.7
-            current[darken_mask] *= (1.0 - darken_factor[darken_mask] * 0.97)
+            current[darken_mask] *= 1.0 - darken_factor[darken_mask] * 0.97
             bg_slice["bg"][..., ch] = np.clip(current, 0, 255).astype(np.uint8)
 
     # --- Special rendering for pulsars: brightness pulse ---
@@ -361,29 +354,29 @@ def render_viewport(
     if np.any(disc_mask) and st.render_hint != "black_hole":
         norm_disc = np.zeros_like(dist)
         norm_disc[disc_mask] = dist[disc_mask] / max(radius, 1)
-        disc_xs, disc_ys = np.where(disc_mask)
-        for i in range(len(disc_xs)):
-            lx, ly = disc_xs[i], disc_ys[i]
-            sx, sy = vp_x + lx, vp_y + ly
-            n = norm_disc[lx, ly]
-            if n < 0.3:
-                continue
-            h = ((sx + system_seed) * 7919 + sy * 104729) & 0xFFFF
-            phase = ((h >> 3) & 0xFF) / 128.0
-            speed = 0.15 + (h % 7) * 0.01
-            idx = int((t * speed + phase) % len(st.surface_chars))
-            char = st.surface_chars[idx]
-            bg_r = int(bg_slice["bg"][lx, ly][0])
-            bg_g = int(bg_slice["bg"][lx, ly][1])
-            bg_b = int(bg_slice["bg"][lx, ly][2])
-            fg = (min(bg_r + 30, 255), min(bg_g + 30, 255), min(bg_b + 30, 255))
-            console.print(x=sx, y=sy, string=char, fg=fg)
+        # Only animate cells past the core (norm >= 0.3)
+        surf_mask = disc_mask & (norm_disc >= 0.3)
+        if np.any(surf_mask):
+            surf_xs = (vp_x + np.arange(vp_w)).reshape(-1, 1)
+            surf_ys = (vp_y + np.arange(vp_h)).reshape(1, -1)
+            surf_h = ((surf_xs + system_seed) * 7919 + surf_ys * 104729) & 0xFFFF
+            surf_phase = ((surf_h >> 3) & 0xFF) / 128.0
+            surf_speed = 0.15 + (surf_h % 7) * 0.01
+            n_chars = len(st.surface_chars)
+            char_arr = np.array([ord(c) for c in st.surface_chars], dtype=np.int32)
+            surf_idx = ((t * surf_speed + surf_phase) % n_chars).astype(np.int32)
+            surf_codes = char_arr[surf_idx]
+
+            bg_slice["ch"][surf_mask] = surf_codes[surf_mask]
+            surf_fg = np.clip(bg_slice["bg"].astype(np.int16) + 30, 0, 255).astype(np.uint8)
+            for ch in range(3):
+                bg_slice["fg"][..., ch][surf_mask] = surf_fg[..., ch][surf_mask]
 
     # --- Flares: animated wisps drifting outward from the star ---
     # Scale flare size proportional to star radius
     radius_scale = radius / 24.0  # normalize: yellow_dwarf (r=6*4=24) -> 1.0
     _NUM_FLARES = 0 if st.render_hint == "black_hole" else 5 + (system_seed % 4)
-    flare_rng = np.random.RandomState((system_seed * 31337) & 0x7FFFFFFF)
+    flare_rng = np.random.default_rng((system_seed * 31337) & 0x7FFFFFFF)
     flare_angles = flare_rng.uniform(0, 2 * np.pi, _NUM_FLARES)
     flare_periods = flare_rng.uniform(12.0, 30.0, _NUM_FLARES)
     flare_offsets = flare_rng.uniform(0, 1.0, _NUM_FLARES)
@@ -434,4 +427,3 @@ def render_viewport(
             region += addition
             np.clip(region, 0, 255, out=region)
             bg_slice["bg"][x0:x1, y0:y1, ch] = region.astype(np.uint8)
-

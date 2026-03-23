@@ -1,12 +1,15 @@
 """Tests for the shared toggle_equip function."""
-import pytest
 
-from tests.conftest import (
-    make_arena, make_weapon, make_melee_weapon, make_scanner,
-    make_heal_item, MockEngine,
-)
 from game.entity import Entity, Fighter
 from game.loadout import Loadout, toggle_equip
+from tests.conftest import (
+    MockEngine,
+    make_arena,
+    make_heal_item,
+    make_melee_weapon,
+    make_scanner,
+    make_weapon,
+)
 
 
 def _setup():

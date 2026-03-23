@@ -1,10 +1,9 @@
 """Hazard definitions as Python dataclasses."""
-from __future__ import annotations
 
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class HazardDef:
     type: str
     damage: int
@@ -20,3 +19,7 @@ HAZARDS: list[HazardDef] = [
     HazardDef(type="gas", damage=1, equipment_damage=False, dot=0, duration=0),
     HazardDef(type="structural", damage=2, equipment_damage=False, dot=0, duration=0),
 ]
+
+HAZARD_BY_TYPE: dict[str, HazardDef] = {h.type: h for h in HAZARDS}
+
+assert len(HAZARD_BY_TYPE) == len(HAZARDS), "Duplicate hazard type detected"

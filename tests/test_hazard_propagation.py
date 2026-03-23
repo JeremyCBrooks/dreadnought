@@ -1,11 +1,7 @@
 """Tests for per-tile hazard propagation and hull breaches."""
-from __future__ import annotations
-
-import numpy as np
-import pytest
 
 from game.entity import Entity, Fighter
-from game.environment import _flood_fill_hazard, apply_environment_tick, apply_environment_tick_entity
+from game.environment import apply_environment_tick, apply_environment_tick_entity
 from game.suit import Suit
 from tests.conftest import MockEngine
 from world import tile_types
@@ -53,6 +49,7 @@ def _make_engine(gm: GameMap, px: int, py: int, env=None, suit=None):
 # -------------------------------------------------------------------
 # Flood fill
 # -------------------------------------------------------------------
+
 
 class TestFloodFill:
     def test_sealed_room_no_vacuum(self):
@@ -139,6 +136,7 @@ class TestFloodFill:
 # Dirty flag
 # -------------------------------------------------------------------
 
+
 class TestDirtyFlag:
     def test_toggle_door_sets_dirty(self):
         """Opening/closing a door sets the hazards dirty flag."""
@@ -151,6 +149,7 @@ class TestDirtyFlag:
         gm._hazards_dirty = False
 
         from game.actions import ToggleDoorAction
+
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
         gm.entities.append(player)
         engine = MockEngine(gm, player)
@@ -191,6 +190,7 @@ class TestDirtyFlag:
 # Player environment tick (per-tile)
 # -------------------------------------------------------------------
 
+
 class TestPlayerHazardTick:
     def test_player_on_vacuum_tile_takes_damage(self):
         """Player standing on a vacuum tile with depleted suit takes damage."""
@@ -227,6 +227,7 @@ class TestPlayerHazardTick:
 # -------------------------------------------------------------------
 # Enemy environment tick
 # -------------------------------------------------------------------
+
 
 class TestEnemyHazardTick:
     def test_enemy_on_vacuum_takes_damage(self):
@@ -320,8 +321,7 @@ class TestEnemyHazardTick:
         gm.entities.append(rat)
         player = Entity(x=5, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
         gm.entities.append(player)
-        engine = MockEngine(gm, player, environment={"vacuum": 1},
-                            suit=Suit("Test", {"vacuum": 50}))
+        engine = MockEngine(gm, player, environment={"vacuum": 1}, suit=Suit("Test", {"vacuum": 50}))
 
         # Recalculate: vacuum floods from open airlock through room B,
         # but should STOP at the closed door (3,1).
@@ -360,8 +360,7 @@ class TestEnemyHazardTick:
         gm.entities.append(rat)
         player = Entity(x=1, y=2, name="Player", fighter=Fighter(10, 10, 0, 1))
         gm.entities.append(player)
-        engine = MockEngine(gm, player, environment={"vacuum": 1},
-                            suit=Suit("Test", {"vacuum": 50}))
+        engine = MockEngine(gm, player, environment={"vacuum": 1}, suit=Suit("Test", {"vacuum": 50}))
         gm.recalculate_hazards()
 
         overlay = gm.hazard_overlays.get("vacuum")
@@ -396,8 +395,7 @@ class TestEnemyHazardTick:
         gm.entities.append(rat)
         player = Entity(x=5, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
         gm.entities.append(player)
-        engine = MockEngine(gm, player, environment={"vacuum": 1},
-                            suit=Suit("Test", {"vacuum": 50}))
+        engine = MockEngine(gm, player, environment={"vacuum": 1}, suit=Suit("Test", {"vacuum": 50}))
         gm.recalculate_hazards()
 
         # No damage while door is closed
@@ -422,10 +420,12 @@ class TestEnemyHazardTick:
 # Low gravity remains global
 # -------------------------------------------------------------------
 
+
 class TestLowGravityGlobal:
     def test_low_gravity_unaffected_by_per_tile(self):
         """low_gravity is in GLOBAL_HAZARDS and NON_DAMAGING — unaffected by overlays."""
         from game.environment import GLOBAL_HAZARDS, NON_DAMAGING_HAZARDS
+
         assert "low_gravity" in GLOBAL_HAZARDS
         assert "low_gravity" in NON_DAMAGING_HAZARDS
 
@@ -433,6 +433,7 @@ class TestLowGravityGlobal:
 # -------------------------------------------------------------------
 # BumpAction from hull_breach to space
 # -------------------------------------------------------------------
+
 
 class TestBumpFromBreach:
     def test_step_into_space_from_breach(self):
@@ -450,6 +451,7 @@ class TestBumpFromBreach:
         engine.suit = Suit("EVA", {"vacuum": 50})
 
         from game.actions import BumpAction
+
         result = BumpAction(1, 0).perform(engine, player)
         assert result == 1
         assert player.x == 2
@@ -471,6 +473,7 @@ class TestBumpFromBreach:
         engine.suit = Suit("Test", {})
 
         from game.actions import BumpAction
+
         result = BumpAction(1, 0).perform(engine, player)
         # Space is not walkable, MovementAction should fail
         assert result == 0
@@ -480,6 +483,7 @@ class TestBumpFromBreach:
 # -------------------------------------------------------------------
 # get_hazards_at
 # -------------------------------------------------------------------
+
 
 class TestGetHazardsAt:
     def test_returns_hazard_names(self):
@@ -508,6 +512,7 @@ class TestGetHazardsAt:
 # -------------------------------------------------------------------
 # Airlock as vacuum source
 # -------------------------------------------------------------------
+
 
 class TestAirlockVacuumSource:
     def _make_airlock_map(self, ext_open: bool):
@@ -548,7 +553,7 @@ class TestAirlockVacuumSource:
         overlay = gm.hazard_overlays.get("vacuum")
         # Space tiles have vacuum, so overlay exists
         assert overlay is not None
-        assert overlay[5, 1]   # space tile has vacuum
+        assert overlay[5, 1]  # space tile has vacuum
         # But interior and airlock tiles do NOT
         assert not overlay[1, 1]  # interior floor
         assert not overlay[3, 1]  # airlock floor
@@ -577,6 +582,7 @@ class TestAirlockVacuumSource:
 # Switch dirty flag
 # -------------------------------------------------------------------
 
+
 class TestSwitchDirtyFlag:
     def test_toggle_switch_sets_dirty(self):
         """Toggling an airlock switch sets the hazards dirty flag."""
@@ -600,6 +606,7 @@ class TestSwitchDirtyFlag:
         engine.suit = Suit("EVA", {"vacuum": 50})
 
         from game.actions import ToggleSwitchAction
+
         result = ToggleSwitchAction(2, 0).perform(engine, player)
         assert result == 1
         assert gm._hazards_dirty
@@ -608,6 +615,7 @@ class TestSwitchDirtyFlag:
 # -------------------------------------------------------------------
 # Suit pool drains on vacuum tile, then damages
 # -------------------------------------------------------------------
+
 
 class TestSuitPoolDrain:
     def test_suit_pool_drains_on_vacuum_tile(self):

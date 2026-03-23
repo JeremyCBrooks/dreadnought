@@ -1,8 +1,9 @@
 """Strategic (star system navigation) state with compass rose starmap."""
+
 from __future__ import annotations
 
 import random
-from typing import TYPE_CHECKING, Any, Dict, Tuple
+from typing import TYPE_CHECKING, Any
 
 from engine.game_state import State
 
@@ -13,27 +14,48 @@ if TYPE_CHECKING:
 # Compass rose line offsets: direction -> list of (dx, dy) cells from center
 # Terminal cells are ~2:1 (tall), so horizontal lines use 2x spacing and
 # diagonals step 2 cols per 1 row to look correct.
-_ROSE_LINES: Dict[Tuple[int, int], list[Tuple[int, int]]] = {
-    (0, -1):  [(0, -1), (0, -2), (0, -3), (0, -4)],
-    (0, 1):   [(0, 1), (0, 2), (0, 3), (0, 4)],
-    (-1, 0):  [(-2, 0), (-4, 0), (-6, 0), (-8, 0)],
-    (1, 0):   [(2, 0), (4, 0), (6, 0), (8, 0)],
+_ROSE_LINES: dict[tuple[int, int], list[tuple[int, int]]] = {
+    (0, -1): [(0, -1), (0, -2), (0, -3), (0, -4)],
+    (0, 1): [(0, 1), (0, 2), (0, 3), (0, 4)],
+    (-1, 0): [(-2, 0), (-4, 0), (-6, 0), (-8, 0)],
+    (1, 0): [(2, 0), (4, 0), (6, 0), (8, 0)],
     (-1, -1): [(-2, -1), (-4, -2), (-6, -3), (-8, -4)],
-    (1, -1):  [(2, -1), (4, -2), (6, -3), (8, -4)],
-    (-1, 1):  [(-2, 1), (-4, 2), (-6, 3), (-8, 4)],
-    (1, 1):   [(2, 1), (4, 2), (6, 3), (8, 4)],
+    (1, -1): [(2, -1), (4, -2), (6, -3), (8, -4)],
+    (-1, 1): [(-2, 1), (-4, 2), (-6, 3), (-8, 4)],
+    (1, 1): [(2, 1), (4, 2), (6, 3), (8, 4)],
 }
 
 # Characters for compass lines by direction
-_ROSE_CHARS: Dict[Tuple[int, int], str] = {
-    (0, -1): "|", (0, 1): "|",
-    (-1, 0): "-", (1, 0): "-",
-    (-1, -1): "\\", (1, -1): "/",
-    (-1, 1): "/", (1, 1): "\\",
+_ROSE_CHARS: dict[tuple[int, int], str] = {
+    (0, -1): "|",
+    (0, 1): "|",
+    (-1, 0): "-",
+    (1, 0): "-",
+    (-1, -1): "\\",
+    (1, -1): "/",
+    (-1, 1): "/",
+    (1, 1): "\\",
 }
 
 
-def _direction(sys_a: Any, sys_b: Any) -> Tuple[int, int]:
+def _gauge_color(ratio: float) -> tuple[int, int, int]:
+    """Return green/yellow/red color based on a 0-1 ratio."""
+    from ui.colors import HP_GREEN, HP_RED, HP_YELLOW
+
+    if ratio > 0.5:
+        return HP_GREEN
+    if ratio >= 0.3:
+        return HP_YELLOW
+    return HP_RED
+
+
+def _render_gauge(console: Any, x: int, y: int, label: str, value: int, max_value: int) -> None:
+    """Render a labeled gauge like 'FUEL: 5/10' with ratio-based coloring."""
+    ratio = value / max_value if max_value > 0 else 0
+    console.print(x=x, y=y, string=f"{label}: {value}/{max_value}", fg=_gauge_color(ratio))
+
+
+def _direction(sys_a: Any, sys_b: Any) -> tuple[int, int]:
     dx = sys_b.gx - sys_a.gx
     dy = sys_b.gy - sys_a.gy
     return ((dx > 0) - (dx < 0), (dy > 0) - (dy < 0))
@@ -50,19 +72,20 @@ class StrategicState(State):
     def on_enter(self, engine: Engine) -> None:
         engine.message_log.add_message("You are aboard your ship.", (180, 180, 220))
 
-    def _connection_by_direction(self) -> Dict[Tuple[int, int], str]:
+    def _connection_by_direction(self) -> dict[tuple[int, int], str]:
         """Map each direction to the connected system name in that direction."""
         system = self.galaxy.systems[self.galaxy.current_system]
-        result: Dict[Tuple[int, int], str] = {}
+        result: dict[tuple[int, int], str] = {}
         for neighbor_name in system.connections:
             neighbor = self.galaxy.systems[neighbor_name]
             d = _direction(system, neighbor)
             result[d] = neighbor_name
         return result
 
-    def ev_keydown(self, engine: Engine, event: Any) -> bool:
+    def ev_key(self, engine: Engine, event: Any) -> bool:
         import tcod.event
-        from ui.keys import move_keys, confirm_keys, is_action
+
+        from ui.keys import confirm_keys, is_action, move_keys
 
         key = event.sym
         system = self.galaxy.systems[self.galaxy.current_system]
@@ -74,6 +97,7 @@ class StrategicState(State):
         # Quit confirmation
         if key == tcod.event.KeySym.ESCAPE or is_action("quit", key):
             from ui.confirm_quit_state import ConfirmQuitState
+
             engine.push_state(ConfirmQuitState())
             return True
 
@@ -85,11 +109,13 @@ class StrategicState(State):
         # Cargo works in either focus
         if is_action("cargo", key):
             from ui.cargo_state import CargoState
+
             engine.push_state(CargoState())
             return True
 
         if key == tcod.event.KeySym.m:
             from ui.galaxy_map_state import GalaxyMapState
+
             engine.push_state(GalaxyMapState(self.galaxy))
             return True
 
@@ -110,6 +136,7 @@ class StrategicState(State):
                 loc.visited = True
                 engine.message_log.add_message(f"Docking at {loc.name}...")
                 from ui.briefing_state import BriefingState
+
                 engine.push_state(BriefingState(location=loc, depth=system.depth))
                 return True
 
@@ -119,32 +146,31 @@ class StrategicState(State):
                 if direction in conn_map:
                     dest_name = conn_map[direction]
                     cost = self.galaxy.travel_cost(dest_name)
-                    if engine.ship.fuel < cost:
+                    if not engine.ship.consume_fuel(cost):
                         if engine.ship.fuel == 0:
                             self._drift(engine)
                         else:
-                            engine.message_log.add_message(
-                                "Not enough fuel.", (255, 80, 80)
-                            )
+                            engine.message_log.add_message("Not enough fuel.", (255, 80, 80))
                         return True
-                    engine.ship.fuel -= cost
                     self.galaxy.current_system = dest_name
                     self.galaxy.arrive_at(dest_name)
                     self.selected = 0
-                    engine.message_log.add_message(
-                        f"Traveling to {dest_name}.", (100, 200, 255)
-                    )
+                    engine.message_log.add_message(f"Traveling to {dest_name}.", (100, 200, 255))
                     # Victory: arrive home with Dreadnought core
                     if dest_name == self.galaxy.home_system:
-                        core_items = [c for c in engine.ship.cargo
-                                      if c.item and c.item.get("type") == "dreadnought_core"]
+                        core_items = [
+                            c for c in engine.ship.cargo if c.item and c.item.get("type") == "dreadnought_core"
+                        ]
                         if core_items:
                             from ui.game_over_state import GameOverState
-                            engine.switch_state(GameOverState(
-                                victory=True,
-                                title="VICTORY",
-                                cause="You delivered the Dreadnought's reactor core. Unlimited energy is yours.",
-                            ))
+
+                            engine.switch_state(
+                                GameOverState(
+                                    victory=True,
+                                    title="VICTORY",
+                                    cause="You delivered the Dreadnought's reactor core. Unlimited energy is yours.",
+                                )
+                            )
                             return True
                 return True
             if key in confirm_keys():
@@ -152,57 +178,50 @@ class StrategicState(State):
 
         return False
 
-    def _drift_destination(self, galaxy: Any) -> str:
+    def _drift_destination(self) -> str:
         """Pick a weighted-random neighbor, preferring systems with unvisited derelicts."""
-        system = galaxy.systems[galaxy.current_system]
+        system = self.galaxy.systems[self.galaxy.current_system]
         neighbors = list(system.connections.keys())
         weights = []
         for name in neighbors:
-            sys = galaxy.systems[name]
-            has_derelict = any(
-                getattr(loc, "loc_type", "") == "derelict" and not getattr(loc, "visited", True)
-                for loc in getattr(sys, "locations", [])
-            )
+            sys = self.galaxy.systems[name]
+            has_derelict = any(loc.loc_type == "derelict" and not loc.visited for loc in sys.locations)
             weights.append(5 if has_derelict else 1)
         return random.choices(neighbors, weights=weights, k=1)[0]
 
     def _drift(self, engine: Engine) -> None:
         """Execute adrift travel: random neighbor, jettison cargo, desperate messages."""
-        dest_name = self._drift_destination(self.galaxy)
-        engine.message_log.add_message(
-            "Engines dead. The ship drifts on momentum...", (200, 100, 100)
-        )
+        dest_name = self._drift_destination()
+        engine.message_log.add_message("Engines dead. The ship drifts on momentum...", (200, 100, 100))
         if engine.ship.cargo:
             item = random.choice(engine.ship.cargo)
-            engine.ship.cargo.remove(item)
-            engine.message_log.add_message(
-                f"A crate tumbles into the void — {item.name} lost.", (255, 80, 80)
-            )
+            engine.ship.remove_cargo(item)
+            engine.message_log.add_message(f"A crate tumbles into the void — {item.name} lost.", (255, 80, 80))
             if item.item and item.item.get("type") == "dreadnought_core":
                 from ui.game_over_state import GameOverState
-                engine.switch_state(GameOverState(
-                    title="THE CORE IS LOST",
-                    cause="The Dreadnought's reactor core tumbles into the void. All hope is lost.",
-                ))
+
+                engine.switch_state(
+                    GameOverState(
+                        title="THE CORE IS LOST",
+                        cause="The Dreadnought's reactor core tumbles into the void. All hope is lost.",
+                    )
+                )
                 return
         else:
-            engine.ship.hull = max(0, engine.ship.hull - 1)
-            engine.message_log.add_message(
-                "Hull groans under the stress of unshielded drift!", (255, 120, 50)
-            )
+            engine.ship.damage_hull(1)
+            engine.message_log.add_message("Hull groans under the stress of unshielded drift!", (255, 120, 50))
             if engine.ship.hull <= 0:
                 from ui.game_over_state import GameOverState
-                engine.message_log.add_message(
-                    "The hull buckles and breaks apart...", (255, 0, 0)
+
+                engine.message_log.add_message("The hull buckles and breaks apart...", (255, 0, 0))
+                engine.switch_state(
+                    GameOverState(
+                        title="SHIP DESTROYED",
+                        cause="Your ship broke apart drifting through the void.",
+                    )
                 )
-                engine.switch_state(GameOverState(
-                    title="SHIP DESTROYED",
-                    cause="Your ship broke apart drifting through the void.",
-                ))
                 return
-        engine.message_log.add_message(
-            f"Drifting into {dest_name}...", (200, 100, 100)
-        )
+        engine.message_log.add_message(f"Drifting into {dest_name}...", (200, 100, 100))
         self.galaxy.current_system = dest_name
         self.galaxy.arrive_at(dest_name)
         self.selected = 0
@@ -228,6 +247,7 @@ class StrategicState(State):
         header_color = (100, 255, 100) if is_home else (255, 255, 100)
         console.print(x=2, y=1, string=f"{system.name} ({star_type_name}){home_tag}", fg=header_color)
         from ui.colors import HEADER_SEP
+
         console.print(x=2, y=2, string="=" * text_width, fg=HEADER_SEP)
 
         # Star map section (fixed position at top)
@@ -260,7 +280,7 @@ class StrategicState(State):
                 color = (80, 80, 100)
             text = f"{prefix} {loc.name} ({loc.loc_type}) - {status}"
             if text_width > 3 and len(text) > text_width:
-                text = text[:text_width - 3] + "..."
+                text = text[: text_width - 3] + "..."
             console.print(x=2, y=y, string=text[:text_width], fg=color)
 
         # Controls
@@ -282,31 +302,8 @@ class StrategicState(State):
         hud_y = 0
 
         if engine.ship:
-            # Fuel gauge
-            fuel = engine.ship.fuel
-            max_fuel = engine.ship.max_fuel
-            fuel_ratio = fuel / max_fuel if max_fuel > 0 else 0
-            if fuel_ratio > 0.5:
-                fuel_color = (0, 255, 0)
-            elif fuel_ratio >= 0.3:
-                fuel_color = (255, 255, 0)
-            else:
-                fuel_color = (255, 0, 0)
-            fuel_str = f"FUEL: {fuel}/{max_fuel}"
-            console.print(x=hud_x, y=hud_y, string=fuel_str, fg=fuel_color)
-
-            # Hull gauge
-            hull = engine.ship.hull
-            max_hull = engine.ship.max_hull
-            hull_ratio = hull / max_hull if max_hull > 0 else 0
-            if hull_ratio > 0.5:
-                hull_color = (0, 255, 0)
-            elif hull_ratio >= 0.3:
-                hull_color = (255, 255, 0)
-            else:
-                hull_color = (255, 0, 0)
-            hull_str = f"HULL: {hull}/{max_hull}"
-            console.print(x=hud_x, y=hud_y + 1, string=hull_str, fg=hull_color)
+            _render_gauge(console, hud_x, hud_y, "FUEL", engine.ship.fuel, engine.ship.max_fuel)
+            _render_gauge(console, hud_x, hud_y + 1, "HULL", engine.ship.hull, engine.ship.max_hull)
 
             # Nav unit counter
             nav_count = engine.ship.nav_units
@@ -321,8 +318,7 @@ class StrategicState(State):
 
         engine.message_log.render(console, 0, log_y, cw, log_h)
 
-    def _render_compass(self, console: Any, system: Any, left_w: int,
-                       top_y: int, max_y: int, active: bool) -> None:
+    def _render_compass(self, console: Any, system: Any, left_w: int, top_y: int, max_y: int, active: bool) -> None:
         """Draw compass rose showing connections from current system."""
         conn_map = self._connection_by_direction()
         cx = left_w // 2
@@ -345,11 +341,15 @@ class StrategicState(State):
 
         # Label row offsets: N/S get their own rows separate from diagonals
         # to prevent overlap with NE/NW and SE/SW respectively.
-        _label_dy: Dict[Tuple[int, int], int] = {
-            (0, -1): -6, (0, 1): 6,        # N/S: one row beyond diagonals
-            (-1, 0): 0, (1, 0): 0,          # W/E: same row as center
-            (-1, -1): -5, (1, -1): -5,      # NW/NE: match line endpoint row
-            (-1, 1): 5, (1, 1): 5,          # SW/SE: match line endpoint row
+        _label_dy: dict[tuple[int, int], int] = {
+            (0, -1): -6,
+            (0, 1): 6,  # N/S: one row beyond diagonals
+            (-1, 0): 0,
+            (1, 0): 0,  # W/E: same row as center
+            (-1, -1): -5,
+            (1, -1): -5,  # NW/NE: match line endpoint row
+            (-1, 1): 5,
+            (1, 1): 5,  # SW/SE: match line endpoint row
         }
 
         # Draw active connections
@@ -376,5 +376,5 @@ class StrategicState(State):
                 lx = cx - len(label) // 2
             lx = max(0, min(lx, left_w - 1))
             if top_y <= ly < max_y:
-                label = label[:max(1, left_w - lx)]
+                label = label[: max(1, left_w - lx)]
                 console.print(x=lx, y=ly, string=label, fg=label_color)

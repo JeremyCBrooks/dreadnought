@@ -1,12 +1,13 @@
 """Tests for _calc_damage and _apply_damage_and_death helpers."""
+
 import debug
-from game.actions import _calc_damage, _apply_damage_and_death
+from game.actions import _apply_damage_and_death, _calc_damage
 from game.entity import Entity, Fighter
 from game.suit import Suit
 from tests.conftest import make_engine
 
-
 # -- _calc_damage -------------------------------------------------------------
+
 
 def test_calc_damage_basic():
     eng = make_engine()
@@ -49,6 +50,7 @@ def test_calc_damage_one_hit_kill():
 
 # -- _apply_damage_and_death --------------------------------------------------
 
+
 def test_apply_damage_reduces_hp():
     eng = make_engine()
     target = Entity(x=6, y=5, name="Drone", fighter=Fighter(10, 10, 0, 1))
@@ -83,9 +85,10 @@ def test_apply_damage_enemy_death_message():
 
 # -- Melee HP floor / suit defense ------------------------------------------
 
+
 def test_melee_hp_floor_at_zero():
     from game.actions import MeleeAction
-    from tests.conftest import make_arena, MockEngine
+    from tests.conftest import MockEngine, make_arena
 
     gm = make_arena()
     attacker = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 10))
@@ -97,7 +100,7 @@ def test_melee_hp_floor_at_zero():
 
 def test_melee_hp_cannot_go_negative():
     from game.actions import MeleeAction
-    from tests.conftest import make_arena, MockEngine
+    from tests.conftest import MockEngine, make_arena
 
     gm = make_arena()
     attacker = Entity(x=5, y=5, name="Big", fighter=Fighter(10, 10, 0, 100))
@@ -110,7 +113,7 @@ def test_melee_hp_cannot_go_negative():
 def test_melee_suit_defense_reduces_damage():
     from game.actions import MeleeAction
     from game.ai import HostileAI
-    from tests.conftest import make_arena, MockEngine
+    from tests.conftest import MockEngine, make_arena
 
     gm = make_arena()
     suit = Suit("Armor", {}, defense_bonus=2)

@@ -3,13 +3,14 @@
 Phase 1: tactical state fades out (dims) for 1 second.
 Phase 2: game over state fades in text for 1 second on black screen.
 """
+
 import time
 
 import numpy as np
 import tcod.event
 
-from engine.game_state import Engine, State
-from ui.game_over_state import GameOverState, FADE_IN_DURATION
+from engine.game_state import Engine
+from ui.game_over_state import FADE_IN_DURATION, GameOverState
 from ui.tactical_state import DEATH_FADE_DURATION
 
 
@@ -63,7 +64,7 @@ def test_tactical_blocks_input_while_dying():
     state._death_cause = "Test"
     state._death_fade_start = time.time()
 
-    result = state.ev_keydown(engine, FakeEvent(sym=tcod.event.KeySym.RETURN))
+    result = state.ev_key(engine, FakeEvent(sym=tcod.event.KeySym.RETURN))
     assert result is True
     assert engine.current_state is state
 
@@ -81,9 +82,10 @@ def test_tactical_needs_animation_while_dying():
 def test_tactical_switches_to_game_over_after_fade():
     """After death fade completes, tactical should switch to GameOverState."""
     import tcod.console
+
+    from game.entity import Entity, Fighter
     from tests.conftest import make_arena
     from ui.tactical_state import TacticalState
-    from game.entity import Entity, Fighter
 
     state = TacticalState()
     engine = Engine()
@@ -95,11 +97,22 @@ def test_tactical_switches_to_game_over_after_fade():
     engine.player = player
     engine.environment = {}
     from game.suit import EVA_SUIT
-    engine.suit = EVA_SUIT
-    state._layout = type("L", (), {
-        "viewport_w": 60, "viewport_h": 42, "stats_x": 60, "stats_w": 20,
-        "log_y": 42, "log_h": 8, "map_w": 60, "map_h": 42,
-    })()
+
+    engine.suit = EVA_SUIT.copy()
+    state._layout = type(
+        "L",
+        (),
+        {
+            "viewport_w": 60,
+            "viewport_h": 42,
+            "stats_x": 60,
+            "stats_w": 20,
+            "log_y": 42,
+            "log_h": 8,
+            "map_w": 60,
+            "map_h": 42,
+        },
+    )()
     engine._state_stack.append(state)
     # Fade already elapsed
     state._death_cause = "Killed in action."
@@ -126,13 +139,13 @@ def test_game_over_fade_starts_on_enter():
 
 
 def test_game_over_input_blocked_during_fade():
-    """ev_keydown should ignore all input while text is fading in."""
+    """ev_key should ignore all input while text is fading in."""
     state = GameOverState(victory=False)
     engine = Engine()
     engine._state_stack.append(state)
     state.on_enter(engine)
 
-    result = state.ev_keydown(engine, FakeEvent(sym=tcod.event.KeySym.RETURN))
+    result = state.ev_key(engine, FakeEvent(sym=tcod.event.KeySym.RETURN))
     assert result is True
     assert engine.current_state is state
 
@@ -146,7 +159,7 @@ def test_game_over_input_accepted_after_fade():
     engine._state_stack.append(state)
     state._fade_start = time.time() - FADE_IN_DURATION - 1.0
 
-    state.ev_keydown(engine, FakeEvent(sym=tcod.event.KeySym.RETURN))
+    state.ev_key(engine, FakeEvent(sym=tcod.event.KeySym.RETURN))
     assert engine._saved_player is None
 
 

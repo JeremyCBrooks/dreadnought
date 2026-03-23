@@ -3,27 +3,19 @@
 Covers the full chain: galaxy env, briefing display, tactical env setup,
 dungeon-gen breach probability, and environment tick O2 drain.
 """
-from __future__ import annotations
-
-import random
 
 import numpy as np
 
-from engine.game_state import Engine
-from engine.message_log import MessageLog
 from game.entity import Entity, Fighter
 from game.environment import apply_environment_tick
 from game.suit import Suit
 from tests.conftest import MockEngine, make_arena
-from ui.briefing_state import BriefingState
-from world import tile_types
 from world.galaxy import Location
-from world.loc_profiles import get_profile
-
 
 # ===================================================================
 # Briefing: implied vacuum display
 # ===================================================================
+
 
 class TestBriefingVacuumDisplay:
     """Briefing shows vacuum only when the location's environment has it
@@ -64,6 +56,7 @@ class TestBriefingVacuumDisplay:
 # Tactical state: environment defaults
 # ===================================================================
 
+
 class TestTacticalEnvironmentSetup:
     """engine.environment should come from the location, not default to vacuum."""
 
@@ -92,6 +85,7 @@ class TestTacticalEnvironmentSetup:
 # ===================================================================
 # Tactical state: vacuum added from map features
 # ===================================================================
+
 
 class TestVacuumFromMapFeatures:
     """When the generated map has hull breaches or airlocks, vacuum should
@@ -144,11 +138,13 @@ class TestVacuumFromMapFeatures:
 # Dungeon gen: starbase breach probability
 # ===================================================================
 
+
 class TestStarbaseBreachProbability:
     """Starbases should have breaches ~20% of the time, derelicts ~always."""
 
     def test_derelicts_usually_have_breaches(self):
         from world.dungeon_gen import generate_dungeon
+
         breach_count = 0
         n = 30
         for seed in range(n):
@@ -156,12 +152,11 @@ class TestStarbaseBreachProbability:
             if gm.hull_breaches:
                 breach_count += 1
         # Derelicts should almost always have breaches (candidates permitting)
-        assert breach_count >= n * 0.6, (
-            f"Only {breach_count}/{n} derelicts had breaches, expected most"
-        )
+        assert breach_count >= n * 0.6, f"Only {breach_count}/{n} derelicts had breaches, expected most"
 
     def test_starbases_rarely_have_breaches(self):
         from world.dungeon_gen import generate_dungeon
+
         breach_count = 0
         n = 100
         for seed in range(n):
@@ -169,13 +164,12 @@ class TestStarbaseBreachProbability:
             if gm.hull_breaches:
                 breach_count += 1
         # ~20% chance -> expect roughly 10-40 out of 100
-        assert breach_count < n * 0.5, (
-            f"{breach_count}/{n} starbases had breaches, expected ~20%"
-        )
+        assert breach_count < n * 0.5, f"{breach_count}/{n} starbases had breaches, expected ~20%"
 
     def test_starbases_can_have_breaches(self):
         """At least some starbases should get breaches (non-zero probability)."""
         from world.dungeon_gen import generate_dungeon
+
         for seed in range(200):
             gm, _, _ = generate_dungeon(seed=seed, loc_type="starbase")
             if gm.hull_breaches:
@@ -186,6 +180,7 @@ class TestStarbaseBreachProbability:
 # ===================================================================
 # Environment tick: no O2 drain in safe starbase
 # ===================================================================
+
 
 class TestNoFalseO2Drain:
     """Vacuum is spatial: O2 drains ONLY when the player stands on a tile
@@ -265,12 +260,14 @@ class TestNoFalseO2Drain:
 # Enemy environment tick: spatial vacuum for entities
 # ===================================================================
 
+
 class TestEnemySpatialVacuum:
     """apply_environment_tick_entity should also respect SPATIAL_HAZARDS."""
 
     def test_enemy_no_overlay_no_damage(self):
         """Enemy in vacuum env but no overlay should not take damage."""
         from game.environment import apply_environment_tick_entity
+
         gm = make_arena()
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
         enemy = Entity(x=5, y=5, name="Enemy", fighter=Fighter(5, 5, 0, 1))
@@ -281,6 +278,7 @@ class TestEnemySpatialVacuum:
 
     def test_enemy_on_vacuum_overlay_takes_damage(self):
         from game.environment import apply_environment_tick_entity
+
         gm = make_arena()
         overlay = np.full((gm.width, gm.height), fill_value=False, order="F")
         overlay[5, 5] = True
@@ -297,6 +295,7 @@ class TestEnemySpatialVacuum:
 # ===================================================================
 # Galaxy: location environment assignment
 # ===================================================================
+
 
 class TestGalaxyLocationEnvironment:
     """Galaxy correctly assigns vacuum to derelicts/asteroids but not starbases."""

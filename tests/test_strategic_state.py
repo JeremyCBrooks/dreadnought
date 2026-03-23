@@ -1,16 +1,18 @@
 """Tests for the strategic (galaxy navigation) state."""
+
 from types import SimpleNamespace
 
 import numpy as np
 
-from tests.conftest import FakeEvent, MockEngine, make_arena
 from game.entity import Entity, Fighter
 from game.ship import Ship
+from tests.conftest import FakeEvent, MockEngine, make_arena
 from ui.strategic_state import StrategicState
 
 
 def _sym(name):
     import tcod.event
+
     return getattr(tcod.event.KeySym, name)
 
 
@@ -28,7 +30,8 @@ def _make_galaxy(num_locations=3, connections=None):
     conns = connections or {}
     system = SimpleNamespace(
         name="TestSystem",
-        gx=0, gy=0,
+        gx=0,
+        gy=0,
         locations=locs,
         connections=conns,
         depth=0,
@@ -42,6 +45,7 @@ def _make_galaxy(num_locations=3, connections=None):
         arrive_at=lambda name: None,
         _unexplored_frontier=frontier,
         travel_cost=lambda dest: 2 if dest in frontier else 1,
+        dreadnought_system=None,
     )
     return galaxy
 
@@ -65,39 +69,40 @@ class TestStrategicNavigation:
         galaxy = _make_galaxy(num_locations=3)
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
-        state.ev_keydown(engine, FakeEvent(_sym("DOWN")))
+        state.ev_key(engine, FakeEvent(_sym("DOWN")))
         assert state.selected == 1
 
     def test_move_up_decrements_selection(self):
         galaxy = _make_galaxy(num_locations=3)
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
-        state.ev_keydown(engine, FakeEvent(_sym("DOWN")))
-        state.ev_keydown(engine, FakeEvent(_sym("DOWN")))
-        state.ev_keydown(engine, FakeEvent(_sym("UP")))
+        state.ev_key(engine, FakeEvent(_sym("DOWN")))
+        state.ev_key(engine, FakeEvent(_sym("DOWN")))
+        state.ev_key(engine, FakeEvent(_sym("UP")))
         assert state.selected == 1
 
     def test_move_up_clamps_at_zero(self):
         galaxy = _make_galaxy()
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
-        state.ev_keydown(engine, FakeEvent(_sym("UP")))
+        state.ev_key(engine, FakeEvent(_sym("UP")))
         assert state.selected == 0
 
     def test_move_down_clamps_at_max(self):
         galaxy = _make_galaxy(num_locations=2)
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
-        state.ev_keydown(engine, FakeEvent(_sym("DOWN")))
-        state.ev_keydown(engine, FakeEvent(_sym("DOWN")))
-        state.ev_keydown(engine, FakeEvent(_sym("DOWN")))
+        state.ev_key(engine, FakeEvent(_sym("DOWN")))
+        state.ev_key(engine, FakeEvent(_sym("DOWN")))
+        state.ev_key(engine, FakeEvent(_sym("DOWN")))
         assert state.selected == 1
 
     def test_direction_changes_system(self):
         galaxy = _make_galaxy(connections={"OtherSystem": 10})
         other = SimpleNamespace(
             name="OtherSystem",
-            gx=1, gy=0,
+            gx=1,
+            gy=0,
             locations=[],
             connections={"TestSystem": 10},
             depth=1,
@@ -107,16 +112,16 @@ class TestStrategicNavigation:
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
         # Switch to navigation focus first
-        state.ev_keydown(engine, FakeEvent(_sym("TAB")))
-        state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+        state.ev_key(engine, FakeEvent(_sym("TAB")))
+        state.ev_key(engine, FakeEvent(_sym("RIGHT")))
         assert galaxy.current_system == "OtherSystem"
 
     def test_no_connections_stays(self):
         galaxy = _make_galaxy(connections={})
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
-        state.ev_keydown(engine, FakeEvent(_sym("TAB")))
-        state.ev_keydown(engine, FakeEvent(_sym("LEFT")))
+        state.ev_key(engine, FakeEvent(_sym("TAB")))
+        state.ev_key(engine, FakeEvent(_sym("LEFT")))
         assert galaxy.current_system == "TestSystem"
 
     def test_confirm_pushes_briefing(self):
@@ -125,7 +130,7 @@ class TestStrategicNavigation:
         engine = _make_strategic_engine(galaxy)
         engine._state_stack = [state]
         engine.push_state = lambda s: engine._state_stack.append(s)
-        state.ev_keydown(engine, FakeEvent(_sym("RETURN")))
+        state.ev_key(engine, FakeEvent(_sym("RETURN")))
         assert len(engine._state_stack) == 2
         assert galaxy.systems["TestSystem"].locations[0].visited
 
@@ -133,7 +138,7 @@ class TestStrategicNavigation:
         galaxy = _make_galaxy(num_locations=0)
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
-        result = state.ev_keydown(engine, FakeEvent(_sym("RETURN")))
+        result = state.ev_key(engine, FakeEvent(_sym("RETURN")))
         assert result is True
 
     def test_on_enter_message(self):
@@ -150,11 +155,11 @@ class TestStrategicNavigation:
         engine.ship = Ship()
         pushed = []
         engine.push_state = lambda s: pushed.append(s)
-        state.ev_keydown(engine, FakeEvent(_sym("c")))
+        state.ev_key(engine, FakeEvent(_sym("c")))
         assert len(pushed) == 1
         from ui.cargo_state import CargoState
-        assert isinstance(pushed[0], CargoState)
 
+        assert isinstance(pushed[0], CargoState)
 
     def test_escape_pushes_confirm_quit(self):
         galaxy = _make_galaxy()
@@ -162,9 +167,10 @@ class TestStrategicNavigation:
         engine = _make_strategic_engine(galaxy)
         pushed = []
         engine.push_state = lambda s: pushed.append(s)
-        state.ev_keydown(engine, FakeEvent(_sym("ESCAPE")))
+        state.ev_key(engine, FakeEvent(_sym("ESCAPE")))
         assert len(pushed) == 1
         from ui.confirm_quit_state import ConfirmQuitState
+
         assert isinstance(pushed[0], ConfirmQuitState)
 
     def test_pageup_scrolls_message_log(self):
@@ -175,9 +181,9 @@ class TestStrategicNavigation:
         for i in range(20):
             engine.message_log.add_message(f"msg {i}")
         assert engine.message_log._scroll == 0
-        state.ev_keydown(engine, FakeEvent(_sym("PAGEUP")))
+        state.ev_key(engine, FakeEvent(_sym("PAGEUP")))
         assert engine.message_log._scroll == 1
-        state.ev_keydown(engine, FakeEvent(_sym("PAGEDOWN")))
+        state.ev_key(engine, FakeEvent(_sym("PAGEDOWN")))
         assert engine.message_log._scroll == 0
 
     def test_shift_q_pushes_confirm_quit(self):
@@ -186,24 +192,34 @@ class TestStrategicNavigation:
         engine = _make_strategic_engine(galaxy)
         pushed = []
         engine.push_state = lambda s: pushed.append(s)
-        state.ev_keydown(engine, FakeEvent(_sym("Q")))
+        state.ev_key(engine, FakeEvent(_sym("Q")))
         assert len(pushed) == 1
         from ui.confirm_quit_state import ConfirmQuitState
+
         assert isinstance(pushed[0], ConfirmQuitState)
 
 
 class TestStrategicFuel:
     def _make_two_system_galaxy(self, dest_frontier=True):
         """Build a galaxy with two connected systems."""
-        locs = [SimpleNamespace(name="Loc_0", loc_type="derelict",
-                                visited=False, environment={"vacuum": 1})]
+        locs = [SimpleNamespace(name="Loc_0", loc_type="derelict", visited=False, environment={"vacuum": 1})]
         system = SimpleNamespace(
-            name="TestSystem", gx=0, gy=0, locations=locs,
-            connections={"OtherSystem": 30}, depth=0, star_type="yellow_dwarf",
+            name="TestSystem",
+            gx=0,
+            gy=0,
+            locations=locs,
+            connections={"OtherSystem": 30},
+            depth=0,
+            star_type="yellow_dwarf",
         )
         other = SimpleNamespace(
-            name="OtherSystem", gx=1, gy=0, locations=[],
-            connections={"TestSystem": 30}, depth=1, star_type="red_dwarf",
+            name="OtherSystem",
+            gx=1,
+            gy=0,
+            locations=[],
+            connections={"TestSystem": 30},
+            depth=1,
+            star_type="red_dwarf",
         )
         frontier = {"OtherSystem"} if dest_frontier else set()
         galaxy = SimpleNamespace(
@@ -213,6 +229,7 @@ class TestStrategicFuel:
             arrive_at=lambda name: None,
             _unexplored_frontier=frontier,
             travel_cost=lambda dest: 2 if dest in frontier else 1,
+            dreadnought_system=None,
         )
         return galaxy
 
@@ -221,8 +238,8 @@ class TestStrategicFuel:
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
         engine.ship.fuel = 5
-        state.ev_keydown(engine, FakeEvent(_sym("TAB")))
-        state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+        state.ev_key(engine, FakeEvent(_sym("TAB")))
+        state.ev_key(engine, FakeEvent(_sym("RIGHT")))
         assert engine.ship.fuel == 4  # explored costs 1
 
     def test_travel_frontier_costs_2(self):
@@ -230,8 +247,8 @@ class TestStrategicFuel:
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
         engine.ship.fuel = 10
-        state.ev_keydown(engine, FakeEvent(_sym("TAB")))
-        state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+        state.ev_key(engine, FakeEvent(_sym("TAB")))
+        state.ev_key(engine, FakeEvent(_sym("RIGHT")))
         assert engine.ship.fuel == 8  # frontier costs 2
         assert galaxy.current_system == "OtherSystem"
 
@@ -240,8 +257,8 @@ class TestStrategicFuel:
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
         engine.ship.fuel = 10
-        state.ev_keydown(engine, FakeEvent(_sym("TAB")))
-        state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+        state.ev_key(engine, FakeEvent(_sym("TAB")))
+        state.ev_key(engine, FakeEvent(_sym("RIGHT")))
         assert engine.ship.fuel == 9  # explored costs 1
         assert galaxy.current_system == "OtherSystem"
 
@@ -250,8 +267,8 @@ class TestStrategicFuel:
         state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
         engine.ship.fuel = 1  # need 2 for frontier
-        state.ev_keydown(engine, FakeEvent(_sym("TAB")))
-        state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+        state.ev_key(engine, FakeEvent(_sym("TAB")))
+        state.ev_key(engine, FakeEvent(_sym("RIGHT")))
         assert galaxy.current_system == "TestSystem"  # didn't move
         assert engine.ship.fuel == 1  # not deducted
         assert any("fuel" in m[0].lower() for m in engine.message_log.messages)
@@ -266,11 +283,14 @@ class TestStrategicFuel:
         engine.CONSOLE_HEIGHT = 50
         printed = []
         console = SimpleNamespace(
-            width=160, height=50,
-            rgb=np.zeros((160, 50), dtype=[("ch", np.int32),
-                         ("fg", "3u1"), ("bg", "3u1")]),
+            width=160,
+            height=50,
+            rgb=np.zeros((160, 50), dtype=[("ch", np.int32), ("fg", "3u1"), ("bg", "3u1")]),
         )
-        original_print = lambda *, x, y, string, fg=(255, 255, 255): printed.append(string)
+
+        def original_print(*, x, y, string, fg=(255, 255, 255)):
+            printed.append(string)
+
         console.print = original_print
         console.draw_rect = lambda *a, **kw: None
         state.on_render(console, engine)
@@ -280,9 +300,9 @@ class TestStrategicFuel:
 class TestStrategicRender:
     def _make_console(self, w=160, h=50):
         console = SimpleNamespace(
-            width=w, height=h,
-            rgb=np.zeros((w, h), dtype=[("ch", np.int32),
-                         ("fg", "3u1"), ("bg", "3u1")]),
+            width=w,
+            height=h,
+            rgb=np.zeros((w, h), dtype=[("ch", np.int32), ("fg", "3u1"), ("bg", "3u1")]),
         )
         console.print = lambda *, x, y, string, fg=(255, 255, 255): None
         console.draw_rect = lambda *a, **kw: None
@@ -297,9 +317,7 @@ class TestStrategicRender:
         engine.CONSOLE_HEIGHT = 50
         printed = []
         console = self._make_console()
-        console.print = lambda *, x, y, string, fg=(255, 255, 255): printed.append(
-            (x, y, string, fg)
-        )
+        console.print = lambda *, x, y, string, fg=(255, 255, 255): printed.append((x, y, string, fg))
         state.on_render(console, engine)
         return printed
 
@@ -359,13 +377,32 @@ class TestStrategicRender:
         state = StrategicState(galaxy)
         state.on_render(console, engine)  # should not raise
 
+    def test_nav_hud_locked_when_dreadnought_spawned(self):
+        """NAV should show LOCKED when nav units are maxed and dreadnought exists."""
+        galaxy = _make_galaxy()
+        galaxy.dreadnought_system = "Dreadnought"
+        engine = _make_strategic_engine(galaxy)
+        engine.ship.nav_units = engine.ship.max_nav_units
+        printed = self._render_collecting(engine, galaxy)
+        nav_entries = [s for _, _, s, _ in printed if "NAV" in s]
+        assert any("LOCKED" in s for s in nav_entries)
+
+    def test_nav_hud_count_when_not_maxed(self):
+        """NAV should show count when nav units are not maxed."""
+        galaxy = _make_galaxy()
+        engine = _make_strategic_engine(galaxy)
+        engine.ship.nav_units = 3
+        printed = self._render_collecting(engine, galaxy)
+        nav_entries = [s for _, _, s, _ in printed if "NAV" in s]
+        assert any("3/6" in s for s in nav_entries)
+
 
 def test_strategic_navigate_all_systems():
     """Direction keys should allow navigating the graph of systems."""
-    from world.galaxy import Galaxy
-    from engine.game_state import Engine
-
     import tcod.event
+
+    from engine.game_state import Engine
+    from world.galaxy import Galaxy
 
     class _FakeEvent:
         def __init__(self, sym):
@@ -395,16 +432,22 @@ def test_strategic_navigate_all_systems():
     dx = (neighbor.gx > home.gx) - (neighbor.gx < home.gx)
     dy = (neighbor.gy > home.gy) - (neighbor.gy < home.gy)
     _dir_to_key = {
-        (0, -1): "UP", (0, 1): "DOWN", (-1, 0): "LEFT", (1, 0): "RIGHT",
-        (-1, -1): "KP_7", (1, -1): "KP_9", (-1, 1): "KP_1", (1, 1): "KP_3",
+        (0, -1): "UP",
+        (0, 1): "DOWN",
+        (-1, 0): "LEFT",
+        (1, 0): "RIGHT",
+        (-1, -1): "KP_7",
+        (1, -1): "KP_9",
+        (-1, 1): "KP_1",
+        (1, 1): "KP_3",
     }
     key_name = _dir_to_key[(dx, dy)]
     # Tab to navigation focus, then navigate
-    state.ev_keydown(engine, _FakeEvent(tcod.event.KeySym.TAB))
-    state.ev_keydown(engine, _FakeEvent(getattr(tcod.event.KeySym, key_name)))
+    state.ev_key(engine, _FakeEvent(tcod.event.KeySym.TAB))
+    state.ev_key(engine, _FakeEvent(getattr(tcod.event.KeySym, key_name)))
     assert galaxy.current_system == neighbor_name
 
     # Focus stays on navigation; navigate back home
     back_key = _dir_to_key[(-dx, -dy)]
-    state.ev_keydown(engine, _FakeEvent(getattr(tcod.event.KeySym, back_key)))
+    state.ev_key(engine, _FakeEvent(getattr(tcod.event.KeySym, back_key)))
     assert galaxy.current_system == home.name

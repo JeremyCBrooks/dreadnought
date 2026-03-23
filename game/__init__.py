@@ -1,1 +1,1 @@
-# Game package: entities, combat, items, etc.
+"""Game package: entities, combat, items, etc."""

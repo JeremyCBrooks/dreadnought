@@ -1,5 +1,5 @@
 """Tests for AI melee power recalculation (Phase 2)."""
-from game.entity import Entity, Fighter
+
 from game.helpers import recalc_melee_power_ai
 from tests.conftest import make_creature, make_melee_weapon
 
@@ -35,6 +35,7 @@ class TestRecalcMeleePowerAI:
 
     def test_ranged_weapon_ignored(self):
         from tests.conftest import make_weapon
+
         enemy = make_creature(power=2)
         ranged = make_weapon(name="Blaster", weapon_class="ranged", value=4)
         enemy.inventory.append(ranged)

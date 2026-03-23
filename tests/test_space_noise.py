@@ -1,7 +1,8 @@
 """Tests for fractal noise applied to starfield brightness."""
+
 import numpy as np
 
-from world.noise import fractal_noise
+from world.noise import coord_fractal_noise, fractal_noise
 
 
 class TestFractalNoise:
@@ -36,12 +37,65 @@ class TestFractalNoise:
         assert h_diff.max() < 0.3, f"Max horizontal diff {h_diff.max()} too large"
 
 
+class TestCoordFractalNoise:
+    def test_output_shape(self):
+        xs = np.arange(10, 30)
+        ys = np.arange(5, 25)
+        result = coord_fractal_noise(42, xs, ys)
+        assert result.shape == (20, 20)
+
+    def test_values_in_zero_one(self):
+        xs = np.arange(0, 50)
+        ys = np.arange(0, 50)
+        result = coord_fractal_noise(99, xs, ys)
+        assert result.min() >= 0.0
+        assert result.max() <= 1.0
+
+    def test_deterministic_same_seed(self):
+        xs = np.arange(0, 30)
+        ys = np.arange(0, 30)
+        r1 = coord_fractal_noise(7, xs, ys)
+        r2 = coord_fractal_noise(7, xs, ys)
+        np.testing.assert_array_equal(r1, r2)
+
+    def test_different_seeds_differ(self):
+        xs = np.arange(0, 30)
+        ys = np.arange(0, 30)
+        r1 = coord_fractal_noise(1, xs, ys)
+        r2 = coord_fractal_noise(2, xs, ys)
+        assert not np.array_equal(r1, r2)
+
+    def test_overlap_determinism(self):
+        """Same (seed, x, y) must produce the same value regardless of region size."""
+        seed = 42
+        # Small region
+        xs_small = np.arange(10, 20)
+        ys_small = np.arange(10, 20)
+        small = coord_fractal_noise(seed, xs_small, ys_small)
+
+        # Large region that contains the small one
+        xs_large = np.arange(0, 50)
+        ys_large = np.arange(0, 50)
+        large = coord_fractal_noise(seed, xs_large, ys_large)
+
+        # The overlapping region must match exactly
+        overlap = large[10:20, 10:20]
+        np.testing.assert_allclose(small, overlap, atol=1e-10)
+
+    def test_has_variation(self):
+        xs = np.arange(0, 100)
+        ys = np.arange(0, 100)
+        result = coord_fractal_noise(42, xs, ys)
+        assert result.std() > 0.05
+
+
 class TestStarfieldBrightnessVariation:
     """Verify that noise creates visible variation in starfield brightness."""
 
     def test_tactical_starfield_uses_noise(self):
         """Stars at different noise levels should get different brightness."""
         from world.noise import fractal_noise
+
         rng = np.random.RandomState(42)
         field = fractal_noise(rng, 100, 100)
         # Should have a decent spread of values
@@ -57,7 +111,7 @@ class TestStarfieldBrightnessVariation:
         # Collect fg brightness of background stars from rgb array (away from disc)
         region_fg = c.rgb["fg"][64:140, 0:40]
         region_ch = c.rgb["ch"][64:140, 0:40]
-        star_chars = {ord('.'), ord('*'), ord('+'), ord('x')}
+        star_chars = {ord("."), ord("*"), ord("+"), ord("x")}
         star_mask = np.isin(region_ch, list(star_chars))
         if np.sum(star_mask) >= 5:
             max_fg = np.max(region_fg[star_mask], axis=-1)
@@ -126,12 +180,10 @@ class TestNebulaMorphologyVariation:
                     stack = [(sy, sx)]
                     while stack:
                         cy, cx = stack.pop()
-                        if (cy < 0 or cy >= h or cx < 0 or cx >= w
-                                or labeled[cy, cx] != 0 or not mask[cy, cx]):
+                        if cy < 0 or cy >= h or cx < 0 or cx >= w or labeled[cy, cx] != 0 or not mask[cy, cx]:
                             continue
                         labeled[cy, cx] = label_id
-                        stack.extend([(cy-1, cx), (cy+1, cx),
-                                      (cy, cx-1), (cy, cx+1)])
+                        stack.extend([(cy - 1, cx), (cy + 1, cx), (cy, cx - 1), (cy, cx + 1)])
         return labeled, label_id
 
     def test_nebula_regions_have_varied_sizes(self):
@@ -149,9 +201,7 @@ class TestNebulaMorphologyVariation:
         assert len(all_areas) >= 3, "Not enough nebula regions to test"
         all_areas = np.array(all_areas)
         ratio = all_areas.max() / max(all_areas.min(), 1)
-        assert ratio > 10, (
-            f"Nebula regions lack size variation: max/min ratio={ratio:.1f}"
-        )
+        assert ratio > 10, f"Nebula regions lack size variation: max/min ratio={ratio:.1f}"
 
     def test_some_nebulae_are_elongated(self):
         """At least some nebula regions should be elongated (filament-like),
@@ -177,9 +227,7 @@ class TestNebulaMorphologyVariation:
 
         assert len(aspect_ratios) >= 3, "Not enough regions to test aspect ratio"
         max_aspect = max(aspect_ratios)
-        assert max_aspect > 3.0, (
-            f"No elongated nebulae found: max aspect ratio={max_aspect:.1f}"
-        )
+        assert max_aspect > 3.0, f"No elongated nebulae found: max aspect ratio={max_aspect:.1f}"
 
     def test_nebula_density_varies_across_space(self):
         """Different quadrants of a large region should have meaningfully
@@ -190,14 +238,12 @@ class TestNebulaMorphologyVariation:
         quadrant_densities = []
         for qx in range(2):
             for qy in range(2):
-                quad = neb[qx * q_size:(qx + 1) * q_size,
-                           qy * q_size:(qy + 1) * q_size]
+                quad = neb[qx * q_size : (qx + 1) * q_size, qy * q_size : (qy + 1) * q_size]
                 quadrant_densities.append(np.mean(quad))
         densities = np.array(quadrant_densities)
         # The densities should vary — std should be meaningful
         # (uniform coverage across all quadrants implies no variation)
         density_range = densities.max() - densities.min()
         assert density_range > 0.05, (
-            f"Nebula density too uniform across quadrants: range={density_range:.3f}, "
-            f"densities={densities}"
+            f"Nebula density too uniform across quadrants: range={density_range:.3f}, densities={densities}"
         )

@@ -1,11 +1,12 @@
 """Game over / victory screen state."""
+
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, Tuple
+from typing import TYPE_CHECKING, Any
 
 from engine.game_state import State
-from ui.colors import DARK_GRAY, NEUTRAL
+from ui.colors import DARK_GRAY, HP_GREEN, HP_RED, NEUTRAL
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -32,10 +33,10 @@ class GameOverState(State):
         return min(1.0, elapsed / FADE_IN_DURATION)
 
     @staticmethod
-    def _fade_color(color: Tuple[int, int, int], alpha: float) -> Tuple[int, int, int]:
+    def _fade_color(color: tuple[int, int, int], alpha: float) -> tuple[int, int, int]:
         return (int(color[0] * alpha), int(color[1] * alpha), int(color[2] * alpha))
 
-    def ev_keydown(self, engine: Engine, event: Any) -> bool:
+    def ev_key(self, engine: Engine, event: Any) -> bool:
         if self._alpha() < 1.0:
             return True
 
@@ -44,6 +45,7 @@ class GameOverState(State):
         if event.sym not in confirm_keys():
             return True
         from ui.title_state import TitleState
+
         engine._saved_player = None
         engine.area_cache.clear()
         engine.active_effects.clear()
@@ -59,27 +61,28 @@ class GameOverState(State):
         cy = engine.CONSOLE_HEIGHT // 2
         alpha = self._alpha()
 
-        title_color = (0, 255, 0) if self.victory else (255, 0, 0)
+        title_color = HP_GREEN if self.victory else HP_RED
         title_x = cx - len(self.title) // 2
         console.print(
-            x=title_x, y=cy - 2, string=self.title,
+            x=title_x,
+            y=cy - 2,
+            string=self.title,
             fg=self._fade_color(title_color, alpha),
         )
 
-        subtitle = ""
         if self.cause:
-            subtitle = self.cause
-
-        if subtitle:
             console.print(
-                x=cx - len(subtitle) // 2, y=cy, string=subtitle,
+                x=cx - len(self.cause) // 2,
+                y=cy,
+                string=self.cause,
                 fg=self._fade_color(NEUTRAL, alpha),
             )
 
         if alpha >= 1.0:
             prompt = "Press Enter to continue"
             console.print(
-                x=cx - len(prompt) // 2, y=cy + 8,
+                x=cx - len(prompt) // 2,
+                y=cy + 8,
                 string=prompt,
                 fg=DARK_GRAY,
             )

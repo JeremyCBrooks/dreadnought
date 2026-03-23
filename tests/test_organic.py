@@ -1,11 +1,11 @@
 """Tests for organic vs machine entity behavior with environmental hazards."""
+
 import numpy as np
 
 from game.ai import HostileAI
 from game.entity import Entity, Fighter
 from game.environment import apply_environment_tick_entity
 from tests.conftest import MockEngine, make_arena
-
 
 # ===================================================================
 # Entity organic attribute
@@ -35,6 +35,7 @@ def test_entity_has_move_cooldown_default():
 def test_entities_json_organic_flags():
     """Bot and Security Drone are machines; Rat and Pirate are organic."""
     from data.enemies import ENEMIES
+
     enemies = {e.name: e.organic for e in ENEMIES}
     assert enemies["Rat"] is True
     assert enemies["Pirate"] is True
@@ -50,6 +51,7 @@ def test_entities_json_organic_flags():
 def test_spawn_passes_organic_flag():
     """Spawned enemies inherit the organic flag from data definitions."""
     from world.dungeon_gen import generate_dungeon
+
     gm, rooms, _ = generate_dungeon(seed=42, max_rooms=8, max_enemies=3, max_items=0)
     fighters = [e for e in gm.entities if e.fighter]
     assert len(fighters) > 0, "Need at least one enemy to test"
@@ -77,8 +79,11 @@ class TestMachineVacuumImmunity:
         gm._hazards_dirty = False
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
         entity = Entity(
-            x=entity_x, y=entity_y, name="TestEntity",
-            fighter=Fighter(hp, hp, 0, 1), organic=organic,
+            x=entity_x,
+            y=entity_y,
+            name="TestEntity",
+            fighter=Fighter(hp, hp, 0, 1),
+            organic=organic,
         )
         gm.entities.extend([player, entity])
         engine = MockEngine(gm, player, environment={"vacuum": 1})
@@ -125,10 +130,8 @@ class TestMachineVacuumImmunity:
         gm.hazard_overlays["vacuum"] = overlay
         gm._hazards_dirty = False
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        rat = Entity(x=5, y=5, name="Rat", fighter=Fighter(1, 1, 0, 1),
-                     blocks_movement=False, organic=True)
-        bot = Entity(x=5, y=5, name="Bot", fighter=Fighter(1, 1, 0, 2),
-                     blocks_movement=False, organic=False)
+        rat = Entity(x=5, y=5, name="Rat", fighter=Fighter(1, 1, 0, 1), blocks_movement=False, organic=True)
+        bot = Entity(x=5, y=5, name="Bot", fighter=Fighter(1, 1, 0, 2), blocks_movement=False, organic=False)
         gm.entities.extend([player, rat, bot])
         engine = MockEngine(gm, player, environment={"vacuum": 1})
         apply_environment_tick_entity(engine, rat)
@@ -196,10 +199,10 @@ class TestLowGravityOrganicEnemy:
     def test_move_skip_move_pattern(self):
         """Organic enemy in low gravity moves ~50% of turns (energy-based)."""
         from world import tile_types
+
         gm = make_arena(20, 20)
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1),
-                     ai=HostileAI(), organic=True)
+        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1), ai=HostileAI(), organic=True)
         gm.entities.extend([player, rat])
         # Block LOS so creature wanders
         for y in range(0, 20):
@@ -221,8 +224,7 @@ class TestLowGravityOrganicEnemy:
         """Adjacent organic enemy attacks every turn in low gravity."""
         gm = make_arena()
         player = Entity(x=5, y=5, name="Player", fighter=Fighter(20, 20, 0, 1))
-        pirate = Entity(x=5, y=6, name="Pirate", fighter=Fighter(5, 5, 1, 3),
-                        ai=HostileAI(), organic=True)
+        pirate = Entity(x=5, y=6, name="Pirate", fighter=Fighter(5, 5, 1, 3), ai=HostileAI(), organic=True)
         gm.entities.extend([player, pirate])
         gm.visible[:] = True
         engine = MockEngine(gm, player, environment={"low_gravity": 1})
@@ -239,13 +241,13 @@ class TestLowGravityOrganicEnemy:
         gm = make_arena()
         player = Entity(x=2, y=5, name="Player", fighter=Fighter(20, 20, 0, 1))
         blaster = Entity(
-            char="}", color=(200, 80, 80), name="Blaster",
+            char="}",
+            color=(200, 80, 80),
+            name="Blaster",
             blocks_movement=False,
-            item={"type": "weapon", "value": 2, "weapon_class": "ranged",
-                  "range": 5, "ammo": 10, "max_ammo": 10},
+            item={"type": "weapon", "value": 2, "weapon_class": "ranged", "range": 5, "ammo": 10, "max_ammo": 10},
         )
-        pirate = Entity(x=7, y=5, name="Pirate", fighter=Fighter(5, 5, 1, 3),
-                        ai=HostileAI(), organic=True)
+        pirate = Entity(x=7, y=5, name="Pirate", fighter=Fighter(5, 5, 1, 3), ai=HostileAI(), organic=True)
         pirate.inventory.append(blaster)
         gm.entities.extend([player, pirate])
         gm.visible[:] = True
@@ -262,10 +264,10 @@ class TestLowGravityOrganicEnemy:
     def test_wander_slowed_in_low_gravity(self):
         """Organic enemy wandering is slowed by low gravity."""
         from world import tile_types
+
         gm = make_arena(20, 20)
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1),
-                     ai=HostileAI(), organic=True)
+        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1), ai=HostileAI(), organic=True)
         gm.entities.extend([player, rat])
         # Block LOS so creature wanders
         for y in range(0, 20):
@@ -289,8 +291,7 @@ class TestLowGravityMachineEnemy:
     def test_moves_every_turn(self):
         gm = make_arena()
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        bot = Entity(x=7, y=7, name="Bot", fighter=Fighter(3, 3, 0, 2),
-                     ai=HostileAI(), organic=False)
+        bot = Entity(x=7, y=7, name="Bot", fighter=Fighter(3, 3, 0, 2), ai=HostileAI(), organic=False)
         gm.entities.extend([player, bot])
         gm.visible[:] = True
         engine = MockEngine(gm, player, environment={"low_gravity": 1})
@@ -306,10 +307,10 @@ class TestLowGravityMachineEnemy:
     def test_wander_every_turn(self):
         """Machine wanders every turn even in low gravity."""
         from world import tile_types
+
         gm = make_arena(20, 20)
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        bot = Entity(x=15, y=15, name="Bot", fighter=Fighter(3, 3, 0, 2),
-                     ai=HostileAI(), organic=False)
+        bot = Entity(x=15, y=15, name="Bot", fighter=Fighter(3, 3, 0, 2), ai=HostileAI(), organic=False)
         gm.entities.extend([player, bot])
         # Wall between player and bot so creature can't see player
         for y in range(0, 20):
@@ -331,10 +332,10 @@ class TestLowGravityEnergyEdgeCases:
     def test_no_slowdown_without_low_gravity(self):
         """Organic enemies move every turn when there's no low gravity."""
         from world import tile_types
+
         gm = make_arena(20, 20)
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1),
-                     ai=HostileAI(), organic=True)
+        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1), ai=HostileAI(), organic=True)
         gm.entities.extend([player, rat])
         for y in range(0, 20):
             gm.tiles[10, y] = tile_types.wall
@@ -351,10 +352,10 @@ class TestLowGravityEnergyEdgeCases:
     def test_speed_recovers_when_low_gravity_removed(self):
         """Removing low gravity mid-game restores full movement speed."""
         from world import tile_types
+
         gm = make_arena(20, 20)
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1),
-                     ai=HostileAI(), organic=True)
+        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1), ai=HostileAI(), organic=True)
         gm.entities.extend([player, rat])
         for y in range(0, 20):
             gm.tiles[10, y] = tile_types.wall
@@ -374,10 +375,10 @@ class TestLowGravityEnergyEdgeCases:
     def test_low_gravity_move_pattern(self):
         """Organic creature in low gravity: skip, move, skip, move (speed halved)."""
         from world import tile_types
+
         gm = make_arena(20, 20)
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1),
-                     ai=HostileAI(), organic=True)
+        rat = Entity(x=15, y=15, name="Rat", fighter=Fighter(1, 1, 0, 1), ai=HostileAI(), organic=True)
         gm.entities.extend([player, rat])
         for y in range(0, 20):
             gm.tiles[10, y] = tile_types.wall
@@ -395,10 +396,10 @@ class TestLowGravityEnergyEdgeCases:
     def test_machine_unaffected_by_low_gravity(self):
         """Non-organic machine moves every turn in low gravity."""
         from world import tile_types
+
         gm = make_arena(20, 20)
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
-        bot = Entity(x=15, y=15, name="Bot", fighter=Fighter(3, 3, 0, 2),
-                     ai=HostileAI(), organic=False)
+        bot = Entity(x=15, y=15, name="Bot", fighter=Fighter(3, 3, 0, 2), ai=HostileAI(), organic=False)
         gm.entities.extend([player, bot])
         for y in range(0, 20):
             gm.tiles[10, y] = tile_types.wall

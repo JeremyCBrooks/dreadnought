@@ -1,39 +1,33 @@
 """Tests for enemy loot tables and inventory building (Phase 1)."""
+
 import random
 
-from data.enemies import ENEMIES, EnemyDef, build_enemy_inventory
+from data.enemies import EnemyDef, build_enemy_inventory, enemy_by_name
 from data.items import item_by_name
-
-
-def _enemy_by_name(name: str) -> EnemyDef:
-    for e in ENEMIES:
-        if e.name == name:
-            return e
-    raise ValueError(f"No enemy named {name!r}")
 
 
 class TestLootTableFields:
     def test_rat_has_empty_loot_table(self):
-        rat = _enemy_by_name("Rat")
+        rat = enemy_by_name("Rat")
         assert rat.loot_table == ()
 
     def test_pirate_has_loot_table(self):
-        pirate = _enemy_by_name("Pirate")
+        pirate = enemy_by_name("Pirate")
         assert len(pirate.loot_table) > 0
         names = [name for name, _ in pirate.loot_table]
         assert "Med-kit" in names
 
     def test_bot_has_repair_kit(self):
-        bot = _enemy_by_name("Bot")
+        bot = enemy_by_name("Bot")
         names = [name for name, _ in bot.loot_table]
         assert "Repair Kit" in names
 
     def test_mech_pirate_has_loot(self):
-        mp = _enemy_by_name("Mech Pirate")
+        mp = enemy_by_name("Mech Pirate")
         assert len(mp.loot_table) > 0
 
     def test_security_drone_has_loot(self):
-        sd = _enemy_by_name("Security Drone")
+        sd = enemy_by_name("Security Drone")
         names = [name for name, _ in sd.loot_table]
         assert "Repair Kit" in names
 
@@ -46,19 +40,20 @@ class TestItemByName:
 
     def test_unknown_item_raises(self):
         import pytest
+
         with pytest.raises(KeyError):
             item_by_name("Nonexistent Gizmo")
 
 
 class TestBuildEnemyInventory:
     def test_rat_empty_inventory(self):
-        rat = _enemy_by_name("Rat")
+        rat = enemy_by_name("Rat")
         rng = random.Random(42)
         inv = build_enemy_inventory(rat, rng)
         assert inv == []
 
     def test_pirate_deterministic_with_seed(self):
-        pirate = _enemy_by_name("Pirate")
+        pirate = enemy_by_name("Pirate")
         rng1 = random.Random(12345)
         inv1 = build_enemy_inventory(pirate, rng1)
         rng2 = random.Random(12345)
@@ -68,7 +63,7 @@ class TestBuildEnemyInventory:
     def test_max_inventory_cap(self):
         """Even with a generous loot table and favorable RNG, cap is respected."""
         # Use a pirate (max_inventory=3) with a seed that gives many items
-        pirate = _enemy_by_name("Pirate")
+        pirate = enemy_by_name("Pirate")
         # Try many seeds to find one that would give >3 items without cap
         for seed in range(1000):
             rng = random.Random(seed)
@@ -76,7 +71,7 @@ class TestBuildEnemyInventory:
             assert len(inv) <= pirate.max_inventory
 
     def test_items_have_correct_item_dicts(self):
-        pirate = _enemy_by_name("Pirate")
+        pirate = enemy_by_name("Pirate")
         # Use seed that produces at least one item
         for seed in range(100):
             rng = random.Random(seed)
@@ -92,7 +87,8 @@ class TestBuildEnemyInventory:
 
     def test_items_are_entity_instances(self):
         from game.entity import Entity
-        pirate = _enemy_by_name("Pirate")
+
+        pirate = enemy_by_name("Pirate")
         for seed in range(100):
             rng = random.Random(seed)
             inv = build_enemy_inventory(pirate, rng)
@@ -107,7 +103,7 @@ class TestBuildEnemyInventory:
         The 25% forced-empty chance combines with natural roll failures,
         so the overall empty rate will be higher than 25%.
         """
-        pirate = _enemy_by_name("Pirate")
+        pirate = enemy_by_name("Pirate")
         empty_count = 0
         trials = 1000
         for seed in range(trials):
@@ -123,11 +119,22 @@ class TestBuildEnemyInventory:
         """Even with 100% drop rates, 25% of enemies carry nothing."""
         # Create a fake enemy def with guaranteed drops
         guaranteed = EnemyDef(
-            char="x", color=(255, 0, 0), name="Test",
-            hp=5, defense=0, power=1, organic=True, gore_color=(0, 0, 0),
-            ai_initial_state="wandering", aggro_distance=8, sleep_aggro_distance=3,
-            can_open_doors=False, flee_threshold=0.0, memory_turns=15,
-            vision_radius=8, move_speed=4,
+            char="x",
+            color=(255, 0, 0),
+            name="Test",
+            hp=5,
+            defense=0,
+            power=1,
+            organic=True,
+            gore_color=(0, 0, 0),
+            ai_initial_state="wandering",
+            aggro_distance=8,
+            sleep_aggro_distance=3,
+            can_open_doors=False,
+            flee_threshold=0.0,
+            memory_turns=15,
+            vision_radius=8,
+            move_speed=4,
             loot_table=(("Med-kit", 1.0),),  # 100% drop rate
         )
         empty_count = 0
@@ -142,12 +149,12 @@ class TestBuildEnemyInventory:
 
     def test_ranged_weapon_has_ammo(self):
         """Ranged weapons in enemy inventory should have ammo."""
-        pirate = _enemy_by_name("Pirate")
+        pirate = enemy_by_name("Pirate")
         for seed in range(200):
             rng = random.Random(seed)
             inv = build_enemy_inventory(pirate, rng)
             for item_ent in inv:
-                if (item_ent.item and item_ent.item.get("weapon_class") == "ranged"):
+                if item_ent.item and item_ent.item.get("weapon_class") == "ranged":
                     assert item_ent.item.get("ammo", 0) > 0
                     assert item_ent.item.get("max_ammo", 0) > 0
                     return

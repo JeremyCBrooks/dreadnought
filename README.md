@@ -2,12 +2,12 @@
 
 Python + `python-tcod` sci-fi roguelike. ASCII visuals, FOV shadowcast, procedural dungeons, turn-based combat, environmental hazards, and a strategic galaxy layer.
 
-### Setup (uv + venv + requirements.txt)
+### Setup (uv + venv + pyproject.toml)
 
 ```powershell
 uv venv .venv
 .\.venv\Scripts\Activate.ps1
-uv pip install -r requirements.txt
+uv pip install -e ".[dev]"
 ```
 
 ### Run the game
@@ -63,32 +63,40 @@ Collect 6 navigation units from derelicts across the galaxy to reveal the Dreadn
 |---|---|
 | Arrows | Pan camera |
 | `c` | Center on current system |
-| `h` | Center on home system |
+| `Shift+H` | Center on home system |
 | `Esc` | Close |
 
-#### Inventory / Cargo
+#### Inventory
 
 | Key | Action |
 |---|---|
 | Up / Down | Navigate items |
-| `Enter` | Use consumable / transfer item |
-| `e` | Equip / unequip |
-| `d` | Drop (inventory only) |
-| Left / Right | Switch sections (cargo) |
+| `e` | Use consumable / equip / unequip |
+| `d` | Drop item |
+| `Esc` | Close |
+
+#### Cargo
+
+| Key | Action |
+|---|---|
+| Up / Down | Navigate items |
+| Left / Right | Switch sections (personal / ship) |
+| `Enter` | Transfer item between personal and ship |
+| `e` | Equip / unequip (personal section) |
 | `Esc` | Close |
 
 ### Features
 
 - **Turn-based combat** — melee bump attacks and ranged weapons with ammo and line-of-sight
-- **Enemy AI** — 4-state machine (sleeping → wandering → hunting → fleeing) with configurable vision, aggro, pathfinding, and door interaction
-- **Environmental hazards** — vacuum, radiation, fire, gas, explosive decompression, low gravity
+- **Enemy AI** — 4-state machine (sleeping → wandering → hunting → fleeing) with configurable vision, aggro, pathfinding, door interaction, variable move speed, and item usage
+- **Environmental hazards** — vacuum, electric, radiation, explosive, gas, structural, explosive decompression, low gravity
 - **Suit system** — EVA Suit (vacuum/cold) and Hazard Suit (radiation/heat) with resistance pools
 - **Equipment** — 2-slot loadout (weapon + scanner/tool), durability, 3-tier scanners
 - **Ship systems** — fuel, hull integrity, cargo hold, nav unit tracker
 - **Procedural galaxy** — on-demand star system generation, multiple locations per system, deterministic seeding
 - **Drift** — when fuel runs out, the ship drifts to a random neighbor, jettisoning cargo
 - **Reactor cores** — extractable tile fixtures that convert to fuel; the Dreadnought's core triggers victory
-- **Gore & debris** — blood, scorch marks, and debris on ships
+- **Gore & debris** — blood splatter (organic) and oil/debris (inorganic) on death, scales with enemy HP
 
 ### Project structure
 
@@ -96,10 +104,13 @@ Collect 6 navigation units from derelicts across the galaxy to reveal the Dreadn
 main.py                          Entry point
 debug.py                         Dev flags (god mode, visible all, etc.)
 data/
-  entities.json                  Enemy / item / scanner / interactable definitions
-  db.py                          Data access and name generation tables
-  star_types.py                  Star type visuals
-  loc_profiles.py                Location type templates
+  enemies.py                     Enemy definitions (dataclasses + loot tables)
+  items.py                       Item and scanner definitions (dataclasses)
+  interactables.py               Interactable object definitions
+  hazards.py                     Hazard type definitions
+  hull_templates.py              Hull layout templates
+  names.py                       Name generation tables
+  star_types.py                  Star type definitions and weighted selection
 engine/
   game_state.py                  State machine (push/pop/switch) + Engine
   message_log.py                 Scrollable message log
@@ -115,13 +126,17 @@ game/
   loadout.py                     2-slot equipment system
   suit.py                        Suit stats and resistance pools
   gore.py                        Death gore placement
+  helpers.py                     Shared helpers (distance, LOS, doors, drop, melee power)
   ship.py                        Ship data (fuel, hull, cargo, nav units)
 world/
   galaxy.py                      Procedural galaxy, star systems, locations
   game_map.py                    GameMap with FOV, lighting, entity tracking
   dungeon_gen.py                 Room-and-corridor procedural generation
-  tile_types.py                  Numpy tile dtypes
+  tile_types.py                  Tile definitions, flavor text, and describe_tile
   lighting.py                    Light source propagation
+  loc_profiles.py                Location type templates
+  noise.py                       Fractal value noise and box-blur noise
+  palettes.py                    Colony biome palettes, flora scattering, ground noise
 ui/
   title_state.py                 Title screen
   briefing_state.py              Pre-mission briefing + suit selection
@@ -131,5 +146,9 @@ ui/
   cargo_state.py                 Cargo transfer (personal ↔ ship)
   galaxy_map_state.py            Full-screen galaxy map
   game_over_state.py             Death / victory screen
-tests/                           pytest suite (1200+ tests)
+  confirm_quit_state.py          Quit confirmation dialog
+  viewport_renderer.py           Starfield, nebula, star disc & flare rendering
+  colors.py                      Shared UI color constants
+  keys.py                        Key binding definitions
+tests/                           pytest suite (1550+ tests)
 ```

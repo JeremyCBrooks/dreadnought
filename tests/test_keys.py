@@ -1,19 +1,20 @@
 """Tests for ui.keys — centralised key mappings."""
+
 import tcod.event
 
 from ui.keys import (
-    move_keys,
-    confirm_keys,
-    cancel_keys,
     action_keys,
-    is_move_key,
+    cancel_keys,
+    confirm_keys,
     is_action,
+    is_move_key,
+    move_keys,
 )
 
 K = tcod.event.KeySym
 
-
 # -- move_keys ---------------------------------------------------------------
+
 
 def test_move_keys_contains_arrows():
     mk = move_keys()
@@ -49,6 +50,7 @@ def test_move_keys_diagonals():
 
 # -- is_move_key -------------------------------------------------------------
 
+
 def test_is_move_key_true_for_arrow():
     assert is_move_key(K.UP) is True
 
@@ -58,6 +60,7 @@ def test_is_move_key_false_for_letter():
 
 
 # -- confirm / cancel ---------------------------------------------------------
+
 
 def test_confirm_keys_contains_return():
     assert K.RETURN in confirm_keys()
@@ -69,6 +72,7 @@ def test_cancel_keys_contains_escape():
 
 
 # -- action_keys / is_action --------------------------------------------------
+
 
 def test_action_keys_has_expected_actions():
     ak = action_keys()

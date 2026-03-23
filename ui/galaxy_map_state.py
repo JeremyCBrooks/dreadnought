@@ -1,13 +1,14 @@
 """Full-screen galaxy map overlay showing all discovered systems."""
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Set, Tuple
+from typing import TYPE_CHECKING, Any
 
 from engine.game_state import State
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
-    from world.galaxy import Galaxy
+    from world.galaxy import Galaxy, StarSystem
 
 # Grid-to-screen spacing. _CELL_W must be 2× _CELL_H so diagonals
 # at (2 cols, 1 row) per step look ~45 degrees in a 2:1-aspect terminal.
@@ -28,9 +29,10 @@ class GalaxyMapState(State):
         self.camera_gx = current.gx
         self.camera_gy = current.gy
 
-    def ev_keydown(self, engine: Engine, event: Any) -> bool:
+    def ev_key(self, engine: Engine, event: Any) -> bool:
         import tcod.event
-        from ui.keys import move_keys, cancel_keys
+
+        from ui.keys import cancel_keys, move_keys
 
         key = event.sym
 
@@ -59,7 +61,7 @@ class GalaxyMapState(State):
             self.camera_gy += dy
             return True
 
-        return True
+        return False
 
     # ------------------------------------------------------------------
     # Rendering
@@ -74,11 +76,11 @@ class GalaxyMapState(State):
 
         # Header — show current system name in full
         current_name = self.galaxy.current_system
-        console.print(x=2, y=1, string=f"GALAXY MAP — {current_name}",
-                       fg=(255, 255, 100))
+        console.print(x=2, y=1, string=f"GALAXY MAP — {current_name}", fg=(255, 255, 100))
         console.print(
-            x=2, y=ch - 1,
-            string="[ARROWS] Scroll  [C] Center  [H] Home  [ESC] Back",
+            x=2,
+            y=ch - 1,
+            string="[ARROWS] Scroll  [C] Center  [Shift+H] Home  [ESC] Back",
             fg=(80, 80, 80),
         )
 
@@ -92,7 +94,7 @@ class GalaxyMapState(State):
         home_name = galaxy.home_system
 
         # --- connections (lines behind nodes) ---
-        drawn_edges: Set[Tuple[str, str]] = set()
+        drawn_edges: set[tuple[str, str]] = set()
         for name, sys in galaxy.systems.items():
             for nb_name in sys.connections:
                 edge = (min(name, nb_name), max(name, nb_name))
@@ -100,12 +102,11 @@ class GalaxyMapState(State):
                     continue
                 drawn_edges.add(edge)
                 nb = galaxy.systems[nb_name]
-                self._draw_connection(console, sys, nb,
-                                      mid_x, mid_y, rx0, ry0, rx1, ry1)
+                self._draw_connection(console, sys, nb, mid_x, mid_y, rx0, ry0, rx1, ry1)
 
         # --- nodes + labels ---
         # Collect label rects first so we can skip overlapping ones.
-        label_rects: list[Tuple[int, int, int]] = []  # (lx, ly, length)
+        label_rects: list[tuple[int, int, int]] = []  # (lx, ly, length)
 
         for name, sys in galaxy.systems.items():
             sx = mid_x + (sys.gx - self.camera_gx) * _CELL_W
@@ -118,7 +119,7 @@ class GalaxyMapState(State):
                 char, fg = "@", (255, 255, 100)
             elif name == home_name:
                 char, fg = "H", (100, 255, 100)
-            elif getattr(galaxy, 'dreadnought_system', None) and name == galaxy.dreadnought_system:
+            elif getattr(galaxy, "dreadnought_system", None) and name == galaxy.dreadnought_system:
                 char, fg = "D", (255, 80, 80)
             else:
                 char, fg = "*", (150, 150, 200)
@@ -145,9 +146,16 @@ class GalaxyMapState(State):
             console.print(x=lx, y=ly, string=label, fg=label_color)
 
     def _draw_connection(
-        self, console: Any, sys_a: Any, sys_b: Any,
-        mid_x: int, mid_y: int,
-        x0: int, y0: int, x1: int, y1: int,
+        self,
+        console: Any,
+        sys_a: StarSystem,
+        sys_b: StarSystem,
+        mid_x: int,
+        mid_y: int,
+        x0: int,
+        y0: int,
+        x1: int,
+        y1: int,
     ) -> None:
         """Draw an ASCII line between two systems using direction-aware stepping."""
         ax = mid_x + (sys_a.gx - self.camera_gx) * _CELL_W

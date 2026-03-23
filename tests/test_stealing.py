@@ -1,21 +1,24 @@
 """Tests for enemy pickpocketing / item stealing (Emergent Interaction #2)."""
+
 from unittest.mock import patch
 
-from tests.conftest import (
-    make_creature, make_engine, make_heal_item, make_weapon,
-    make_melee_weapon, DEFAULT_AI_CONFIG,
-)
-from game.entity import Entity, Fighter
-from game.loadout import Loadout
 from game.actions import MeleeAction
+from game.loadout import Loadout
+from tests.conftest import (
+    DEFAULT_AI_CONFIG,
+    make_creature,
+    make_engine,
+    make_heal_item,
+    make_melee_weapon,
+    make_weapon,
+)
 
 
 def _pirate(x=4, y=5, **kw):
     """Create a pirate creature with can_steal=True."""
     cfg = dict(DEFAULT_AI_CONFIG, can_steal=True, flee_threshold=0.3)
     cfg.update(kw.pop("ai_config", {}))
-    return make_creature(x=x, y=y, name="Pirate", power=3, ai_config=cfg,
-                         organic=True, **kw)
+    return make_creature(x=x, y=y, name="Pirate", power=3, ai_config=cfg, organic=True, **kw)
 
 
 def _engine_with_pirate(pirate=None):
@@ -36,6 +39,7 @@ def _force_steal(enabled=True):
 
 
 # ---- Basic steal mechanics ----
+
 
 class TestStealOnMeleeHit:
     def test_steal_transfers_item_from_player_to_enemy(self):
@@ -177,6 +181,7 @@ class TestStealOnMeleeHit:
 
 # ---- Stolen loot tracking ----
 
+
 class TestStolenLootTracking:
     def test_stolen_item_tracked_on_entity(self):
         """Stolen items are tracked in entity.stolen_loot."""
@@ -204,9 +209,7 @@ class TestStolenLootTracking:
 
     def test_stolen_loot_cleaned_when_item_consumed(self):
         """When pirate uses a stolen consumable, stolen_loot is cleaned up."""
-        engine, player, pirate = _engine_with_pirate(
-            pirate=_pirate(hp=10)
-        )
+        engine, player, pirate = _engine_with_pirate(pirate=_pirate(hp=10))
         medkit = make_heal_item(value=3)
         pirate.inventory.append(medkit)
         pirate.stolen_loot = [medkit]
@@ -221,6 +224,7 @@ class TestStolenLootTracking:
 
 
 # ---- Melee power recalc after steal ----
+
 
 class TestMeleePowerRecalcAfterSteal:
     def test_pirate_gets_melee_bonus_from_stolen_weapon(self):
@@ -239,12 +243,11 @@ class TestMeleePowerRecalcAfterSteal:
 
 # ---- Flee urgency with stolen loot ----
 
+
 class TestFleeUrgencyWithStolenLoot:
     def test_stolen_loot_boosts_flee_threshold(self):
         """Pirates with stolen loot flee at a higher HP ratio."""
-        engine, player, pirate = _engine_with_pirate(
-            pirate=_pirate(hp=10, ai_config={"flee_threshold": 0.3})
-        )
+        engine, player, pirate = _engine_with_pirate(pirate=_pirate(hp=10, ai_config={"flee_threshold": 0.3}))
         pirate.ai_state = "hunting"
         pirate.ai_target = (player.x, player.y)
 
@@ -261,9 +264,7 @@ class TestFleeUrgencyWithStolenLoot:
 
     def test_no_flee_boost_without_stolen_loot(self):
         """Pirates without stolen loot use normal flee threshold."""
-        engine, player, pirate = _engine_with_pirate(
-            pirate=_pirate(x=6, y=5, hp=10, ai_config={"flee_threshold": 0.3})
-        )
+        engine, player, pirate = _engine_with_pirate(pirate=_pirate(x=6, y=5, hp=10, ai_config={"flee_threshold": 0.3}))
         pirate.ai_state = "hunting"
         pirate.ai_target = (player.x, player.y)
         pirate.stolen_loot = []
@@ -277,10 +278,12 @@ class TestFleeUrgencyWithStolenLoot:
 
 # ---- Scanner integration ----
 
+
 class TestScannerShowsStolenItems:
     def test_tier3_scanner_shows_stolen_tag(self):
         """Tier 3 scanner labels stolen items in creature format."""
         from game.scanner import _format_creature
+
         pirate = _pirate()
         medkit = make_heal_item()
         pirate.inventory.append(medkit)
@@ -292,6 +295,7 @@ class TestScannerShowsStolenItems:
     def test_tier2_scanner_does_not_show_stolen(self):
         """Tier 2 scanner does not reveal stolen items."""
         from game.scanner import _format_creature
+
         pirate = _pirate()
         medkit = make_heal_item()
         pirate.inventory.append(medkit)

@@ -1,12 +1,13 @@
 """Tests for dropping items from inventory."""
+
 import tcod.event
 
+from game.actions import DropAction
 from game.entity import Entity, Fighter
 from game.loadout import Loadout
-from game.actions import DropAction
+from tests.conftest import MockEngine, make_arena, make_engine
 from ui.inventory_state import InventoryState
 from ui.tactical_state import TacticalState
-from tests.conftest import make_arena, make_engine, MockEngine
 
 
 class FakeEvent:
@@ -15,7 +16,7 @@ class FakeEvent:
 
 
 def _press(state, engine, sym):
-    return state.ev_keydown(engine, FakeEvent(sym))
+    return state.ev_key(engine, FakeEvent(sym))
 
 
 # --- DropAction: tile selection logic ---

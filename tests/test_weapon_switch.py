@@ -1,4 +1,5 @@
 """Tests for weapon management via loadout model."""
+
 from game.entity import Entity, Fighter
 from game.helpers import get_equipped_ranged_weapon
 from game.loadout import Loadout
@@ -9,8 +10,12 @@ def _ranged(name="Blaster", ammo=5, range_=5, value=3):
     return Entity(
         name=name,
         item={
-            "type": "weapon", "weapon_class": "ranged",
-            "value": value, "range": range_, "ammo": ammo, "max_ammo": 20,
+            "type": "weapon",
+            "weapon_class": "ranged",
+            "value": value,
+            "range": range_,
+            "ammo": ammo,
+            "max_ammo": 20,
         },
     )
 

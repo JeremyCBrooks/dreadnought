@@ -1,11 +1,17 @@
 """Tests for action classes."""
-from game.entity import Entity, Fighter
+
 from game.actions import (
-    MovementAction, BumpAction, MeleeAction, WaitAction, PickupAction, DropAction,
+    BumpAction,
+    DropAction,
+    MeleeAction,
+    MovementAction,
+    PickupAction,
     ToggleDoorAction,
+    WaitAction,
 )
+from game.entity import Entity, Fighter
+from tests.conftest import MockEngine, make_arena
 from world import tile_types
-from tests.conftest import make_arena, MockEngine
 
 
 def test_movement_into_floor():
@@ -71,8 +77,7 @@ def test_drop():
 
 def test_movement_blocked_by_interactable():
     gm = make_arena()
-    console = Entity(x=6, y=5, name="Console", blocks_movement=False,
-                     interactable={"kind": "console"})
+    console = Entity(x=6, y=5, name="Console", blocks_movement=False, interactable={"kind": "console"})
     p = Entity(x=5, y=5, fighter=Fighter(10, 10, 0, 1))
     gm.entities.extend([p, console])
     MovementAction(1, 0).perform(MockEngine(gm, p), p)
@@ -81,8 +86,7 @@ def test_movement_blocked_by_interactable():
 
 def test_bump_blocked_by_interactable():
     gm = make_arena()
-    crate = Entity(x=6, y=5, name="Crate", blocks_movement=False,
-                   interactable={"kind": "crate"})
+    crate = Entity(x=6, y=5, name="Crate", blocks_movement=False, interactable={"kind": "crate"})
     p = Entity(x=5, y=5, fighter=Fighter(10, 10, 0, 1))
     gm.entities.extend([p, crate])
     BumpAction(1, 0).perform(MockEngine(gm, p), p)
@@ -136,8 +140,7 @@ def test_wait_consumes_turn():
 
 def test_bump_into_interactable_does_not_consume_turn():
     gm = make_arena()
-    crate = Entity(x=6, y=5, name="Crate", blocks_movement=False,
-                   interactable={"kind": "crate"})
+    crate = Entity(x=6, y=5, name="Crate", blocks_movement=False, interactable={"kind": "crate"})
     p = Entity(x=5, y=5, fighter=Fighter(10, 10, 0, 1))
     gm.entities.extend([p, crate])
     assert BumpAction(1, 0).perform(MockEngine(gm, p), p) == 0

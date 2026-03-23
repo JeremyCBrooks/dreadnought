@@ -1,11 +1,12 @@
 """Tests for scanner limited uses (1-3 random charges, unknown to player)."""
+
 import random
 
-from game.entity import Entity, Fighter
-from game.scanner import perform_area_scan
-from game.loadout import Loadout
 from game.ai import CreatureAI
-from tests.conftest import make_arena, MockEngine
+from game.entity import Entity, Fighter
+from game.loadout import Loadout
+from game.scanner import perform_area_scan
+from tests.conftest import MockEngine, make_arena
 
 
 def _make_engine_with_scanner(uses=2, tier=1, scan_range=8):
@@ -24,6 +25,7 @@ def _make_engine_with_scanner(uses=2, tier=1, scan_range=8):
 
 
 # ---- uses decrement on scan ----
+
 
 def test_scan_decrements_uses():
     """Each scan should decrement the scanner's uses by 1."""
@@ -67,8 +69,7 @@ def test_uses_not_shown_to_player():
     """Scan success messages should NOT reveal remaining uses count."""
     engine, scanner = _make_engine_with_scanner(uses=3)
     # Add something to scan so we get a contacts message
-    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180),
-                   fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
+    enemy = Entity(x=7, y=5, name="Bot", char="b", color=(127, 0, 180), fighter=Fighter(3, 3, 0, 2), ai=CreatureAI())
     engine.game_map.entities.append(enemy)
     perform_area_scan(engine, engine.player)
     msgs = [m[0] for m in engine.message_log.messages]
@@ -80,12 +81,19 @@ def test_uses_not_shown_to_player():
 
 # ---- spawning assigns random uses ----
 
+
 def test_build_item_data_assigns_uses_to_scanner():
     """build_item_data for a scanner should assign 'uses' between 1 and 3."""
     from data.items import build_item_data
+
     defn = {
-        "char": "]", "color": [100, 200, 255], "name": "Basic Scanner",
-        "scanner_tier": 1, "range": 8, "type": "scanner", "value": 1,
+        "char": "]",
+        "color": [100, 200, 255],
+        "name": "Basic Scanner",
+        "scanner_tier": 1,
+        "range": 8,
+        "type": "scanner",
+        "value": 1,
     }
     rng = random.Random(42)
     item_data = build_item_data(defn, rng=rng)
@@ -96,9 +104,15 @@ def test_build_item_data_assigns_uses_to_scanner():
 def test_build_item_data_uses_vary_with_rng():
     """Different RNG seeds should produce different use counts (across many seeds)."""
     from data.items import build_item_data
+
     defn = {
-        "char": "]", "color": [100, 200, 255], "name": "Basic Scanner",
-        "scanner_tier": 1, "range": 8, "type": "scanner", "value": 1,
+        "char": "]",
+        "color": [100, 200, 255],
+        "name": "Basic Scanner",
+        "scanner_tier": 1,
+        "range": 8,
+        "type": "scanner",
+        "value": 1,
     }
     values = set()
     for seed in range(100):
@@ -112,6 +126,7 @@ def test_build_item_data_uses_vary_with_rng():
 def test_build_item_data_non_scanner_no_uses():
     """Non-scanner items should NOT get uses assigned."""
     from data.items import build_item_data
+
     defn = {"type": "weapon", "value": 3, "char": "/", "color": [200, 200, 200], "name": "Pipe"}
     item_data = build_item_data(defn)
     assert "uses" not in item_data

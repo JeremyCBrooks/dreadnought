@@ -1,4 +1,5 @@
 """Environment hazard system: per-turn resource drain and damage."""
+
 from __future__ import annotations
 
 from collections import deque
@@ -7,6 +8,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from game.hazards import apply_hp_damage
+from ui.colors import HAZARD_ENV_DAMAGE, NEUTRAL
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -219,10 +221,7 @@ def trigger_decompression(
     else:
         # No pressure boundary (direct opening to space, or first event).
         # Fall back to range from breach source.
-        reach = {
-            pos: d for pos, d in breach_dist.items()
-            if d <= DECOMPRESSION_RANGE
-        }
+        reach = {pos: d for pos, d in breach_dist.items() if d <= DECOMPRESSION_RANGE}
 
     tagged = 0
     for entity in list(game_map.entities):
@@ -233,9 +232,7 @@ def trigger_decompression(
         if not entity.fighter and not entity.item:
             continue
         # Skip entities already in vacuum (no pressure differential)
-        if (vacuum_overlay is not None
-                and vacuum_overlay[entity.x, entity.y]
-                and not newly_exposed[entity.x, entity.y]):
+        if vacuum_overlay is not None and vacuum_overlay[entity.x, entity.y] and not newly_exposed[entity.x, entity.y]:
             continue
         pos = (entity.x, entity.y)
         # Must be within decompression range of the pressure boundary
@@ -252,7 +249,8 @@ def trigger_decompression(
 
     if tagged:
         engine.message_log.add_message(
-            "EXPLOSIVE DECOMPRESSION!", (255, 50, 50),
+            "EXPLOSIVE DECOMPRESSION!",
+            (255, 50, 50),
         )
     return pull_dirs
 
@@ -277,8 +275,7 @@ def process_decompression_step(
             # At breach source — find adjacent space tile to blow entity out
             for adx, ady in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 ax, ay = entity.x + adx, entity.y + ady
-                if (game_map.in_bounds(ax, ay)
-                        and game_map.tiles["tile_id"][ax, ay] == space_tid):
+                if game_map.in_bounds(ax, ay) and game_map.tiles["tile_id"][ax, ay] == space_tid:
                     direction = (adx, ady)
                     break
             else:
@@ -296,7 +293,7 @@ def process_decompression_step(
             if entity.fighter:
                 apply_hp_damage(entity.fighter, entity.decompression_moves)
             entity.decompression_moves = 0
-            continue
+            break
 
         # Allow decompression to blow entity into space
         if game_map.tiles["tile_id"][nx, ny] == space_tid:
@@ -313,9 +310,11 @@ def process_decompression_step(
             slid = False
             for sdx, sdy in ((dy, dx), (-dy, -dx)):
                 snx, sny = entity.x + sdx, entity.y + sdy
-                if (game_map.in_bounds(snx, sny)
-                        and game_map.tiles["walkable"][snx, sny]
-                        and not game_map.get_blocking_entity(snx, sny)):
+                if (
+                    game_map.in_bounds(snx, sny)
+                    and game_map.tiles["walkable"][snx, sny]
+                    and not game_map.get_blocking_entity(snx, sny)
+                ):
                     entity.x = snx
                     entity.y = sny
                     entity.decompression_moves -= 1
@@ -344,6 +343,27 @@ def process_decompression_step(
         game_map.invalidate_entity_index()
 
 
+def _affects_tile(
+    game_map: GameMap,
+    hazard_type: str,
+    x: int,
+    y: int,
+) -> bool:
+    """Return True if *hazard_type* affects the tile at (*x*, *y*).
+
+    Global hazards always affect every tile.  Spatial hazards require an
+    overlay with the tile marked.  Other hazards fall back to global when
+    no overlay exists.
+    """
+    if hazard_type in GLOBAL_HAZARDS:
+        return True
+    overlay = game_map.hazard_overlays.get(hazard_type)
+    if overlay is not None:
+        return bool(overlay[x, y])
+    # Spatial hazards require an overlay; no overlay = no effect.
+    return hazard_type not in SPATIAL_HAZARDS
+
+
 def apply_environment_tick(engine: Engine) -> None:
     """Apply one turn of environment effects to the player.
 
@@ -369,26 +389,13 @@ def apply_environment_tick(engine: Engine) -> None:
             continue
         if severity <= 0:
             continue
+        if not _affects_tile(engine.game_map, hazard_type, px, py):
+            continue
 
-        # Per-tile check: skip if player not on affected tile
-        if hazard_type not in GLOBAL_HAZARDS:
-            overlay = engine.game_map.hazard_overlays.get(hazard_type)
-            if overlay is not None and not overlay[px, py]:
+        if debug.DISABLE_OXYGEN:
+            if suit.has_protection(hazard_type):
                 continue
-            # Spatial hazards require an overlay; no overlay = no effect.
-            if overlay is None and hazard_type in SPATIAL_HAZARDS:
-                continue
-
-        max_turns = suit.resistances.get(hazard_type, 0)
-        current = suit.current_pools.get(hazard_type, 0)
-
-        if max_turns > 0 and current > 0:
-            if not debug.DISABLE_OXYGEN:
-                ticks = suit._drain_ticks.get(hazard_type, 0) + 1
-                if ticks >= suit.DRAIN_INTERVAL:
-                    suit.current_pools[hazard_type] = current - 1
-                    ticks = 0
-                suit._drain_ticks[hazard_type] = ticks
+        elif suit.drain_pool(hazard_type):
             continue
         # No resistance or pool depleted: deal 1 HP per turn
         if debug.GOD_MODE:
@@ -396,7 +403,7 @@ def apply_environment_tick(engine: Engine) -> None:
         apply_hp_damage(engine.player.fighter, 1)
         engine.message_log.add_message(
             f"WARNING: {hazard_type.replace('_', ' ').title()}! Taking damage!",
-            (255, 100, 100),
+            HAZARD_ENV_DAMAGE,
         )
 
 
@@ -422,26 +429,22 @@ def apply_environment_tick_entity(engine: Engine, entity: Entity) -> None:
             continue
         if severity <= 0:
             continue
-
-        # Non-organic entities are immune to vacuum
         if hazard_type == "vacuum" and not entity.organic:
             continue
-
-        # Per-tile check
-        if hazard_type not in GLOBAL_HAZARDS:
-            overlay = engine.game_map.hazard_overlays.get(hazard_type)
-            if overlay is not None and not overlay[ex, ey]:
-                continue
-            if overlay is None and hazard_type in SPATIAL_HAZARDS:
-                continue
+        if not _affects_tile(engine.game_map, hazard_type, ex, ey):
+            continue
 
         apply_hp_damage(entity.fighter, 1)
+        if entity.fighter.hp <= 0:
+            break
 
     if entity.fighter.hp <= 0:
         engine.message_log.add_message(
-            f"The {entity.name} succumbs to the environment!", (200, 200, 200)
+            f"The {entity.name} succumbs to the environment!",
+            NEUTRAL,
         )
         from game.gore import place_death_gore
+
         place_death_gore(engine.game_map, entity)
         if entity in engine.game_map.entities:
             engine.game_map.entities.remove(entity)

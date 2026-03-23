@@ -1,7 +1,8 @@
 """Shared helper functions used across game modules."""
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from game.entity import Entity
@@ -26,6 +27,7 @@ def get_equipped_ranged_weapon(entity: Entity) -> Entity | None:
             e.item
             and e.item.get("type") == "weapon"
             and e.item.get("weapon_class") == "ranged"
+            and not e.item.get("damaged")
             and e.item.get("ammo", 0) > 0
         ):
             return e
@@ -39,22 +41,10 @@ def has_ranged_weapon(entity: Entity) -> bool:
     For entities without a loadout (AI): falls back to inventory search.
     """
     if getattr(entity, "loadout", None):
-        for s in (entity.loadout.slot1, entity.loadout.slot2):
-            if (
-                s is not None
-                and s.item
-                and s.item.get("weapon_class") == "ranged"
-            ):
-                return True
-        return False
-    for e in entity.inventory:
-        if (
-            e.item
-            and e.item.get("type") == "weapon"
-            and e.item.get("weapon_class") == "ranged"
-        ):
-            return True
-    return False
+        return any(s.item and s.item.get("weapon_class") == "ranged" for s in entity.loadout.all_items())
+    return any(
+        e.item and e.item.get("type") == "weapon" and e.item.get("weapon_class") == "ranged" for e in entity.inventory
+    )
 
 
 def has_usable_ranged(entity: Entity) -> bool:
@@ -67,18 +57,23 @@ def is_door_closed(game_map: GameMap, x: int, y: int) -> bool:
     if not (0 <= x < game_map.width and 0 <= y < game_map.height):
         return False
     from world import tile_types
+
     return int(game_map.tiles["tile_id"][x, y]) == int(tile_types.door_closed["tile_id"])
 
 
 def is_door_open(game_map: GameMap, x: int, y: int) -> bool:
     """Return True if the tile at (x, y) is an open door."""
+    if not (0 <= x < game_map.width and 0 <= y < game_map.height):
+        return False
     from world import tile_types
+
     return int(game_map.tiles["tile_id"][x, y]) == int(tile_types.door_open["tile_id"])
 
 
-def get_door_tile_ids() -> Tuple[int, int]:
+def get_door_tile_ids() -> tuple[int, int]:
     """Return (closed_id, open_id) for standard doors."""
     from world import tile_types
+
     return (
         int(tile_types.door_closed["tile_id"]),
         int(tile_types.door_open["tile_id"]),
@@ -109,15 +104,12 @@ def has_clear_shot(game_map: GameMap, x1: int, y1: int, x2: int, y2: int) -> boo
         # Stop before we reach the target tile
         if cx == x2 and cy == y2:
             break
-        # Also stop if we already passed origin on first iteration
-        if cx == x1 and cy == y1:
-            continue
         if not game_map.tiles["walkable"][cx, cy]:
             return False
     return True
 
 
-def find_drop_tile(game_map: GameMap, x: int, y: int) -> tuple | None:
+def find_drop_tile(game_map: GameMap, x: int, y: int) -> tuple[int, int] | None:
     """Find a walkable tile at (x,y) or adjacent with no items."""
     if not game_map.get_items_at(x, y):
         return (x, y)
@@ -148,9 +140,12 @@ def recalc_melee_power_ai(entity: Entity) -> None:
         return
     best_value = 0
     for e in entity.inventory:
-        if (e.item and e.item.get("type") == "weapon"
-                and e.item.get("weapon_class") == "melee"
-                and not e.item.get("damaged")):
+        if (
+            e.item
+            and e.item.get("type") == "weapon"
+            and e.item.get("weapon_class") == "melee"
+            and not e.item.get("damaged")
+        ):
             best_value = max(best_value, e.item.get("value", 0))
     entity.fighter.power = entity.fighter.base_power + best_value
 

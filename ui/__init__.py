@@ -1,1 +1,1 @@
-# UI package: screens, menus
+"""UI package: screens, menus."""

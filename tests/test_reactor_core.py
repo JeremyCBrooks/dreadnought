@@ -1,11 +1,10 @@
 """Tests for reactor core pickup and fuel conversion."""
-import numpy as np
 
-from tests.conftest import make_arena, make_engine, MockEngine
+from game.actions import TakeReactorCoreAction
+from game.entity import Entity, Fighter
+from tests.conftest import MockEngine, make_engine
 from world import tile_types
 from world.game_map import GameMap
-from game.entity import Entity, Fighter
-from game.actions import TakeReactorCoreAction
 
 
 def _place_reactor(gm, x, y):
@@ -49,8 +48,7 @@ def test_take_reactor_core_blocked_full_inventory():
     engine.player.max_inventory = 6
     for i in range(engine.player.max_inventory):
         engine.player.inventory.append(
-            Entity(char="x", color=(255, 255, 255), name=f"Junk {i}",
-                   blocks_movement=False, item={"type": "junk"})
+            Entity(char="x", color=(255, 255, 255), name=f"Junk {i}", blocks_movement=False, item={"type": "junk"})
         )
     result = TakeReactorCoreAction(1, 0).perform(engine, engine.player)
     assert result == 0
@@ -73,9 +71,13 @@ def test_reactor_core_converts_to_fuel_on_exit():
     engine = make_engine()
     engine.ship = Ship(fuel=3, max_fuel=10)
     # Give player a reactor core item
-    core = Entity(char="\xea", color=(180, 80, 255), name="Reactor Core",
-                  blocks_movement=False,
-                  item={"type": "reactor_core", "value": 5})
+    core = Entity(
+        char="\xea",
+        color=(180, 80, 255),
+        name="Reactor Core",
+        blocks_movement=False,
+        item={"type": "reactor_core", "value": 5},
+    )
     engine.player.inventory.append(core)
 
     state = TacticalState.__new__(TacticalState)
@@ -97,9 +99,13 @@ def test_reactor_core_fuel_capped_at_max():
 
     engine = make_engine()
     engine.ship = Ship(fuel=7, max_fuel=10)
-    core = Entity(char="\xea", color=(180, 80, 255), name="Reactor Core",
-                  blocks_movement=False,
-                  item={"type": "reactor_core", "value": 5})
+    core = Entity(
+        char="\xea",
+        color=(180, 80, 255),
+        name="Reactor Core",
+        blocks_movement=False,
+        item={"type": "reactor_core", "value": 5},
+    )
     engine.player.inventory.append(core)
 
     state = TacticalState.__new__(TacticalState)
@@ -117,9 +123,13 @@ def test_reactor_core_no_conversion_without_ship():
 
     engine = make_engine()
     engine.ship = None
-    core = Entity(char="\xea", color=(180, 80, 255), name="Reactor Core",
-                  blocks_movement=False,
-                  item={"type": "reactor_core", "value": 5})
+    core = Entity(
+        char="\xea",
+        color=(180, 80, 255),
+        name="Reactor Core",
+        blocks_movement=False,
+        item={"type": "reactor_core", "value": 5},
+    )
     engine.player.inventory.append(core)
 
     state = TacticalState.__new__(TacticalState)
@@ -163,8 +173,8 @@ def test_take_reactor_core_marks_hazards_dirty():
     for x in range(width):
         for y in range(height):
             gm.tiles[x, y] = tile_types.wall
-    gm.tiles[1, 1] = tile_types.floor       # player
-    gm.tiles[2, 1] = tile_types.reactor_core # blocks vacuum
+    gm.tiles[1, 1] = tile_types.floor  # player
+    gm.tiles[2, 1] = tile_types.reactor_core  # blocks vacuum
     gm.tiles[3, 1] = tile_types.floor
     gm.tiles[4, 1] = tile_types.hull_breach
     gm.hull_breaches.append((4, 1))
@@ -197,6 +207,7 @@ def test_adjacent_interact_dirs_finds_reactor():
     engine = make_engine()
     _place_reactor(engine.game_map, 6, 5)
     from ui.tactical_state import TacticalState
+
     dirs = TacticalState._adjacent_interact_dirs(engine)
     assert any(kind == "reactor" for _, _, kind in dirs)
     assert any((dx, dy) == (1, 0) for dx, dy, _ in dirs)

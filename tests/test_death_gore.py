@@ -1,11 +1,12 @@
 """Tests for runtime death gore — blood/oil/debris placed when enemies die."""
+
 import random
 import random as _random
 
 import numpy as np
 
-from tests.conftest import make_arena, make_creature, MockEngine
 from game.entity import Entity, Fighter
+from tests.conftest import MockEngine, make_arena, make_creature
 from world import tile_types
 
 
@@ -25,6 +26,16 @@ def _count_modified_floor_tiles(gm):
 class TestPlaceDeathGore:
     """Unit tests for the place_death_gore helper."""
 
+    def test_no_fighter_is_noop(self):
+        """Entities without a Fighter component should not produce gore."""
+        from game.gore import place_death_gore
+
+        gm = _make_gore_map()
+        entity = Entity(x=10, y=10, char="?", name="Prop", blocks_movement=False)
+        assert entity.fighter is None
+        place_death_gore(gm, entity, random.Random(0))
+        assert _count_modified_floor_tiles(gm) == 0
+
     def test_death_tile_always_gets_gore(self):
         """The tile the enemy dies on must always receive gore."""
         from game.gore import place_death_gore
@@ -34,15 +45,19 @@ class TestPlaceDeathGore:
             gm = _make_gore_map()
             ex, ey = 10, 10
             enemy = Entity(
-                x=ex, y=ey, char="p", color=(200, 50, 50), name="Pirate",
+                x=ex,
+                y=ey,
+                char="p",
+                color=(200, 50, 50),
+                name="Pirate",
                 blocks_movement=True,
                 fighter=Fighter(hp=0, max_hp=1, defense=0, power=1),
-                organic=True, gore_color=(140, 20, 20),
+                organic=True,
+                gore_color=(140, 20, 20),
             )
             floor_ch = int(tile_types.floor["light"]["ch"])
             place_death_gore(gm, enemy, random.Random(seed))
-            assert int(gm.tiles["light"]["ch"][ex, ey]) != floor_ch, \
-                f"Death tile must always get gore (seed={seed})"
+            assert int(gm.tiles["light"]["ch"][ex, ey]) != floor_ch, f"Death tile must always get gore (seed={seed})"
 
     def test_organic_enemy_leaves_red_blood(self):
         """Organic enemies should leave red-tinted splatter on the floor."""
@@ -50,10 +65,15 @@ class TestPlaceDeathGore:
 
         gm = _make_gore_map()
         enemy = Entity(
-            x=5, y=5, char="p", color=(200, 50, 50), name="Pirate",
+            x=5,
+            y=5,
+            char="p",
+            color=(200, 50, 50),
+            name="Pirate",
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=5, defense=1, power=3),
-            organic=True, gore_color=(140, 20, 20),
+            organic=True,
+            gore_color=(140, 20, 20),
         )
         rng = random.Random(42)
         place_death_gore(gm, enemy, rng)
@@ -79,10 +99,15 @@ class TestPlaceDeathGore:
 
         gm = _make_gore_map()
         enemy = Entity(
-            x=5, y=5, char="b", color=(127, 0, 180), name="Bot",
+            x=5,
+            y=5,
+            char="b",
+            color=(127, 0, 180),
+            name="Bot",
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=3, defense=0, power=2),
-            organic=False, gore_color=(50, 50, 60),
+            organic=False,
+            gore_color=(50, 50, 60),
         )
         rng = random.Random(42)
         place_death_gore(gm, enemy, rng)
@@ -110,10 +135,15 @@ class TestPlaceDeathGore:
         gm = _make_gore_map()
         ex, ey = 10, 10
         enemy = Entity(
-            x=ex, y=ey, char="p", color=(200, 50, 50), name="Pirate",
+            x=ex,
+            y=ey,
+            char="p",
+            color=(200, 50, 50),
+            name="Pirate",
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=5, defense=1, power=3),
-            organic=True, gore_color=(140, 20, 20),
+            organic=True,
+            gore_color=(140, 20, 20),
         )
         rng = random.Random(42)
         floor_ch = int(tile_types.floor["light"]["ch"])
@@ -127,8 +157,9 @@ class TestPlaceDeathGore:
                 if int(gm.tiles["tile_id"][x, y]) != floor_tid:
                     continue
                 if int(gm.tiles["light"]["ch"][x, y]) != floor_ch:
-                    assert abs(x - ex) <= 1 and abs(y - ey) <= 1, \
+                    assert abs(x - ex) <= 1 and abs(y - ey) <= 1, (
                         f"Gore at ({x},{y}) is too far from death at ({ex},{ey})"
+                    )
 
     def test_gore_only_on_floor_tiles(self):
         """Gore should not modify wall tiles."""
@@ -137,10 +168,15 @@ class TestPlaceDeathGore:
         gm = _make_gore_map()
         # Place enemy near wall edge
         enemy = Entity(
-            x=1, y=1, char="p", color=(200, 50, 50), name="Pirate",
+            x=1,
+            y=1,
+            char="p",
+            color=(200, 50, 50),
+            name="Pirate",
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=5, defense=1, power=3),
-            organic=True, gore_color=(140, 20, 20),
+            organic=True,
+            gore_color=(140, 20, 20),
         )
         wall_tid = int(tile_types.wall["tile_id"])
         orig_wall_fg = gm.tiles["light"]["fg"][gm.tiles["tile_id"] == wall_tid].copy()
@@ -149,8 +185,7 @@ class TestPlaceDeathGore:
         place_death_gore(gm, enemy, rng)
 
         new_wall_fg = gm.tiles["light"]["fg"][gm.tiles["tile_id"] == wall_tid]
-        assert np.array_equal(orig_wall_fg, new_wall_fg), \
-            "Gore should not modify wall tiles"
+        assert np.array_equal(orig_wall_fg, new_wall_fg), "Gore should not modify wall tiles"
 
     def test_gore_allowed_under_items(self):
         """Gore modifies the tile underneath items — items render on top."""
@@ -160,24 +195,32 @@ class TestPlaceDeathGore:
         ex, ey = 10, 10
         # Place an item on a neighbour tile
         item = Entity(
-            x=ex + 1, y=ey, char="!", color=(0, 255, 0),
-            name="Medkit", blocks_movement=False,
+            x=ex + 1,
+            y=ey,
+            char="!",
+            color=(0, 255, 0),
+            name="Medkit",
+            blocks_movement=False,
             item={"type": "heal", "value": 5},
         )
         gm.entities.append(item)
 
         enemy = Entity(
-            x=ex, y=ey, char="p", color=(200, 50, 50), name="Pirate",
+            x=ex,
+            y=ey,
+            char="p",
+            color=(200, 50, 50),
+            name="Pirate",
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=5, defense=1, power=3),
-            organic=True, gore_color=(140, 20, 20),
+            organic=True,
+            gore_color=(140, 20, 20),
         )
         rng = random.Random(42)
 
         place_death_gore(gm, enemy, rng)
 
         # The item tile CAN receive gore (tile data, not entity)
-        floor_ch = int(tile_types.floor["light"]["ch"])
         gore_found = _count_modified_floor_tiles(gm) > 0
         assert gore_found, "Gore should be placed even when items are nearby"
         # The item entity is still present
@@ -199,10 +242,15 @@ class TestPlaceDeathGore:
                     gm.tiles[layer]["fg"][ex + dx, ey + dy] = (80, 80, 80)
 
         enemy = Entity(
-            x=ex, y=ey, char="p", color=(200, 50, 50), name="Pirate",
+            x=ex,
+            y=ey,
+            char="p",
+            color=(200, 50, 50),
+            name="Pirate",
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=5, defense=1, power=3),
-            organic=True, gore_color=(140, 20, 20),
+            organic=True,
+            gore_color=(140, 20, 20),
         )
         rng = random.Random(42)
 
@@ -214,8 +262,7 @@ class TestPlaceDeathGore:
                 if dx == 0 and dy == 0:
                     continue
                 fg = gm.tiles["light"]["fg"][ex + dx, ey + dy]
-                assert tuple(fg) == (80, 80, 80), \
-                    f"Decorated tile ({ex+dx},{ey+dy}) should not be overwritten"
+                assert tuple(fg) == (80, 80, 80), f"Decorated tile ({ex + dx},{ey + dy}) should not be overwritten"
 
     def test_gore_scales_with_max_hp(self):
         """Higher max_hp enemies should produce more gore tiles."""
@@ -225,17 +272,21 @@ class TestPlaceDeathGore:
         for max_hp in (1, 5):
             gm = _make_gore_map()
             enemy = Entity(
-                x=10, y=10, char="x", color=(200, 50, 50), name="Test",
+                x=10,
+                y=10,
+                char="x",
+                color=(200, 50, 50),
+                name="Test",
                 blocks_movement=True,
                 fighter=Fighter(hp=0, max_hp=max_hp, defense=0, power=1),
-                organic=True, gore_color=(140, 20, 20),
+                organic=True,
+                gore_color=(140, 20, 20),
             )
             rng = random.Random(42)
             place_death_gore(gm, enemy, rng)
             counts[max_hp] = _count_modified_floor_tiles(gm)
 
-        assert counts[5] > counts[1], \
-            f"max_hp=5 should produce more gore ({counts[5]}) than max_hp=1 ({counts[1]})"
+        assert counts[5] > counts[1], f"max_hp=5 should produce more gore ({counts[5]}) than max_hp=1 ({counts[1]})"
 
     def test_gore_modifies_all_lighting_layers(self):
         """Gore should update dark, light, and lit layers."""
@@ -243,10 +294,15 @@ class TestPlaceDeathGore:
 
         gm = _make_gore_map()
         enemy = Entity(
-            x=10, y=10, char="p", color=(200, 50, 50), name="Pirate",
+            x=10,
+            y=10,
+            char="p",
+            color=(200, 50, 50),
+            name="Pirate",
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=5, defense=1, power=3),
-            organic=True, gore_color=(140, 20, 20),
+            organic=True,
+            gore_color=(140, 20, 20),
         )
         rng = random.Random(42)
         place_death_gore(gm, enemy, rng)
@@ -260,9 +316,9 @@ class TestPlaceDeathGore:
                     continue
                 if int(gm.tiles["light"]["ch"][nx, ny]) != floor_ch:
                     # This tile was modified — check all layers
-                    assert int(gm.tiles["dark"]["ch"][nx, ny]) != int(tile_types.floor["dark"]["ch"]) or \
-                           int(gm.tiles["lit"]["ch"][nx, ny]) != int(tile_types.floor["lit"]["ch"]), \
-                        "Gore should modify dark/lit layers too"
+                    assert int(gm.tiles["dark"]["ch"][nx, ny]) != int(tile_types.floor["dark"]["ch"]) or int(
+                        gm.tiles["lit"]["ch"][nx, ny]
+                    ) != int(tile_types.floor["lit"]["ch"]), "Gore should modify dark/lit layers too"
                     return
         assert False, "Should have found at least one gore tile"
 
@@ -272,10 +328,15 @@ class TestPlaceDeathGore:
 
         gm = _make_gore_map()
         enemy = Entity(
-            x=10, y=10, char="p", color=(200, 50, 50), name="Pirate",
+            x=10,
+            y=10,
+            char="p",
+            color=(200, 50, 50),
+            name="Pirate",
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=5, defense=1, power=3),
-            organic=True, gore_color=(140, 20, 20),
+            organic=True,
+            gore_color=(140, 20, 20),
         )
         rng = random.Random(42)
         floor_tid = int(tile_types.floor["tile_id"])
@@ -283,8 +344,7 @@ class TestPlaceDeathGore:
 
         place_death_gore(gm, enemy, rng)
 
-        assert np.all(gm.tiles["walkable"][is_floor]), \
-            "Gore should not change floor walkability"
+        assert np.all(gm.tiles["walkable"][is_floor]), "Gore should not change floor walkability"
 
     def test_default_gore_color_for_organic(self):
         """Entity with no explicit gore_color should default based on organic flag."""
@@ -292,7 +352,11 @@ class TestPlaceDeathGore:
 
         gm = _make_gore_map()
         enemy = Entity(
-            x=10, y=10, char="r", color=(127, 127, 0), name="Rat",
+            x=10,
+            y=10,
+            char="r",
+            color=(127, 127, 0),
+            name="Rat",
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=1, defense=0, power=1),
             organic=True,
@@ -300,8 +364,7 @@ class TestPlaceDeathGore:
         rng = random.Random(42)
         place_death_gore(gm, enemy, rng)
 
-        assert _count_modified_floor_tiles(gm) > 0, \
-            "Should place gore even without explicit gore_color"
+        assert _count_modified_floor_tiles(gm) > 0, "Should place gore even without explicit gore_color"
 
     def test_alien_green_blood(self):
         """Aliens with green gore_color should leave green-tinted splatter."""
@@ -309,10 +372,15 @@ class TestPlaceDeathGore:
 
         gm = _make_gore_map()
         enemy = Entity(
-            x=10, y=10, char="a", color=(0, 200, 0), name="Alien",
+            x=10,
+            y=10,
+            char="a",
+            color=(0, 200, 0),
+            name="Alien",
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=4, defense=0, power=2),
-            organic=True, gore_color=(20, 140, 20),
+            organic=True,
+            gore_color=(20, 140, 20),
         )
         rng = random.Random(42)
         place_death_gore(gm, enemy, rng)
@@ -338,6 +406,7 @@ class TestGoreOnAlternateFloors:
     def _make_arena_with_tile(self, tile_type, w=20, h=20):
         """Create a GameMap with the given tile for interior."""
         from world.game_map import GameMap
+
         gm = GameMap(w, h)
         for x in range(1, w - 1):
             for y in range(1, h - 1):
@@ -365,14 +434,18 @@ class TestGoreOnAlternateFloors:
 
         gm = self._make_arena_with_tile(tile_types.dirt_floor)
         enemy = Entity(
-            x=10, y=10, char="p", color=(200, 50, 50), name="Pirate",
+            x=10,
+            y=10,
+            char="p",
+            color=(200, 50, 50),
+            name="Pirate",
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=5, defense=1, power=3),
-            organic=True, gore_color=(140, 20, 20),
+            organic=True,
+            gore_color=(140, 20, 20),
         )
         place_death_gore(gm, enemy, _random.Random(42))
-        assert self._has_gore(gm, tile_types.dirt_floor, 10, 10), \
-            "Gore should appear on dirt_floor tiles (colonies)"
+        assert self._has_gore(gm, tile_types.dirt_floor, 10, 10), "Gore should appear on dirt_floor tiles (colonies)"
 
     def test_gore_on_rock_floor(self):
         """Enemies killed on asteroid rock floors should leave gore."""
@@ -380,14 +453,17 @@ class TestGoreOnAlternateFloors:
 
         gm = self._make_arena_with_tile(tile_types.rock_floor)
         enemy = Entity(
-            x=10, y=10, char="b", color=(127, 0, 180), name="Bot",
+            x=10,
+            y=10,
+            char="b",
+            color=(127, 0, 180),
+            name="Bot",
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=3, defense=0, power=2),
             organic=False,
         )
         place_death_gore(gm, enemy, _random.Random(42))
-        assert self._has_gore(gm, tile_types.rock_floor, 10, 10), \
-            "Gore should appear on rock_floor tiles (asteroids)"
+        assert self._has_gore(gm, tile_types.rock_floor, 10, 10), "Gore should appear on rock_floor tiles (asteroids)"
 
     def test_gore_on_ground_tile(self):
         """Enemies killed on ground tiles should leave gore."""
@@ -395,14 +471,18 @@ class TestGoreOnAlternateFloors:
 
         gm = self._make_arena_with_tile(tile_types.ground)
         enemy = Entity(
-            x=10, y=10, char="a", color=(0, 200, 0), name="Alien",
+            x=10,
+            y=10,
+            char="a",
+            color=(0, 200, 0),
+            name="Alien",
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=4, defense=0, power=2),
-            organic=True, gore_color=(20, 140, 20),
+            organic=True,
+            gore_color=(20, 140, 20),
         )
         place_death_gore(gm, enemy, _random.Random(42))
-        assert self._has_gore(gm, tile_types.ground, 10, 10), \
-            "Gore should appear on ground tiles"
+        assert self._has_gore(gm, tile_types.ground, 10, 10), "Gore should appear on ground tiles"
 
 
 class TestDeathIntegration:
@@ -415,10 +495,15 @@ class TestDeathIntegration:
         gm = _make_gore_map()
         player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 3))
         enemy = Entity(
-            x=6, y=5, char="p", color=(200, 50, 50), name="Pirate",
+            x=6,
+            y=5,
+            char="p",
+            color=(200, 50, 50),
+            name="Pirate",
             blocks_movement=True,
             fighter=Fighter(hp=1, max_hp=5, defense=0, power=2),
-            organic=True, gore_color=(140, 20, 20),
+            organic=True,
+            gore_color=(140, 20, 20),
         )
         gm.entities.extend([player, enemy])
         engine = MockEngine(gm, player)
@@ -426,8 +511,7 @@ class TestDeathIntegration:
         _apply_damage_and_death(engine, player, enemy, damage=5)
 
         assert enemy not in gm.entities
-        assert _count_modified_floor_tiles(gm) > 0, \
-            "Killing enemy should leave gore on the floor"
+        assert _count_modified_floor_tiles(gm) > 0, "Killing enemy should leave gore on the floor"
 
     def test_env_kill_places_gore(self):
         """Enemies killed by environment damage should leave gore."""
@@ -466,12 +550,19 @@ class TestDeathIntegration:
 
         gm = _make_gore_map()
         player = Entity(
-            x=5, y=5, name="Player",
+            x=5,
+            y=5,
+            name="Player",
             fighter=Fighter(hp=1, max_hp=10, defense=0, power=1),
-            organic=True, gore_color=(140, 20, 20),
+            organic=True,
+            gore_color=(140, 20, 20),
         )
         enemy = Entity(
-            x=6, y=5, char="p", color=(200, 50, 50), name="Pirate",
+            x=6,
+            y=5,
+            char="p",
+            color=(200, 50, 50),
+            name="Pirate",
             blocks_movement=True,
             fighter=Fighter(hp=5, max_hp=5, defense=0, power=3),
         )
@@ -484,5 +575,4 @@ class TestDeathIntegration:
 
         _apply_damage_and_death(engine, enemy, player, damage=10)
 
-        assert np.array_equal(gm.tiles["light"]["ch"][is_floor], orig_chars), \
-            "Player death should not place gore"
+        assert np.array_equal(gm.tiles["light"]["ch"][is_floor], orig_chars), "Player death should not place gore"

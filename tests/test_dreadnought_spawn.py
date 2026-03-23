@@ -1,17 +1,16 @@
 """Tests for Dreadnought spawning, core item, and victory mechanics."""
-import pytest
+
 from collections import deque
 
-from world.galaxy import Galaxy, DREADNOUGHT_SYSTEM_NAME, DREADNOUGHT_LOCATION_NAME
-from game.ship import Ship
-from game.entity import Entity, Fighter
 from engine.game_state import Engine
-from engine.message_log import MessageLog
-
+from game.entity import Entity, Fighter
+from game.ship import Ship
+from world.galaxy import DREADNOUGHT_LOCATION_NAME, DREADNOUGHT_SYSTEM_NAME, Galaxy
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _expand_all(galaxy: Galaxy, max_iter: int = 50) -> None:
     """Expand all frontiers so the galaxy is fully generated."""
@@ -48,6 +47,7 @@ def _make_engine_with_galaxy(seed: int = 42) -> tuple[Engine, Galaxy]:
 # ---------------------------------------------------------------------------
 # Galaxy spawn tests
 # ---------------------------------------------------------------------------
+
 
 class TestSpawnDreadnought:
     def test_spawn_creates_system(self):
@@ -137,13 +137,14 @@ class TestSpawnDreadnought:
 # Core item tests
 # ---------------------------------------------------------------------------
 
+
 class TestDreadnoughtCore:
     def test_extract_core_yields_dreadnought_core(self):
         """Extracting reactor core in Dreadnought location yields dreadnought_core item."""
         from game.actions import TakeReactorCoreAction
-        from world.galaxy import Location
-        from world import tile_types
         from tests.conftest import make_arena
+        from world import tile_types
+        from world.galaxy import Location
 
         engine = Engine()
         engine.ship = Ship()
@@ -158,6 +159,7 @@ class TestDreadnoughtCore:
 
         # Simulate being in a Dreadnought location via TacticalState
         from ui.tactical_state import TacticalState
+
         loc = Location(DREADNOUGHT_LOCATION_NAME, "derelict", system_name=DREADNOUGHT_SYSTEM_NAME)
         loc.is_dreadnought = True
         ts = TacticalState(location=loc, depth=0)
@@ -173,9 +175,9 @@ class TestDreadnoughtCore:
     def test_extract_core_normal_location_yields_reactor_core(self):
         """Extracting reactor core in normal location yields regular reactor_core."""
         from game.actions import TakeReactorCoreAction
-        from world.galaxy import Location
-        from world import tile_types
         from tests.conftest import make_arena
+        from world import tile_types
+        from world.galaxy import Location
 
         engine = Engine()
         engine.ship = Ship()
@@ -188,6 +190,7 @@ class TestDreadnoughtCore:
         engine.player = player
 
         from ui.tactical_state import TacticalState
+
         loc = Location("Some Derelict", "derelict", system_name="SomeSys")
         ts = TacticalState(location=loc, depth=0)
         engine._state_stack.append(ts)
@@ -213,9 +216,12 @@ class TestDreadnoughtCore:
 
         # Set up minimal game map and player with dreadnought_core
         from tests.conftest import make_arena
+
         gm = make_arena()
         core = Entity(
-            char="*", color=(255, 0, 0), name="Dreadnought Core",
+            char="*",
+            color=(255, 0, 0),
+            name="Dreadnought Core",
             blocks_movement=False,
             item={"type": "dreadnought_core", "value": 99},
         )
@@ -241,7 +247,9 @@ class TestDreadnoughtCore:
         state = StrategicState(galaxy)
 
         core = Entity(
-            char="*", color=(255, 0, 0), name="Dreadnought Core",
+            char="*",
+            color=(255, 0, 0),
+            name="Dreadnought Core",
             blocks_movement=False,
             item={"type": "dreadnought_core"},
         )
@@ -251,6 +259,7 @@ class TestDreadnoughtCore:
 
         # Mock random to make drift jettison the core
         import random
+
         old_choice = random.choice
         random.choice = lambda seq: core if seq is engine.ship.cargo else old_choice(seq)
         old_choices = random.choices
@@ -265,20 +274,23 @@ class TestDreadnoughtCore:
             random.choices = old_choices
 
         from ui.game_over_state import GameOverState
+
         assert isinstance(engine._state_stack[-1], GameOverState)
         assert "CORE IS LOST" in engine._state_stack[-1].title
 
     def test_victory_on_home_with_core(self):
         """Arriving at home system with core in cargo triggers victory."""
-        from ui.strategic_state import StrategicState
         from tests.conftest import FakeEvent
+        from ui.strategic_state import StrategicState
 
         engine, galaxy = _make_engine_with_galaxy(seed=42)
         state = StrategicState(galaxy)
         engine._state_stack.append(state)
 
         core = Entity(
-            char="*", color=(255, 0, 0), name="Dreadnought Core",
+            char="*",
+            color=(255, 0, 0),
+            name="Dreadnought Core",
             blocks_movement=False,
             item={"type": "dreadnought_core"},
         )
@@ -302,22 +314,23 @@ class TestDreadnoughtCore:
         direction = ((dx > 0) - (dx < 0), (dy > 0) - (dy < 0))
 
         # Simulate keypress for that direction
-        import tcod.event
         from ui.keys import move_keys
+
         dir_to_key = {v: k for k, v in move_keys().items()}
         key = dir_to_key[direction]
         event = FakeEvent(sym=key)
-        state.ev_keydown(engine, event)
+        state.ev_key(engine, event)
 
         from ui.game_over_state import GameOverState
+
         assert isinstance(engine._state_stack[-1], GameOverState)
         assert engine._state_stack[-1].victory is True
         assert "VICTORY" in engine._state_stack[-1].title
 
     def test_no_victory_on_home_without_core(self):
         """Arriving home without dreadnought_core does NOT trigger victory."""
-        from ui.strategic_state import StrategicState
         from tests.conftest import FakeEvent
+        from ui.strategic_state import StrategicState
 
         engine, galaxy = _make_engine_with_galaxy(seed=42)
         state = StrategicState(galaxy)
@@ -325,7 +338,9 @@ class TestDreadnoughtCore:
 
         # Put a regular reactor_core in cargo — should not trigger victory
         regular = Entity(
-            char="*", color=(180, 80, 255), name="Reactor Core",
+            char="*",
+            color=(180, 80, 255),
+            name="Reactor Core",
             blocks_movement=False,
             item={"type": "reactor_core", "value": 5},
         )
@@ -345,12 +360,12 @@ class TestDreadnoughtCore:
         dy = home_sys.gy - current_sys.gy
         direction = ((dx > 0) - (dx < 0), (dy > 0) - (dy < 0))
 
-        import tcod.event
         from ui.keys import move_keys
+
         dir_to_key = {v: k for k, v in move_keys().items()}
         key = dir_to_key[direction]
         event = FakeEvent(sym=key)
-        state.ev_keydown(engine, event)
+        state.ev_key(engine, event)
 
         # Should still be on StrategicState, no victory
         assert engine._state_stack[-1] is state
@@ -358,19 +373,24 @@ class TestDreadnoughtCore:
     def test_cargo_transfer_blocked_for_dreadnought_core(self):
         """Dreadnought core cannot be transferred from cargo to personal inventory."""
         from ui.cargo_state import CargoState
-        from tests.conftest import FakeEvent
 
         engine = Engine()
         engine.ship = Ship()
         engine.mission_loadout = []
         engine._saved_player = {
-            "hp": 10, "max_hp": 10, "defense": 0,
-            "power": 1, "base_power": 1,
-            "inventory": [], "loadout": None,
+            "hp": 10,
+            "max_hp": 10,
+            "defense": 0,
+            "power": 1,
+            "base_power": 1,
+            "inventory": [],
+            "loadout": None,
         }
 
         core = Entity(
-            char="*", color=(255, 50, 50), name="Dreadnought Core",
+            char="*",
+            color=(255, 50, 50),
+            name="Dreadnought Core",
             blocks_movement=False,
             item={"type": "dreadnought_core", "value": 99},
         )
@@ -391,12 +411,13 @@ class TestDreadnoughtCore:
 # Trigger tests
 # ---------------------------------------------------------------------------
 
+
 class TestDreadnoughtTrigger:
     def test_reveal_on_sixth_nav_unit(self):
         """Dreadnought spawns after installing 6th nav unit on tactical exit."""
+        from tests.conftest import make_arena
         from ui.tactical_state import TacticalState
         from world.galaxy import Location
-        from tests.conftest import make_arena
 
         engine = Engine()
         engine.ship = Ship()
@@ -410,7 +431,9 @@ class TestDreadnoughtTrigger:
 
         gm = make_arena()
         nav = Entity(
-            char="n", color=(0, 255, 200), name="Nav Unit",
+            char="n",
+            color=(0, 255, 200),
+            name="Nav Unit",
             blocks_movement=False,
             item={"type": "nav_unit", "value": 1},
         )
@@ -427,9 +450,9 @@ class TestDreadnoughtTrigger:
 
     def test_no_reveal_before_six(self):
         """Dreadnought does not spawn with fewer than 6 nav units."""
+        from tests.conftest import make_arena
         from ui.tactical_state import TacticalState
         from world.galaxy import Location
-        from tests.conftest import make_arena
 
         engine = Engine()
         engine.ship = Ship()
@@ -443,7 +466,9 @@ class TestDreadnoughtTrigger:
 
         gm = make_arena()
         nav = Entity(
-            char="n", color=(0, 255, 200), name="Nav Unit",
+            char="n",
+            color=(0, 255, 200),
+            name="Nav Unit",
             blocks_movement=False,
             item={"type": "nav_unit", "value": 1},
         )

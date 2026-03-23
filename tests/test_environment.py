@@ -1,8 +1,10 @@
 """Tests for environment tick system."""
+
 import numpy as np
 
-from game.environment import apply_environment_tick
+from game.environment import _affects_tile, apply_environment_tick
 from game.suit import Suit
+from tests.conftest import make_arena
 from tests.conftest import make_engine as _make_engine
 
 DRAIN = Suit.DRAIN_INTERVAL
@@ -16,9 +18,7 @@ def _tick(engine, n=1):
 def _add_vacuum_overlay(engine):
     """Mark the entire map as vacuum-exposed so spatial checks pass."""
     gm = engine.game_map
-    gm.hazard_overlays["vacuum"] = np.full(
-        (gm.width, gm.height), fill_value=True, order="F"
-    )
+    gm.hazard_overlays["vacuum"] = np.full((gm.width, gm.height), fill_value=True, order="F")
     gm._hazards_dirty = False
 
 
@@ -105,3 +105,34 @@ def test_env_pool_gives_full_turns_protection():
     # Next tick: damage
     apply_environment_tick(engine)
     assert engine.player.fighter.hp == 9
+
+
+# -------------------------------------------------------------------
+# _affects_tile helper
+# -------------------------------------------------------------------
+
+
+class TestAffectsTile:
+    def test_global_hazard_always_affects(self):
+        gm = make_arena()
+        assert _affects_tile(gm, "low_gravity", 5, 5) is True
+
+    def test_spatial_hazard_without_overlay_no_effect(self):
+        gm = make_arena()
+        gm._hazards_dirty = False
+        assert _affects_tile(gm, "vacuum", 5, 5) is False
+
+    def test_spatial_hazard_with_overlay_true(self):
+        gm = make_arena()
+        gm.hazard_overlays["vacuum"] = np.full((gm.width, gm.height), fill_value=True, order="F")
+        assert _affects_tile(gm, "vacuum", 5, 5) is True
+
+    def test_spatial_hazard_with_overlay_false(self):
+        gm = make_arena()
+        gm.hazard_overlays["vacuum"] = np.full((gm.width, gm.height), fill_value=False, order="F")
+        assert _affects_tile(gm, "vacuum", 5, 5) is False
+
+    def test_non_spatial_hazard_without_overlay_falls_back_to_global(self):
+        """Non-spatial, non-global hazards with no overlay default to affecting."""
+        gm = make_arena()
+        assert _affects_tile(gm, "radiation", 5, 5) is True

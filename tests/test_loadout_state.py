@@ -1,11 +1,12 @@
 """Tests for cargo/inventory transfer flows on tactical entry/exit."""
+
 from engine.game_state import Engine
-from game.ship import Ship
 from game.entity import Entity, Fighter
-from game.suit import EVA_SUIT
 from game.loadout import Loadout
-from ui.briefing_state import BriefingState
+from game.ship import Ship
+from game.suit import EVA_SUIT
 from tests.conftest import make_arena
+from ui.briefing_state import BriefingState
 
 
 class FakeEvent:
@@ -23,21 +24,25 @@ class FakeLocation:
 def _make_engine_with_ship():
     engine = Engine()
     engine.ship = Ship()
-    engine.suit = EVA_SUIT
+    engine.suit = EVA_SUIT.copy()
     return engine
 
 
 def test_cargo_transfers_to_inventory_on_tactical_entry():
     """Mission loadout should transfer to player inventory when entering tactical."""
     engine = _make_engine_with_ship()
-    weapon = Entity(name="Blaster", item={"type": "weapon", "weapon_class": "ranged", "value": 3, "ammo": 5, "max_ammo": 20})
+    weapon = Entity(
+        name="Blaster",
+        item={"type": "weapon", "weapon_class": "ranged", "value": 3, "ammo": 5, "max_ammo": 20},
+    )
     heal = Entity(name="Med-kit", item={"type": "heal", "value": 5})
     import tcod.event
+
     state = BriefingState(location=FakeLocation(), depth=0)
     engine.push_state(state)
     # Set mission_loadout after push (on_enter clears it)
     engine.mission_loadout = [weapon, heal]
-    state.ev_keydown(engine, FakeEvent(tcod.event.KeySym.RETURN))
+    state.ev_key(engine, FakeEvent(tcod.event.KeySym.RETURN))
 
     # Player should have items and auto-equipped weapon
     assert engine.player is not None
@@ -66,6 +71,7 @@ def test_items_stay_with_player_on_exit():
     player.inventory.extend([heal, found])
 
     from ui.tactical_state import TacticalState
+
     state = TacticalState()
     state.on_exit(engine)
 

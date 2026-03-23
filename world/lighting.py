@@ -1,29 +1,25 @@
 """Light source definitions and light map computation."""
-from __future__ import annotations
 
 import math
 import time
 from dataclasses import dataclass, field
-from typing import Tuple, List
 
 import numpy as np
 
-
 LIGHT_SPILL_RADIUS = 3
 
+HAZARD_LIGHT_COLOR: tuple[int, int, int] = (200, 40, 20)
 
-HAZARD_LIGHT_COLOR: Tuple[int, int, int] = (200, 40, 20)
 
-
-@dataclass
+@dataclass(slots=True)
 class LightSource:
     x: int
     y: int
     radius: int
-    color: Tuple[int, int, int]
+    color: tuple[int, int, int]
     intensity: float = 1.0
     flicker: bool = False
-    base_color: Tuple[int, int, int] | None = field(default=None, repr=False)
+    base_color: tuple[int, int, int] | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if self.base_color is None:
@@ -34,7 +30,7 @@ def compute_light_map(
     width: int,
     height: int,
     tiles: np.ndarray,
-    light_sources: List[LightSource],
+    light_sources: list[LightSource],
 ) -> np.ndarray:
     """Compute an RGB light intensity map (float32, shape width x height x 3).
 
@@ -82,12 +78,10 @@ def compute_light_map(
             t_slot = int(now * 6 + phase)
             hash_val = ((t_slot * 2654435761) & 0xFFFFFFFF) / 0xFFFFFFFF  # 0-1
             # Sine waves for smooth oscillation between the jumps
-            wave = (
-                math.sin(now * 7.1 + phase) * 0.4
-                + math.sin(now * 17.3 + phase * 1.3) * 0.3
-            )
-            # Blend hash noise and wave; bias toward off
-            combined = hash_val * 0.6 + (0.5 + wave) * 0.4  # 0-1 range
+            wave = math.sin(now * 7.1 + phase) * 0.4 + math.sin(now * 17.3 + phase * 1.3) * 0.3
+            # Blend hash noise and wave; bias toward off.
+            # Wave can exceed [-0.5, 0.5] so clamp the result.
+            combined = max(0.0, min(1.0, hash_val * 0.6 + (0.5 + wave) * 0.4))
             # Sharp threshold: light is mostly off or mostly on
             if combined < 0.45:
                 effective_intensity = ls.intensity * combined * 0.3

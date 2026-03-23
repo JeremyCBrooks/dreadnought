@@ -1,35 +1,41 @@
 """Procedural dungeon generation: room-and-corridor algorithm."""
+
 from __future__ import annotations
 
-from collections import deque
 import heapq
 import random
-from typing import List, Optional, Tuple
-
-from world.game_map import GameMap
-from world import tile_types
-from world.loc_profiles import get_profile, LocationProfile, RoomSpec
-from world.palettes import pick_biome, make_ground_tile, make_wall_tile, make_path_tile, apply_ground_noise, scatter_flora
-from game.entity import Entity, Fighter
-from game.ai import CreatureAI
+from collections import deque
 from dataclasses import asdict
-
-from data.enemies import ENEMIES, build_enemy_inventory
-from data.items import ITEMS, build_item_data, all_loot
-from data.interactables import FLOOR_INTERACTABLES, interactable_by_name
-from data.hazards import HAZARDS
 
 import numpy as np
 
+from data.enemies import ENEMIES, build_enemy_inventory
+from data.hazards import HAZARDS
+from data.interactables import FLOOR_INTERACTABLES, interactable_by_name
+from data.items import ITEMS, all_loot, build_item_data
+from game.ai import CreatureAI
+from game.entity import Entity, Fighter
+from world import tile_types
+from world.game_map import GameMap
+from world.loc_profiles import LocationProfile, RoomSpec, get_profile
+from world.palettes import (
+    apply_ground_noise,
+    make_ground_tile,
+    make_path_tile,
+    make_wall_tile,
+    pick_biome,
+    scatter_flora,
+)
 
-def _safe_randint(rng: random.Random, lo: int, hi: int) -> Optional[int]:
+
+def _safe_randint(rng: random.Random, lo: int, hi: int) -> int | None:
     """Return rng.randint(lo, hi) or None when lo > hi."""
     if lo > hi:
         return None
     return rng.randint(lo, hi)
 
 
-def _near_exit(x: int, y: int, exit_pos: Optional[Tuple[int, int]]) -> bool:
+def _near_exit(x: int, y: int, exit_pos: tuple[int, int] | None) -> bool:
     """Return True if (x, y) is within 1 tile of *exit_pos*."""
     if exit_pos is None:
         return False
@@ -45,20 +51,15 @@ class RectRoom:
         self.label = label
 
     @property
-    def center(self) -> Tuple[int, int]:
+    def center(self) -> tuple[int, int]:
         return (self.x1 + self.x2) // 2, (self.y1 + self.y2) // 2
 
     @property
-    def inner(self) -> Tuple[slice, slice]:
+    def inner(self) -> tuple[slice, slice]:
         return slice(self.x1 + 1, self.x2), slice(self.y1 + 1, self.y2)
 
     def intersects(self, other: RectRoom) -> bool:
-        return (
-            self.x1 <= other.x2
-            and self.x2 >= other.x1
-            and self.y1 <= other.y2
-            and self.y2 >= other.y1
-        )
+        return self.x1 <= other.x2 and self.x2 >= other.x1 and self.y1 <= other.y2 and self.y2 >= other.y1
 
 
 def _resolve_tile(name: str) -> np.ndarray:
@@ -70,8 +71,12 @@ def _resolve_tile(name: str) -> np.ndarray:
 # Corridor carving
 # -------------------------------------------------------------------
 
+
 def _carve_h_tunnel(
-    game_map: GameMap, x1: int, x2: int, y: int,
+    game_map: GameMap,
+    x1: int,
+    x2: int,
+    y: int,
     floor_tile: np.ndarray | None = None,
 ) -> None:
     ft = floor_tile if floor_tile is not None else tile_types.floor
@@ -81,7 +86,10 @@ def _carve_h_tunnel(
 
 
 def _carve_v_tunnel(
-    game_map: GameMap, y1: int, y2: int, x: int,
+    game_map: GameMap,
+    y1: int,
+    y2: int,
+    x: int,
     floor_tile: np.ndarray | None = None,
 ) -> None:
     ft = floor_tile if floor_tile is not None else tile_types.floor
@@ -91,7 +99,10 @@ def _carve_v_tunnel(
 
 
 def _carve_wide_h_tunnel(
-    game_map: GameMap, x1: int, x2: int, y: int,
+    game_map: GameMap,
+    x1: int,
+    x2: int,
+    y: int,
     floor_tile: np.ndarray | None = None,
 ) -> None:
     """Carve a 2-tile wide horizontal corridor."""
@@ -101,7 +112,10 @@ def _carve_wide_h_tunnel(
 
 
 def _carve_wide_v_tunnel(
-    game_map: GameMap, y1: int, y2: int, x: int,
+    game_map: GameMap,
+    y1: int,
+    y2: int,
+    x: int,
     floor_tile: np.ndarray | None = None,
 ) -> None:
     """Carve a 2-tile wide vertical corridor."""
@@ -110,8 +124,33 @@ def _carve_wide_v_tunnel(
         _carve_v_tunnel(game_map, y1, y2, x + 1, floor_tile)
 
 
+def _connect_l_corridor(
+    game_map: GameMap,
+    rng: random.Random,
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
+    floor_tile: np.ndarray | None = None,
+    wide: bool = False,
+) -> None:
+    """Connect two points with a randomly-oriented L-shaped corridor."""
+    carve_h = _carve_wide_h_tunnel if wide else _carve_h_tunnel
+    carve_v = _carve_wide_v_tunnel if wide else _carve_v_tunnel
+    if rng.random() < 0.5:
+        carve_h(game_map, x1, x2, y1, floor_tile)
+        carve_v(game_map, y1, y2, x2, floor_tile)
+    else:
+        carve_v(game_map, y1, y2, x1, floor_tile)
+        carve_h(game_map, x1, x2, y2, floor_tile)
+
+
 def _carve_winding_tunnel(
-    game_map: GameMap, x1: int, y1: int, x2: int, y2: int,
+    game_map: GameMap,
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
     rng: random.Random,
     floor_tile: np.ndarray | None = None,
 ) -> None:
@@ -172,7 +211,8 @@ def _carve_winding_tunnel(
 # Spawning helpers
 # -------------------------------------------------------------------
 
-def _random_room_pos(room: RectRoom, rng: random.Random) -> Tuple[int, int]:
+
+def _random_room_pos(room: RectRoom, rng: random.Random) -> tuple[int, int]:
     """Pick a random floor position inside a room."""
     x = rng.randint(room.x1 + 1, max(room.x1 + 1, room.x2 - 1))
     y = rng.randint(room.y1 + 1, max(room.y1 + 1, room.y2 - 1))
@@ -184,9 +224,12 @@ MAX_ENEMIES_PER_LEVEL = 12
 
 
 def _spawn_enemies(
-    room: RectRoom, game_map: GameMap, rng: random.Random, max_enemies: int = 2,
-    exit_pos: Optional[Tuple[int, int]] = None,
-    remaining: Optional[int] = None,
+    room: RectRoom,
+    game_map: GameMap,
+    rng: random.Random,
+    max_enemies: int = 2,
+    exit_pos: tuple[int, int] | None = None,
+    remaining: int | None = None,
 ) -> int:
     capped = min(max_enemies, MAX_ENEMIES_PER_ROOM)
     if remaining is not None:
@@ -201,18 +244,15 @@ def _spawn_enemies(
         if _near_exit(x, y, exit_pos):
             continue
         defn = rng.choice(ENEMIES)
-        ai_config = {
-            k: getattr(defn, k) for k in (
-                "ai_initial_state", "aggro_distance", "sleep_aggro_distance",
-                "can_open_doors", "flee_threshold", "memory_turns", "vision_radius",
-                "move_speed", "can_steal",
-            )
-        }
+        ai_config = defn.to_ai_config()
         entity = Entity(
-            x=x, y=y, char=defn.char, color=defn.color, name=defn.name,
+            x=x,
+            y=y,
+            char=defn.char,
+            color=defn.color,
+            name=defn.name,
             blocks_movement=True,
-            fighter=Fighter(hp=defn.hp, max_hp=defn.hp,
-                            defense=defn.defense, power=defn.power),
+            fighter=Fighter(hp=defn.hp, max_hp=defn.hp, defense=defn.defense, power=defn.power),
             ai=CreatureAI(),
             organic=defn.organic,
             gore_color=defn.gore_color,
@@ -222,6 +262,7 @@ def _spawn_enemies(
         entity.inventory = build_enemy_inventory(defn, rng)
         entity.max_inventory = defn.max_inventory
         from game.helpers import recalc_melee_power_ai
+
         recalc_melee_power_ai(entity)
         game_map.entities.append(entity)
         spawned += 1
@@ -229,8 +270,11 @@ def _spawn_enemies(
 
 
 def _spawn_items(
-    room: RectRoom, game_map: GameMap, rng: random.Random, max_items: int = 1,
-    exit_pos: Optional[Tuple[int, int]] = None,
+    room: RectRoom,
+    game_map: GameMap,
+    rng: random.Random,
+    max_items: int = 1,
+    exit_pos: tuple[int, int] | None = None,
 ) -> None:
     for _ in range(rng.randint(0, max_items)):
         x, y = _random_room_pos(room, rng)
@@ -243,14 +287,18 @@ def _spawn_items(
         defn = rng.choice(ITEMS)
         game_map.entities.append(
             Entity(
-                x=x, y=y, char=defn.char, color=defn.color, name=defn.name,
+                x=x,
+                y=y,
+                char=defn.char,
+                color=defn.color,
+                name=defn.name,
                 blocks_movement=False,
                 item=build_item_data(defn),
             )
         )
 
 
-def _room_wall_positions(room: RectRoom) -> List[Tuple[int, int]]:
+def _room_wall_positions(room: RectRoom) -> list[tuple[int, int]]:
     """Return wall-tile positions bordering the room's interior."""
     positions = []
     for x in range(room.x1 + 1, room.x2):
@@ -268,8 +316,8 @@ def _spawn_interactables(
     rng: random.Random,
     count: int = 1,
     hazard_chance: float = 0.2,
-    wall_interactable_name: Optional[str] = None,
-    exit_pos: Optional[Tuple[int, int]] = None,
+    wall_interactable_name: str | None = None,
+    exit_pos: tuple[int, int] | None = None,
 ) -> None:
     floor_pool = list(FLOOR_INTERACTABLES)
     wall_defn = interactable_by_name(wall_interactable_name) if wall_interactable_name else None
@@ -285,7 +333,8 @@ def _spawn_interactables(
 
         if is_wall:
             candidates = [
-                (wx, wy) for wx, wy in _room_wall_positions(room)
+                (wx, wy)
+                for wx, wy in _room_wall_positions(room)
                 if game_map.in_bounds(wx, wy)
                 and not game_map.tiles["walkable"][wx, wy]
                 and not game_map.get_non_blocking_entity_at(wx, wy)
@@ -309,7 +358,11 @@ def _spawn_interactables(
         loot = rng.choice(loot_pool) if rng.random() < 0.6 else None
         game_map.entities.append(
             Entity(
-                x=x, y=y, char=ch, color=color, name=name,
+                x=x,
+                y=y,
+                char=ch,
+                color=color,
+                name=name,
                 blocks_movement=False,
                 interactable={"kind": name.lower(), "hazard": hazard, "loot": loot},
             )
@@ -383,11 +436,14 @@ _ROOM_DRESSING = {
 
 def _place_ship_corridor_lights(
     game_map: GameMap,
-    spine_x1: int, spine_x2: int, spine_y: int, spine_y2: int,
-    branches: List[Tuple[int, int, int]],
+    spine_x1: int,
+    spine_x2: int,
+    spine_y: int,
+    spine_y2: int,
+    branches: list[tuple[int, int, int]],
     rng: random.Random,
     derelict: bool = False,
-    rooms: Optional[List[RectRoom]] = None,
+    rooms: list[RectRoom] | None = None,
 ) -> None:
     """Place warm white lights along spine and branch corridors.
 
@@ -400,7 +456,7 @@ def _place_ship_corridor_lights(
     spacing = rng.randint(6, 8)
 
     # Collect all candidate positions
-    candidates: List[Tuple[int, int]] = []
+    candidates: list[tuple[int, int]] = []
     for x in range(spine_x1, spine_x2 + 1, spacing):
         if game_map.in_bounds(x, spine_y):
             candidates.append((x, spine_y))
@@ -412,11 +468,13 @@ def _place_ship_corridor_lights(
     # Exclude positions inside bridge and engine room
     if rooms:
         fixture_rooms = [r for r in rooms if r.label in ("bridge", "engine_room")]
+
         def _in_fixture_room(x: int, y: int) -> bool:
             for r in fixture_rooms:
                 if r.x1 <= x <= r.x2 and r.y1 <= y <= r.y2:
                     return True
             return False
+
         candidates = [(x, y) for x, y in candidates if not _in_fixture_room(x, y)]
 
     if derelict and len(candidates) > 1:
@@ -428,8 +486,12 @@ def _place_ship_corridor_lights(
         rng.shuffle(chosen)
         for i, (x, y) in enumerate(chosen):
             game_map.add_light_source(
-                x, y, radius=radius, color=color,
-                intensity=intensity, flicker=(i < flicker_count),
+                x,
+                y,
+                radius=radius,
+                color=color,
+                intensity=intensity,
+                flicker=(i < flicker_count),
             )
     else:
         for x, y in candidates:
@@ -440,7 +502,7 @@ def _dress_ship_room(
     room: RectRoom,
     game_map: GameMap,
     rng: random.Random,
-    exit_pos: Optional[Tuple[int, int]] = None,
+    exit_pos: tuple[int, int] | None = None,
     has_nav_unit: bool = False,
 ) -> None:
     """Place themed decorations and interactables in a ship room."""
@@ -448,9 +510,7 @@ def _dress_ship_room(
     if not dressing:
         return
 
-    occupied: set[Tuple[int, int]] = {
-        (e.x, e.y) for e in game_map.entities
-    }
+    occupied: set[tuple[int, int]] = {(e.x, e.y) for e in game_map.entities}
 
     # Room fixture tiles — non-walkable light sources (placed first to block entity placement)
     cx, cy = room.center
@@ -458,12 +518,10 @@ def _dress_ship_room(
     fixture_light = None
     if room.label == "engine_room":
         fixture_tile = tile_types.reactor_core
-        fixture_light = {"radius": 7, "color": (120, 60, 220), "intensity": 0.9,
-                         "flicker": rng.random() < 0.05}
+        fixture_light = {"radius": 7, "color": (120, 60, 220), "intensity": 0.9, "flicker": rng.random() < 0.05}
     elif room.label == "bridge":
         fixture_tile = tile_types.control_console
-        fixture_light = {"radius": 5, "color": (80, 160, 255), "intensity": 0.7,
-                         "flicker": rng.random() < 0.05}
+        fixture_light = {"radius": 5, "color": (80, 160, 255), "intensity": 0.7, "flicker": rng.random() < 0.05}
 
     if fixture_tile is not None:
         # Try center first, then offsets to avoid overwriting exit tile
@@ -474,16 +532,18 @@ def _dress_ship_room(
                     if abs(dx) == dist or abs(dy) == dist:
                         candidates.append((cx + dx, cy + dy))
         for fx, fy in candidates:
-            if (game_map.in_bounds(fx, fy)
-                    and game_map.tiles["walkable"][fx, fy]
-                    and (fx, fy) not in occupied
-                    and not _near_exit(fx, fy, exit_pos)):
+            if (
+                game_map.in_bounds(fx, fy)
+                and game_map.tiles["walkable"][fx, fy]
+                and (fx, fy) not in occupied
+                and not _near_exit(fx, fy, exit_pos)
+            ):
                 game_map.tiles[fx, fy] = fixture_tile
                 occupied.add((fx, fy))
                 game_map.add_light_source(fx, fy, **fixture_light)
                 break
 
-    def _pick_floor_pos() -> Optional[Tuple[int, int]]:
+    def _pick_floor_pos() -> tuple[int, int] | None:
         x_lo = max(room.x1 + 1, 0)
         x_hi = min(room.x2 - 1, game_map.width - 1)
         y_lo = max(room.y1 + 1, 0)
@@ -505,10 +565,7 @@ def _dress_ship_room(
             continue
         ch, color, name = rng.choice(dressing["decorations"])
         occupied.add(pos)
-        game_map.entities.append(
-            Entity(x=pos[0], y=pos[1], char=ch, color=color, name=name,
-                   blocks_movement=False)
-        )
+        game_map.entities.append(Entity(x=pos[0], y=pos[1], char=ch, color=color, name=name, blocks_movement=False))
 
     # Interactable furnishings
     int_min, int_max = dressing["interactable_count"]
@@ -525,39 +582,41 @@ def _dress_ship_room(
         ch, color, name = rng.choice(dressing["interactables"])
         hazard = asdict(rng.choice(hazard_pool)) if rng.random() < hazard_chance else None
         if has_nav_unit and not nav_placed:
-            loot = {"char": "\u2302", "color": [0, 255, 200], "name": "Navigation Unit",
-                    "type": "nav_unit", "value": 1}
+            loot = {"char": "\u2302", "color": [0, 255, 200], "name": "Navigation Unit", "type": "nav_unit", "value": 1}
             nav_placed = True
         else:
             loot = rng.choice(loot_pool) if rng.random() < loot_chance else None
         occupied.add(pos)
         game_map.entities.append(
-            Entity(x=pos[0], y=pos[1], char=ch, color=color, name=name,
-                   blocks_movement=False,
-                   interactable={"kind": name.lower(), "hazard": hazard, "loot": loot})
+            Entity(
+                x=pos[0],
+                y=pos[1],
+                char=ch,
+                color=color,
+                name=name,
+                blocks_movement=False,
+                interactable={"kind": name.lower(), "hazard": hazard, "loot": loot},
+            )
         )
-
 
 
 # -------------------------------------------------------------------
 # Room spec helpers
 # -------------------------------------------------------------------
 
+
 def _pick_room_spec(
     rng: random.Random,
     profile: LocationProfile,
     label_counts: dict[str, int],
-    allowed_specs: Optional[List[RoomSpec]] = None,
+    allowed_specs: list[RoomSpec] | None = None,
 ) -> RoomSpec:
     """Pick a room spec from the profile, respecting max_count limits.
 
     If *allowed_specs* is given, only those specs are considered.
     """
     specs = allowed_specs if allowed_specs is not None else profile.room_specs
-    available = [
-        s for s in specs
-        if s.max_count == -1 or label_counts.get(s.label, 0) < s.max_count
-    ]
+    available = [s for s in specs if s.max_count == -1 or label_counts.get(s.label, 0) < s.max_count]
     if not available:
         # All at max — pick any unlimited spec or fall back to first
         unlimited = [s for s in specs if s.max_count == -1]
@@ -565,7 +624,7 @@ def _pick_room_spec(
     return rng.choice(available)
 
 
-def _required_specs(profile: LocationProfile) -> List[RoomSpec]:
+def _required_specs(profile: LocationProfile) -> list[RoomSpec]:
     return [s for s in profile.room_specs if s.required]
 
 
@@ -573,10 +632,11 @@ def _required_specs(profile: LocationProfile) -> List[RoomSpec]:
 # Generator functions
 # -------------------------------------------------------------------
 
+
 def _load_hull_profile(
     rng: random.Random,
     map_width: int,
-) -> Tuple[List[int], List[Tuple[int, int, str | None]], int]:
+) -> tuple[tuple[int, ...], list[tuple[int, int, str | None]], int]:
     """Pick random hull sections and concatenate into a full profile.
 
     Returns (profile, section_bounds, margin_x) where section_bounds is a list
@@ -602,7 +662,7 @@ def _load_hull_profile(
 
 def _rasterize_hull(
     game_map: GameMap,
-    profile: List[int],
+    profile: tuple[int, ...],
     margin_x: int,
     center_y: int,
     wall_tile: np.ndarray,
@@ -618,16 +678,16 @@ def _rasterize_hull(
             continue
         y_top = max(0, center_y - half_w)
         y_bot = min(game_map.height - 1, center_y + half_w)
-        game_map.tiles[x, y_top:y_bot + 1] = wall_tile
+        game_map.tiles[x, y_top : y_bot + 1] = wall_tile
 
 
 def _carve_spine(
     game_map: GameMap,
-    profile: List[int],
+    profile: tuple[int, ...],
     margin_x: int,
     center_y: int,
     floor_tile: np.ndarray,
-) -> Tuple[int, int, int]:
+) -> tuple[int, int, int]:
     """Carve a 3-tile-wide central spine corridor centered on center_y.
 
     Returns (spine_x1, spine_x2, spine_y) where spine_y is center_y - 1
@@ -654,23 +714,22 @@ def _carve_spine(
 def _place_rooms_in_hull(
     game_map: GameMap,
     rng: random.Random,
-    profile_obj: "LocationProfile",
-    hull_profile: List[int],
-    section_bounds: List[Tuple[int, int, str | None]],
+    profile_obj: LocationProfile,
+    hull_profile: tuple[int, ...],
+    section_bounds: list[tuple[int, int, str | None]],
     margin_x: int,
     center_y: int,
     spine_y: int,
     floor_tile: np.ndarray,
-) -> List[RectRoom]:
+) -> list[RectRoom]:
     """Place rooms inside the hull, respecting hull bounds with margin.
 
     Bridge/engine rooms are placed inline with the spine at the bow/stern.
     Mid rooms are placed in symmetric pairs above and below the spine.
     Returns list of placed rooms.
     """
-    rooms: List[RectRoom] = []
+    rooms: list[RectRoom] = []
     label_counts: dict[str, int] = {}
-    h = game_map.height
 
     def _room_fits_hull(room: RectRoom) -> bool:
         """Check every column of the room is inside hull with 1-tile margin."""
@@ -712,9 +771,7 @@ def _place_rooms_in_hull(
                 continue
             xi = max(0, min(rx - margin_x, len(hull_profile) - 1))
             half_w = hull_profile[xi]
-            ry = _safe_randint(rng,
-                               max(1, center_y - half_w + 1),
-                               max(1, center_y - 1 - rh))
+            ry = _safe_randint(rng, max(1, center_y - half_w + 1), max(1, center_y - 1 - rh))
             if ry is None:
                 continue
             room = RectRoom(rx, ry, rw, rh, label=spec.label)
@@ -725,7 +782,7 @@ def _place_rooms_in_hull(
             return room
         return None
 
-    def _mirror_room(room: RectRoom) -> Optional[RectRoom]:
+    def _mirror_room(room: RectRoom) -> RectRoom | None:
         """Create a mirrored copy of a room below the spine."""
         mirror_y1 = 2 * center_y - room.y2
         rw = room.x2 - room.x1
@@ -800,9 +857,11 @@ def _place_rooms_in_hull(
 def _connect_room_to_spine(
     game_map: GameMap,
     room: RectRoom,
-    spine_x1: int, spine_x2: int, spine_y: int,
+    spine_x1: int,
+    spine_x2: int,
+    spine_y: int,
     floor_tile: np.ndarray,
-) -> Optional[Tuple[int, int, int]]:
+) -> tuple[int, int, int] | None:
     """Connect a room to the spine via an L-shaped corridor.
 
     Returns (x, y_start, y_end) describing the vertical branch, or None.
@@ -825,7 +884,7 @@ def _generate_ship(
     wall_tile: np.ndarray,
     floor_tile: np.ndarray,
     has_nav_unit: bool = False,
-) -> List[RectRoom]:
+) -> list[RectRoom]:
     """Hull-profile-based ship layout for derelicts.
 
     Defines an intentional ship-shaped hull first (bow + mid + stern),
@@ -842,7 +901,11 @@ def _generate_ship(
 
     # Step 3: Carve central spine corridor
     spine_x1, spine_x2, spine_y = _carve_spine(
-        game_map, hull_profile, margin_x, center_y, floor_tile,
+        game_map,
+        hull_profile,
+        margin_x,
+        center_y,
+        floor_tile,
     )
 
     # Store hull info on game_map for airlock placement and lights
@@ -852,15 +915,27 @@ def _generate_ship(
 
     # Step 4: Place rooms inside hull bounds
     rooms = _place_rooms_in_hull(
-        game_map, rng, profile, hull_profile, section_bounds,
-        margin_x, center_y, spine_y, floor_tile,
+        game_map,
+        rng,
+        profile,
+        hull_profile,
+        section_bounds,
+        margin_x,
+        center_y,
+        spine_y,
+        floor_tile,
     )
 
     # Step 5: Connect rooms to spine, collect branch corridors
-    branches: List[Tuple[int, int, int]] = []
+    branches: list[tuple[int, int, int]] = []
     for room in rooms:
         branch = _connect_room_to_spine(
-            game_map, room, spine_x1, spine_x2, spine_y, floor_tile,
+            game_map,
+            room,
+            spine_x1,
+            spine_x2,
+            spine_y,
+            floor_tile,
         )
         if branch:
             branches.append(branch)
@@ -881,7 +956,11 @@ def _generate_ship(
     corridor_tid = int(floor_tile["tile_id"])
     for room in rooms:
         _place_building_windows(
-            game_map, rng, [room], wall_tile, floor_tile,
+            game_map,
+            rng,
+            [room],
+            wall_tile,
+            floor_tile,
             outside_tid=corridor_tid,
         )
 
@@ -891,13 +970,19 @@ def _generate_ship(
     # Step 9: Room-specific dressing for all rooms
     exit_pos = rooms[0].center if rooms else None
     for room in rooms:
-        _dress_ship_room(room, game_map, rng, exit_pos=exit_pos,
-                         has_nav_unit=(has_nav_unit and room.label == "bridge"))
+        _dress_ship_room(room, game_map, rng, exit_pos=exit_pos, has_nav_unit=(has_nav_unit and room.label == "bridge"))
 
     # Step 10: Corridor lights along spine and branches
     _place_ship_corridor_lights(
-        game_map, spine_x1, spine_x2, spine_y, spine_y + 2, branches, rng,
-        derelict=True, rooms=rooms,
+        game_map,
+        spine_x1,
+        spine_x2,
+        spine_y,
+        spine_y + 2,
+        branches,
+        rng,
+        derelict=True,
+        rooms=rooms,
     )
 
     return rooms
@@ -910,10 +995,10 @@ def _generate_organic(
     wall_tile: np.ndarray,
     floor_tile: np.ndarray,
     **kwargs: object,
-) -> List[RectRoom]:
+) -> list[RectRoom]:
     """Organic asteroid layout with irregular rooms and winding corridors."""
     w, h = game_map.width, game_map.height
-    rooms: List[RectRoom] = []
+    rooms: list[RectRoom] = []
     label_counts: dict[str, int] = {}
 
     for _ in range(profile.max_rooms * 3):
@@ -975,10 +1060,10 @@ def _generate_standard(
     wall_tile: np.ndarray,
     floor_tile: np.ndarray,
     **kwargs: object,
-) -> List[RectRoom]:
+) -> list[RectRoom]:
     """Standard starbase layout — like original but with wider corridors and bigger rooms."""
     w, h = game_map.width, game_map.height
-    rooms: List[RectRoom] = []
+    rooms: list[RectRoom] = []
     label_counts: dict[str, int] = {}
 
     # Place required rooms first
@@ -994,12 +1079,7 @@ def _generate_standard(
                 if rooms:
                     prev_cx, prev_cy = rooms[-1].center
                     new_cx, new_cy = room.center
-                    if rng.random() < 0.5:
-                        _carve_wide_h_tunnel(game_map, prev_cx, new_cx, prev_cy, floor_tile)
-                        _carve_wide_v_tunnel(game_map, prev_cy, new_cy, new_cx, floor_tile)
-                    else:
-                        _carve_wide_v_tunnel(game_map, prev_cy, new_cy, prev_cx, floor_tile)
-                        _carve_wide_h_tunnel(game_map, prev_cx, new_cx, new_cy, floor_tile)
+                    _connect_l_corridor(game_map, rng, prev_cx, prev_cy, new_cx, new_cy, floor_tile, wide=True)
                 rooms.append(room)
                 label_counts[spec.label] = label_counts.get(spec.label, 0) + 1
                 break
@@ -1023,12 +1103,7 @@ def _generate_standard(
         if rooms:
             prev_cx, prev_cy = rooms[-1].center
             new_cx, new_cy = room.center
-            if rng.random() < 0.5:
-                _carve_wide_h_tunnel(game_map, prev_cx, new_cx, prev_cy, floor_tile)
-                _carve_wide_v_tunnel(game_map, prev_cy, new_cy, new_cx, floor_tile)
-            else:
-                _carve_wide_v_tunnel(game_map, prev_cy, new_cy, prev_cx, floor_tile)
-                _carve_wide_h_tunnel(game_map, prev_cx, new_cx, new_cy, floor_tile)
+            _connect_l_corridor(game_map, rng, prev_cx, prev_cy, new_cx, new_cy, floor_tile, wide=True)
 
         rooms.append(room)
         label_counts[spec.label] = label_counts.get(spec.label, 0) + 1
@@ -1037,7 +1112,11 @@ def _generate_standard(
     corridor_tid = int(floor_tile["tile_id"])
     for room in rooms:
         _place_building_windows(
-            game_map, rng, [room], wall_tile, floor_tile,
+            game_map,
+            rng,
+            [room],
+            wall_tile,
+            floor_tile,
             outside_tid=corridor_tid,
         )
 
@@ -1061,7 +1140,10 @@ def _generate_standard(
 
 def _carve_room_interior(
     game_map: GameMap,
-    x1: int, y1: int, x2: int, y2: int,
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
     floor_tile: np.ndarray,
 ) -> None:
     """Carve the interior of a room bounded by outer walls at (x1,y1)-(x2,y2)."""
@@ -1074,8 +1156,10 @@ def _carve_room_interior(
 def _find_door_position_v(
     game_map: GameMap,
     rng: random.Random,
-    split_x: int, y1: int, y2: int,
-) -> Optional[int]:
+    split_x: int,
+    y1: int,
+    y2: int,
+) -> int | None:
     """Find a y-position for a door through a vertical partition at split_x.
 
     Prefers positions where both adjacent tiles (split_x-1, split_x+1) are
@@ -1086,11 +1170,14 @@ def _find_door_position_v(
     if lo > hi:
         return None
     good = [
-        y for y in range(lo, hi + 1)
-        if (game_map.in_bounds(split_x - 1, y)
+        y
+        for y in range(lo, hi + 1)
+        if (
+            game_map.in_bounds(split_x - 1, y)
             and game_map.tiles["walkable"][split_x - 1, y]
             and game_map.in_bounds(split_x + 1, y)
-            and game_map.tiles["walkable"][split_x + 1, y])
+            and game_map.tiles["walkable"][split_x + 1, y]
+        )
     ]
     if good:
         return rng.choice(good)
@@ -1100,8 +1187,10 @@ def _find_door_position_v(
 def _find_door_position_h(
     game_map: GameMap,
     rng: random.Random,
-    split_y: int, x1: int, x2: int,
-) -> Optional[int]:
+    split_y: int,
+    x1: int,
+    x2: int,
+) -> int | None:
     """Find an x-position for a door through a horizontal partition at split_y.
 
     Same logic as the vertical variant but for a horizontal wall.
@@ -1110,11 +1199,14 @@ def _find_door_position_h(
     if lo > hi:
         return None
     good = [
-        x for x in range(lo, hi + 1)
-        if (game_map.in_bounds(x, split_y - 1)
+        x
+        for x in range(lo, hi + 1)
+        if (
+            game_map.in_bounds(x, split_y - 1)
             and game_map.tiles["walkable"][x, split_y - 1]
             and game_map.in_bounds(x, split_y + 1)
-            and game_map.tiles["walkable"][x, split_y + 1])
+            and game_map.tiles["walkable"][x, split_y + 1]
+        )
     ]
     if good:
         return rng.choice(good)
@@ -1124,12 +1216,15 @@ def _find_door_position_h(
 def _subdivide_building(
     game_map: GameMap,
     rng: random.Random,
-    x1: int, y1: int, x2: int, y2: int,
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
     num_rooms: int,
     floor_tile: np.ndarray,
     wall_tile: np.ndarray,
     label: str = "",
-) -> List[RectRoom]:
+) -> list[RectRoom]:
     """Recursively subdivide a building footprint into rooms with internal doors.
 
     (x1, y1) and (x2, y2) are the outer wall coordinates of this sub-area.
@@ -1195,12 +1290,28 @@ def _subdivide_building(
             left_count = right_count = 1
 
         left_rooms = _subdivide_building(
-            game_map, rng, x1, y1, split_x, y2,
-            left_count, floor_tile, wall_tile, label,
+            game_map,
+            rng,
+            x1,
+            y1,
+            split_x,
+            y2,
+            left_count,
+            floor_tile,
+            wall_tile,
+            label,
         )
         right_rooms = _subdivide_building(
-            game_map, rng, split_x, y1, x2, y2,
-            right_count, floor_tile, wall_tile, label,
+            game_map,
+            rng,
+            split_x,
+            y1,
+            x2,
+            y2,
+            right_count,
+            floor_tile,
+            wall_tile,
+            label,
         )
 
         # Carve a 1-tile doorway, preferring positions with floor on both sides
@@ -1209,13 +1320,17 @@ def _subdivide_building(
             game_map.tiles[split_x, door_y] = floor_tile
             # Only force-clear a side if it's still walled (perpendicular partition)
             # but never breach the building's outer boundary walls
-            if (split_x - 1 > x1
-                    and game_map.in_bounds(split_x - 1, door_y)
-                    and not game_map.tiles["walkable"][split_x - 1, door_y]):
+            if (
+                split_x - 1 > x1
+                and game_map.in_bounds(split_x - 1, door_y)
+                and not game_map.tiles["walkable"][split_x - 1, door_y]
+            ):
                 game_map.tiles[split_x - 1, door_y] = floor_tile
-            if (split_x + 1 < x2
-                    and game_map.in_bounds(split_x + 1, door_y)
-                    and not game_map.tiles["walkable"][split_x + 1, door_y]):
+            if (
+                split_x + 1 < x2
+                and game_map.in_bounds(split_x + 1, door_y)
+                and not game_map.tiles["walkable"][split_x + 1, door_y]
+            ):
                 game_map.tiles[split_x + 1, door_y] = floor_tile
 
         return left_rooms + right_rooms
@@ -1248,25 +1363,45 @@ def _subdivide_building(
             top_count = bot_count = 1
 
         top_rooms = _subdivide_building(
-            game_map, rng, x1, y1, x2, split_y,
-            top_count, floor_tile, wall_tile, label,
+            game_map,
+            rng,
+            x1,
+            y1,
+            x2,
+            split_y,
+            top_count,
+            floor_tile,
+            wall_tile,
+            label,
         )
         bot_rooms = _subdivide_building(
-            game_map, rng, x1, split_y, x2, y2,
-            bot_count, floor_tile, wall_tile, label,
+            game_map,
+            rng,
+            x1,
+            split_y,
+            x2,
+            y2,
+            bot_count,
+            floor_tile,
+            wall_tile,
+            label,
         )
 
         door_x = _find_door_position_h(game_map, rng, split_y, x1, x2)
         if door_x is not None:
             game_map.tiles[door_x, split_y] = floor_tile
             # Never breach the building's outer boundary walls
-            if (split_y - 1 > y1
-                    and game_map.in_bounds(door_x, split_y - 1)
-                    and not game_map.tiles["walkable"][door_x, split_y - 1]):
+            if (
+                split_y - 1 > y1
+                and game_map.in_bounds(door_x, split_y - 1)
+                and not game_map.tiles["walkable"][door_x, split_y - 1]
+            ):
                 game_map.tiles[door_x, split_y - 1] = floor_tile
-            if (split_y + 1 < y2
-                    and game_map.in_bounds(door_x, split_y + 1)
-                    and not game_map.tiles["walkable"][door_x, split_y + 1]):
+            if (
+                split_y + 1 < y2
+                and game_map.in_bounds(door_x, split_y + 1)
+                and not game_map.tiles["walkable"][door_x, split_y + 1]
+            ):
                 game_map.tiles[door_x, split_y + 1] = floor_tile
 
         return top_rooms + bot_rooms
@@ -1290,10 +1425,14 @@ def _pick_building_room_count(rng: random.Random) -> int:
 
 def _compose_building_wings(
     rng: random.Random,
-    main_x: int, main_y: int, main_w: int, main_h: int,
+    main_x: int,
+    main_y: int,
+    main_w: int,
+    main_h: int,
     num_wings: int,
-    min_w: int = 5, min_h: int = 5,
-) -> List[Tuple[int, int, int, int]]:
+    min_w: int = 5,
+    min_h: int = 5,
+) -> list[tuple[int, int, int, int]]:
     """Return list of (x, y, w, h) rectangles forming a multi-wing building.
 
     The main wing is always first.  Secondary wings attach to random sides
@@ -1360,7 +1499,8 @@ def _compose_building_wings(
 
 def _carve_wing_doorway(
     game_map: GameMap,
-    wing_a: RectRoom, wing_b: RectRoom,
+    wing_a: RectRoom,
+    wing_b: RectRoom,
     floor_tile: np.ndarray,
 ) -> None:
     """Carve a 1-tile doorway through the shared wall between two adjacent wings.
@@ -1371,8 +1511,7 @@ def _carve_wing_doorway(
     """
 
     def _clear_if_blocked(x: int, y: int) -> None:
-        if (game_map.in_bounds(x, y)
-                and not game_map.tiles["walkable"][x, y]):
+        if game_map.in_bounds(x, y) and not game_map.tiles["walkable"][x, y]:
             game_map.tiles[x, y] = floor_tile
 
     # A's east wall == B's west wall (x2a == x1b)
@@ -1431,9 +1570,9 @@ def _carve_wing_doorway(
 def _carve_external_door(
     game_map: GameMap,
     rng: random.Random,
-    wing_rooms: List[RectRoom],
+    wing_rooms: list[RectRoom],
     floor_tile: np.ndarray,
-) -> Optional[Tuple[int, int]]:
+) -> tuple[int, int] | None:
     """Carve a 1-tile door on a building's outer wall.
 
     Iterates over all wing perimeter tiles and picks ones that face outward
@@ -1446,46 +1585,46 @@ def _carve_external_door(
 
     # Collect all wall tiles across all wings with their inward direction
     # Each entry: (wall_pos, inside_pos, outside_pos)
-    door_candidates: List[Tuple[Tuple[int, int], Tuple[int, int], Tuple[int, int]]] = []
+    door_candidates: list[tuple[tuple[int, int], tuple[int, int], tuple[int, int]]] = []
     for wing in wing_rooms:
         # North wall
         for x in range(wing.x1 + 1, wing.x2):
             wall = (x, wing.y1)
             inside = (x, wing.y1 + 1)
             outside = (x, wing.y1 - 1)
-            if (game_map.in_bounds(*outside)
-                    and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid):
+            if game_map.in_bounds(*outside) and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid:
                 door_candidates.append((wall, inside, outside))
         # South wall
         for x in range(wing.x1 + 1, wing.x2):
             wall = (x, wing.y2)
             inside = (x, wing.y2 - 1)
             outside = (x, wing.y2 + 1)
-            if (game_map.in_bounds(*outside)
-                    and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid):
+            if game_map.in_bounds(*outside) and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid:
                 door_candidates.append((wall, inside, outside))
         # West wall
         for y in range(wing.y1 + 1, wing.y2):
             wall = (wing.x1, y)
             inside = (wing.x1 + 1, y)
             outside = (wing.x1 - 1, y)
-            if (game_map.in_bounds(*outside)
-                    and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid):
+            if game_map.in_bounds(*outside) and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid:
                 door_candidates.append((wall, inside, outside))
         # East wall
         for y in range(wing.y1 + 1, wing.y2):
             wall = (wing.x2, y)
             inside = (wing.x2 - 1, y)
             outside = (wing.x2 + 1, y)
-            if (game_map.in_bounds(*outside)
-                    and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid):
+            if game_map.in_bounds(*outside) and int(game_map.tiles["tile_id"][outside[0], outside[1]]) == ground_tid:
                 door_candidates.append((wall, inside, outside))
 
     # Prefer positions where the inside tile is already walkable floor
     good = [
-        (wall, inside, outside) for wall, inside, outside in door_candidates
-        if (game_map.in_bounds(*wall) and game_map.in_bounds(*inside)
-            and game_map.tiles["walkable"][inside[0], inside[1]])
+        (wall, inside, outside)
+        for wall, inside, outside in door_candidates
+        if (
+            game_map.in_bounds(*wall)
+            and game_map.in_bounds(*inside)
+            and game_map.tiles["walkable"][inside[0], inside[1]]
+        )
     ]
     if good:
         wall_pos, _, outside_pos = rng.choice(good)
@@ -1524,7 +1663,7 @@ def _place_exterior_windows(
 
     # Collect candidates: map (x,y) -> (inside_dx, inside_dy)
     # If a tile qualifies in multiple directions, keep only the first.
-    candidates: dict[Tuple[int, int], Tuple[int, int]] = {}
+    candidates: dict[tuple[int, int], tuple[int, int]] = {}
 
     for x in range(1, w - 1):
         for y in range(1, h - 1):
@@ -1545,47 +1684,30 @@ def _place_exterior_windows(
                     candidates[(x, y)] = (dx, dy)
                 break
 
-    # Group candidates into contiguous segments sharing orientation.
-    # Horizontal segments: same y and same (dx,dy), consecutive x.
-    # Vertical segments: same x and same (dx,dy), consecutive y.
-    # Sort by orientation, then by row/col.
-    by_orient: dict[Tuple[int, int], list[Tuple[int, int]]] = {}
+    # Group candidates by (orientation, row/col) so _split_into_segments
+    # receives positions that share one axis, sorted along the other.
+    by_orient: dict[tuple[int, int], list[tuple[int, int]]] = {}
     for (x, y), direction in candidates.items():
         by_orient.setdefault(direction, []).append((x, y))
 
-    all_segments: list[list[Tuple[int, int]]] = []
-    for direction, positions in by_orient.items():
-        dx, dy = direction
+    all_segments: list[list[tuple[int, int]]] = []
+    for (dx, dy), positions in by_orient.items():
         if dx == 0:
-            # Wall faces north/south — segments run horizontally (same y, consecutive x)
-            by_row: dict[int, list[int]] = {}
-            for x, y in positions:
-                by_row.setdefault(y, []).append(x)
-            for row_y, xs in by_row.items():
-                xs.sort()
-                seg: list[Tuple[int, int]] = [(xs[0], row_y)]
-                for i in range(1, len(xs)):
-                    if xs[i] == xs[i - 1] + 1:
-                        seg.append((xs[i], row_y))
-                    else:
-                        all_segments.append(seg)
-                        seg = [(xs[i], row_y)]
-                all_segments.append(seg)
+            # North/south-facing walls — group by row, sort by x
+            by_row: dict[int, list[tuple[int, int]]] = {}
+            for pos in positions:
+                by_row.setdefault(pos[1], []).append(pos)
+            for row_positions in by_row.values():
+                row_positions.sort()
+                all_segments.extend(_split_into_segments(row_positions))
         else:
-            # Wall faces east/west — segments run vertically (same x, consecutive y)
-            by_col: dict[int, list[int]] = {}
-            for x, y in positions:
-                by_col.setdefault(x, []).append(y)
-            for col_x, ys in by_col.items():
-                ys.sort()
-                seg = [(col_x, ys[0])]
-                for i in range(1, len(ys)):
-                    if ys[i] == ys[i - 1] + 1:
-                        seg.append((col_x, ys[i]))
-                    else:
-                        all_segments.append(seg)
-                        seg = [(col_x, ys[i])]
-                all_segments.append(seg)
+            # East/west-facing walls — group by column, sort by y
+            by_col: dict[int, list[tuple[int, int]]] = {}
+            for pos in positions:
+                by_col.setdefault(pos[0], []).append(pos)
+            for col_positions in by_col.values():
+                col_positions.sort(key=lambda p: p[1])
+                all_segments.extend(_split_into_segments(col_positions))
 
     # Place windows per segment with context-aware sizing
     for seg in all_segments:
@@ -1609,7 +1731,7 @@ def _place_exterior_windows(
 def _place_ship_exterior_windows(
     game_map: GameMap,
     rng: random.Random,
-    rooms: List[RectRoom],
+    rooms: list[RectRoom],
     wall_tile: np.ndarray,
     floor_tile: np.ndarray,
 ) -> None:
@@ -1627,7 +1749,7 @@ def _place_ship_exterior_windows(
 
     # Collect hull-facing candidates with their room association
     # candidate -> (inside_direction, room)
-    candidates: dict[Tuple[int, int], Tuple[Tuple[int, int], RectRoom]] = {}
+    candidates: dict[tuple[int, int], tuple[tuple[int, int], RectRoom]] = {}
 
     for x in range(1, w - 1):
         for y in range(1, h - 1):
@@ -1648,7 +1770,7 @@ def _place_ship_exterior_windows(
                 # Find which room this wall belongs to
                 room = None
                 for r in rooms:
-                    if (r.x1 <= x <= r.x2 and r.y1 <= y <= r.y2):
+                    if r.x1 <= x <= r.x2 and r.y1 <= y <= r.y2:
                         room = r
                         break
                 if room is None:
@@ -1675,9 +1797,8 @@ def _place_ship_exterior_windows(
                 break
 
     # Group candidates by (room, orientation) for segment building
-    grouped: dict[Tuple[str, Tuple[int, int]], list[Tuple[int, int]]] = {}
+    grouped: dict[tuple[str, tuple[int, int]], list[tuple[int, int]]] = {}
     for (x, y), ((dx, dy), room) in candidates.items():
-        key = (id(room), room.label, (dx, dy))
         # Use a hashable key that includes room identity
         group_key = (room.label + str(id(room)), (dx, dy))
         grouped.setdefault(group_key, []).append((x, y))
@@ -1716,10 +1837,10 @@ def _place_ship_exterior_windows(
 def _place_building_windows(
     game_map: GameMap,
     rng: random.Random,
-    wing_rects: List[RectRoom],
+    wing_rects: list[RectRoom],
     wall_tile: np.ndarray,
     floor_tile: np.ndarray,
-    outside_tid: Optional[int] = None,
+    outside_tid: int | None = None,
 ) -> None:
     """Place window tiles on exterior walls of rooms/buildings.
 
@@ -1738,7 +1859,7 @@ def _place_building_windows(
     # Collect candidate positions per side, grouped by wing & direction
     # Each candidate: (x, y)
     # Directions: outside_dx/dy tells which way is outside
-    sides: list[list[Tuple[int, int]]] = []
+    sides: list[list[tuple[int, int]]] = []
 
     for wing in wing_rects:
         # North wall: y=wing.y1, x in (x1+1 .. x2-1), outside = y-1
@@ -1792,9 +1913,9 @@ def _place_building_windows(
 
 def _is_window_candidate(
     game_map: GameMap,
-    pos: Tuple[int, int],
-    outside: Tuple[int, int],
-    inside: Tuple[int, int],
+    pos: tuple[int, int],
+    outside: tuple[int, int],
+    inside: tuple[int, int],
     wall_tid: int,
     outside_tid: int,
 ) -> bool:
@@ -1811,8 +1932,8 @@ def _is_window_candidate(
 
 
 def _split_into_segments(
-    candidates: list[Tuple[int, int]],
-) -> list[list[Tuple[int, int]]]:
+    candidates: list[tuple[int, int]],
+) -> list[list[tuple[int, int]]]:
     """Split a list of positions into contiguous segments.
 
     Positions are contiguous if they differ by 1 in either x or y
@@ -1820,7 +1941,7 @@ def _split_into_segments(
     """
     if not candidates:
         return []
-    segments: list[list[Tuple[int, int]]] = [[candidates[0]]]
+    segments: list[list[tuple[int, int]]] = [[candidates[0]]]
     for pos in candidates[1:]:
         prev = segments[-1][-1]
         if abs(pos[0] - prev[0]) + abs(pos[1] - prev[1]) == 1:
@@ -1832,7 +1953,7 @@ def _split_into_segments(
 
 def _place_centered_windows(
     game_map: GameMap,
-    segment: list[Tuple[int, int]],
+    segment: list[tuple[int, int]],
 ) -> None:
     """Place centered window tile(s) in a wall segment."""
     n = len(segment)
@@ -1856,6 +1977,7 @@ def _place_centered_windows(
 # Village path generation
 # -------------------------------------------------------------------
 
+
 def _wall_adjacent_set(game_map: GameMap, ground_tid: int) -> set:
     """Return set of ground tiles with at least one cardinal wall neighbor."""
     w, h = game_map.width, game_map.height
@@ -1875,12 +1997,12 @@ def _wall_adjacent_set(game_map: GameMap, ground_tid: int) -> set:
 
 def _bfs_path(
     game_map: GameMap,
-    start: Tuple[int, int],
-    end: Tuple[int, int],
+    start: tuple[int, int],
+    end: tuple[int, int],
     ground_tid: int,
-    extra_walkable: Optional[set] = None,
+    extra_walkable: set | None = None,
     wall_cost: int = 3,
-) -> List[Tuple[int, int]]:
+) -> list[tuple[int, int]]:
     """Dijkstra shortest path from *start* to *end* through ground tiles.
 
     *extra_walkable* tiles may be traversed but are NOT target destinations.
@@ -1888,19 +2010,23 @@ def _bfs_path(
     """
     extra = extra_walkable or set()
     return _bfs_to_set(
-        game_map, start, {end}, ground_tid, wall_cost,
+        game_map,
+        start,
+        {end},
+        ground_tid,
+        wall_cost,
         extra_walkable=extra,
     )
 
 
 def _bfs_to_set(
     game_map: GameMap,
-    start: Tuple[int, int],
+    start: tuple[int, int],
     targets: set,
     ground_tid: int,
     wall_cost: int = 3,
-    extra_walkable: Optional[set] = None,
-) -> List[Tuple[int, int]]:
+    extra_walkable: set | None = None,
+) -> list[tuple[int, int]]:
     """Dijkstra from *start* to the nearest coordinate in *targets*.
 
     *extra_walkable* tiles may be traversed but are not destinations.
@@ -1915,14 +2041,14 @@ def _bfs_to_set(
         return []
     walkable = targets | (extra_walkable or set())
     wall_adj = _wall_adjacent_set(game_map, ground_tid)
-    heap: List[Tuple[int, int, int]] = [(0, sx, sy)]
-    best_cost: dict[Tuple[int, int], int] = {start: 0}
-    came_from: dict[Tuple[int, int], Tuple[int, int] | None] = {start: None}
+    heap: list[tuple[int, int, int]] = [(0, sx, sy)]
+    best_cost: dict[tuple[int, int], int] = {start: 0}
+    came_from: dict[tuple[int, int], tuple[int, int] | None] = {start: None}
     while heap:
         cost, cx, cy = heapq.heappop(heap)
         if (cx, cy) in targets:
-            path: List[Tuple[int, int]] = []
-            cur: Tuple[int, int] | None = (cx, cy)
+            path: list[tuple[int, int]] = []
+            cur: tuple[int, int] | None = (cx, cy)
             while cur is not None:
                 path.append(cur)
                 cur = came_from[cur]
@@ -1947,11 +2073,11 @@ def _bfs_to_set(
 
 def _meander(
     rng: random.Random,
-    path: List[Tuple[int, int]],
+    path: list[tuple[int, int]],
     game_map: GameMap,
     ground_tid: int,
     freq: int = 6,
-) -> List[Tuple[int, int]]:
+) -> list[tuple[int, int]]:
     """Add gentle lateral wobble to a path for organic feel.
 
     Every *freq* tiles, attempt a 1-tile lateral jog: step sideways from
@@ -1981,7 +2107,7 @@ def _meander(
             return False
         return True
 
-    result: List[Tuple[int, int]] = [path[0]]
+    result: list[tuple[int, int]] = [path[0]]
     for i in range(1, len(path)):
         if i % freq == 0 and i < len(path) - 1:
             px, py = path[i - 1]
@@ -2015,7 +2141,7 @@ def _meander(
 def _place_building_lights(
     game_map: GameMap,
     rng: random.Random,
-    sub_rooms: List[RectRoom],
+    sub_rooms: list[RectRoom],
 ) -> None:
     """Place warm indoor lights in some rooms of a colony building.
 
@@ -2047,15 +2173,14 @@ def _place_building_lights(
         # Decide: overhead (center) or wall sconce
         if rng.random() < 0.5:
             # Overhead — place at center if walkable
-            if (game_map.in_bounds(cx, cy)
-                    and game_map.tiles["walkable"][cx, cy]):
+            if game_map.in_bounds(cx, cy) and game_map.tiles["walkable"][cx, cy]:
                 game_map.add_light_source(cx, cy, radius=radius, color=color, intensity=intensity)
                 continue
 
         # Wall sconce — find a wall tile inside the room that isn't a door/window
         # and has an adjacent floor tile inside the room
         xs, ys = room.inner
-        sconce_candidates: List[Tuple[int, int]] = []
+        sconce_candidates: list[tuple[int, int]] = []
         for x in range(room.x1, room.x2 + 1):
             for y in range(room.y1, room.y2 + 1):
                 if not game_map.in_bounds(x, y):
@@ -2069,10 +2194,12 @@ def _place_building_lights(
                     # Opaque wall — check it has an adjacent floor inside room
                     for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
                         nx, ny = x + dx, y + dy
-                        if (game_map.in_bounds(nx, ny)
-                                and xs.start <= nx < xs.stop
-                                and ys.start <= ny < ys.stop
-                                and game_map.tiles["walkable"][nx, ny]):
+                        if (
+                            game_map.in_bounds(nx, ny)
+                            and xs.start <= nx < xs.stop
+                            and ys.start <= ny < ys.stop
+                            and game_map.tiles["walkable"][nx, ny]
+                        ):
                             sconce_candidates.append((x, y))
                             break
 
@@ -2081,14 +2208,13 @@ def _place_building_lights(
             game_map.add_light_source(sx, sy, radius=radius, color=color, intensity=intensity)
         else:
             # Fallback to overhead
-            if (game_map.in_bounds(cx, cy)
-                    and game_map.tiles["walkable"][cx, cy]):
+            if game_map.in_bounds(cx, cy) and game_map.tiles["walkable"][cx, cy]:
                 game_map.add_light_source(cx, cy, radius=radius, color=color, intensity=intensity)
 
 
 def _place_street_lights(
     game_map: GameMap,
-    spine_tiles: List[Tuple[int, int]],
+    spine_tiles: list[tuple[int, int]],
     rng: random.Random,
 ) -> None:
     """Place street lamp tiles and light sources along the village spine road."""
@@ -2100,16 +2226,13 @@ def _place_street_lights(
 
     for i in range(0, len(spine_tiles), spacing):
         sx, sy = spine_tiles[i]
-        # Try to place lamp on an adjacent non-walkable ground tile
+        # Try to place lamp on an adjacent ground tile
         placed = False
         for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
             lx, ly = sx + dx, sy + dy
             if not game_map.in_bounds(lx, ly):
                 continue
             tid = int(game_map.tiles["tile_id"][lx, ly])
-            if tid == ground_tid and not game_map.tiles["walkable"][lx, ly]:
-                # Non-walkable ground — skip, ground is walkable
-                continue
             if tid == ground_tid:
                 game_map.tiles[lx, ly] = tile_types.street_lamp
                 game_map.add_light_source(lx, ly, radius=radius, color=color, intensity=intensity)
@@ -2120,16 +2243,13 @@ def _place_street_lights(
             game_map.add_light_source(sx, sy, radius=radius, color=color, intensity=intensity)
 
 
-_DOCK_SIZE = 8   # bounding box side (tiles span 0..SIZE → SIZE+1 tiles per axis)
-_DOCK_CUT = 2    # corner cut depth for the octagon
+_DOCK_SIZE = 8  # bounding box side (tiles span 0..SIZE → SIZE+1 tiles per axis)
+_DOCK_CUT = 2  # corner cut depth for the octagon
 
 
 def _in_dock_octagon(dx: int, dy: int, size: int = _DOCK_SIZE, cut: int = _DOCK_CUT) -> bool:
     """Return True if offset (dx, dy) within a *size*×*size* rect is inside the octagon."""
-    return (dx + dy >= cut
-            and dx + dy <= 2 * size - cut
-            and size - dx + dy >= cut
-            and dx + size - dy >= cut)
+    return dx + dy >= cut and dx + dy <= 2 * size - cut and size - dx + dy >= cut and dx + size - dy >= cut
 
 
 def _on_dock_perimeter(dx: int, dy: int, size: int = _DOCK_SIZE, cut: int = _DOCK_CUT) -> bool:
@@ -2140,8 +2260,16 @@ def _on_dock_perimeter(dx: int, dy: int, size: int = _DOCK_SIZE, cut: int = _DOC
     """
     if not _in_dock_octagon(dx, dy, size, cut):
         return False
-    for ndx, ndy in ((dx - 1, dy), (dx + 1, dy), (dx, dy - 1), (dx, dy + 1),
-                      (dx - 1, dy - 1), (dx + 1, dy - 1), (dx - 1, dy + 1), (dx + 1, dy + 1)):
+    for ndx, ndy in (
+        (dx - 1, dy),
+        (dx + 1, dy),
+        (dx, dy - 1),
+        (dx, dy + 1),
+        (dx - 1, dy - 1),
+        (dx + 1, dy - 1),
+        (dx - 1, dy + 1),
+        (dx + 1, dy + 1),
+    ):
         if not _in_dock_octagon(ndx, ndy, size, cut):
             return True
     return False
@@ -2150,10 +2278,10 @@ def _on_dock_perimeter(dx: int, dy: int, size: int = _DOCK_SIZE, cut: int = _DOC
 def _place_ship_dock(
     game_map: GameMap,
     rng: random.Random,
-    placed_wings: List[RectRoom],
+    placed_wings: list[RectRoom],
     path_tile: np.ndarray,
     ground_tile: np.ndarray,
-) -> Optional[RectRoom]:
+) -> RectRoom | None:
     """Place an octagonal ship dock landing pad with path-tile outline.
 
     Returns a RectRoom bounding box labelled 'ship_dock', or None on failure.
@@ -2172,7 +2300,7 @@ def _place_ship_dock(
         return None
 
     # Candidate positions: prefer edges, then random interior
-    candidates: List[Tuple[int, int]] = []
+    candidates: list[tuple[int, int]] = []
     for _ in range(30):
         side = rng.randint(0, 3)
         if side == 0:
@@ -2214,7 +2342,7 @@ def _place_ship_dock(
 def _generate_village_paths(
     game_map: GameMap,
     rng: random.Random,
-    door_positions: List[Tuple[int, int]],
+    door_positions: list[tuple[int, int]],
     path_tile: np.ndarray,
     ground_tid: int,
 ) -> None:
@@ -2264,7 +2392,7 @@ def _generate_village_paths(
         spine_path = _meander(rng, spine_path, game_map, ground_tid)
 
     # Widen spine to 2 tiles
-    spine_tiles: List[Tuple[int, int]] = []
+    spine_tiles: list[tuple[int, int]] = []
     for x, y in spine_path:
         spine_tiles.append((x, y))
         if horizontal:
@@ -2280,9 +2408,11 @@ def _generate_village_paths(
             game_map.tiles[x, y] = path_tile
 
     # Branch paths from each door to nearest spine tile via BFS
-    spine_set = {(x, y) for x, y in spine_tiles
-                 if game_map.in_bounds(x, y) and int(game_map.tiles["tile_id"][x, y]) == int(path_tile["tile_id"])}
-    path_tid = int(path_tile["tile_id"])
+    spine_set = {
+        (x, y)
+        for x, y in spine_tiles
+        if game_map.in_bounds(x, y) and int(game_map.tiles["tile_id"][x, y]) == int(path_tile["tile_id"])
+    }
     for door_x, door_y in door_positions:
         if not spine_set:
             break
@@ -2303,13 +2433,13 @@ def _generate_village(
     wall_tile: np.ndarray,
     floor_tile: np.ndarray,
     **kwargs: object,
-) -> List[RectRoom]:
+) -> list[RectRoom]:
     """Colony village: open ground with irregular multi-wing buildings."""
     w, h = game_map.width, game_map.height
-    rooms: List[RectRoom] = []
+    rooms: list[RectRoom] = []
     label_counts: dict[str, int] = {}
     # Track all placed wing rectangles for collision checks
-    placed_wings: List[RectRoom] = []
+    placed_wings: list[RectRoom] = []
 
     # Pick a biome palette for this colony
     palette = pick_biome(rng)
@@ -2322,7 +2452,7 @@ def _generate_village(
     game_map.tiles[:] = biome_ground
 
     # Track door approach positions for path generation
-    door_positions: List[Tuple[int, int]] = []
+    door_positions: list[tuple[int, int]] = []
 
     # Border wall around map edges
     game_map.tiles[0, :] = wall_tile
@@ -2332,7 +2462,11 @@ def _generate_village(
 
     # Place ship dock landing pad before buildings so it gets a clear spot
     dock_room = _place_ship_dock(
-        game_map, rng, placed_wings, path_tile, biome_ground,
+        game_map,
+        rng,
+        placed_wings,
+        path_tile,
+        biome_ground,
     )
 
     # Square-footage budget: buildings may cover 50-60% of usable area
@@ -2346,16 +2480,25 @@ def _generate_village(
     all_specs = deque(_required_specs(profile))
 
     def _try_place_building(
-        rx: int, ry: int, spec: RoomSpec,
-    ) -> Optional[List[RectRoom]]:
+        rx: int,
+        ry: int,
+        spec: RoomSpec,
+    ) -> list[RectRoom] | None:
         """Attempt to place a building at (rx, ry). Return wing rects or None."""
         rw = rng.randint(spec.min_w, spec.max_w)
         rh = rng.randint(spec.min_h, spec.max_h)
         num_wings = _pick_building_room_count(rng)
         wing_tuples = _compose_building_wings(
-            rng, rx, ry, rw, rh, num_wings, min_w=5, min_h=5,
+            rng,
+            rx,
+            ry,
+            rw,
+            rh,
+            num_wings,
+            min_w=5,
+            min_h=5,
         )
-        result: List[RectRoom] = []
+        result: list[RectRoom] = []
         for wx, wy, ww, wh in wing_tuples:
             if wx < 2 or wy < 2 or wx + ww >= w - 2 or wy + wh >= h - 2:
                 return None
@@ -2370,17 +2513,10 @@ def _generate_village(
     # Build a shuffled grid of candidate positions covering the map
     # Buildings must start at x/y >= 2 to keep 1-tile ground gap from border
     step_x, step_y = 7, 6  # dense grid for good coverage
-    grid_positions = [
-        (gx, gy)
-        for gx in range(2, w - 6, step_x)
-        for gy in range(2, h - 6, step_y)
-    ]
+    grid_positions = [(gx, gy) for gx in range(2, w - 6, step_x) for gy in range(2, h - 6, step_y)]
     rng.shuffle(grid_positions)
     # Also add random jittered positions for gap-filling
-    random_positions = [
-        (rng.randint(2, max(2, w - 9)), rng.randint(2, max(2, h - 9)))
-        for _ in range(150)
-    ]
+    random_positions = [(rng.randint(2, max(2, w - 9)), rng.randint(2, max(2, h - 9))) for _ in range(150)]
     candidate_positions = grid_positions + random_positions
     retries_per_pos = 3  # retry with different wing configs
 
@@ -2393,7 +2529,7 @@ def _generate_village(
         else:
             spec = _pick_room_spec(rng, profile, label_counts)
 
-        wing_rects: Optional[List[RectRoom]] = None
+        wing_rects: list[RectRoom] | None = None
         for _ in range(retries_per_pos):
             wing_rects = _try_place_building(rx, ry, spec)
             if wing_rects is not None:
@@ -2413,7 +2549,7 @@ def _generate_village(
 
         # Subdivide each wing into sub-rooms or carve as single room.
         # Larger wings (inner ≥ 7 in both dims) get 2-3 sub-rooms.
-        all_sub_rooms: List[RectRoom] = []
+        all_sub_rooms: list[RectRoom] = []
         for wing in wing_rects:
             inner_w = wing.x2 - wing.x1 - 1
             inner_h = wing.y2 - wing.y1 - 1
@@ -2425,9 +2561,16 @@ def _generate_village(
             else:
                 num_sub = 1
             sub_rooms = _subdivide_building(
-                game_map, rng,
-                wing.x1, wing.y1, wing.x2, wing.y2,
-                num_sub, floor_tile, bldg_wall_tile, label=spec.label,
+                game_map,
+                rng,
+                wing.x1,
+                wing.y1,
+                wing.x2,
+                wing.y2,
+                num_sub,
+                floor_tile,
+                bldg_wall_tile,
+                label=spec.label,
             )
             all_sub_rooms.extend(sub_rooms)
 
@@ -2447,9 +2590,7 @@ def _generate_village(
         # Interior lights (after walls/doors/windows are finalized)
         _place_building_lights(game_map, rng, all_sub_rooms)
 
-        building_sq_ft = sum(
-            (wr.x2 - wr.x1) * (wr.y2 - wr.y1) for wr in wing_rects
-        )
+        building_sq_ft = sum((wr.x2 - wr.x1) * (wr.y2 - wr.y1) for wr in wing_rects)
         used_sq_ft += building_sq_ft
         placed_wings.extend(wing_rects)
         rooms.extend(all_sub_rooms)
@@ -2492,11 +2633,11 @@ def _generate_village(
 
 
 # -------------------------------------------------------------------
-# -------------------------------------------------------------------
 # Door placement
 # -------------------------------------------------------------------
 
-def _is_room_adjacent(x: int, y: int, rooms: List[RectRoom]) -> bool:
+
+def _is_room_adjacent(x: int, y: int, rooms: list[RectRoom]) -> bool:
     """Return True if (x, y) is cardinally adjacent to any room's inner area."""
     for room in rooms:
         ix, iy = room.inner
@@ -2512,7 +2653,7 @@ def _place_doors(
     game_map: GameMap,
     rng: random.Random,
     floor_tile: np.ndarray,
-    rooms: List[RectRoom],
+    rooms: list[RectRoom],
     door_chance: float = 0.65,
     min_spacing: int = 3,
 ) -> None:
@@ -2521,7 +2662,7 @@ def _place_doors(
     floor_tid = int(floor_tile["tile_id"])
     w, h = game_map.width, game_map.height
 
-    candidates: List[Tuple[int, int]] = []
+    candidates: list[tuple[int, int]] = []
     for x in range(1, w - 1):
         for y in range(1, h - 1):
             if int(game_map.tiles["tile_id"][x, y]) != floor_tid:
@@ -2543,7 +2684,7 @@ def _place_doors(
                 candidates.append((x, y))
 
     # Place doors with minimum spacing
-    placed: List[Tuple[int, int]] = []
+    placed: list[tuple[int, int]] = []
     entity_positions = {(e.x, e.y) for e in game_map.entities}
     rng.shuffle(candidates)
     for x, y in candidates:
@@ -2572,7 +2713,6 @@ _GENERATORS = {
     "village": _generate_village,
 }
 
-
 # -------------------------------------------------------------------
 # Space conversion — replace outer hull walls with space tiles
 # -------------------------------------------------------------------
@@ -2581,7 +2721,7 @@ _GENERATORS = {
 def _place_airlocks(
     game_map: GameMap,
     rng: random.Random,
-    rooms: List[RectRoom],
+    rooms: list[RectRoom],
     wall_tile: np.ndarray,
     floor_tile: np.ndarray,
 ) -> None:
@@ -2599,7 +2739,7 @@ def _place_airlocks(
     # Collect all walkable positions (room interiors + corridors)
     walkable_mask = game_map.tiles["walkable"]
 
-    candidates: List[tuple] = []  # (wall_x, wall_y, dx, dy)
+    candidates: list[tuple] = []  # (wall_x, wall_y, dx, dy)
 
     for room in rooms:
         for wx, wy in _room_wall_positions(room):
@@ -2617,9 +2757,7 @@ def _place_airlocks(
 
                 # The 3 outward tiles: wall pos (becomes interior door),
                 # wall+1*dir (airlock floor), wall+2*dir (exterior door)
-                positions = [
-                    (wx + i * dx, wy + i * dy) for i in range(3)
-                ]
+                positions = [(wx + i * dx, wy + i * dy) for i in range(3)]
                 # All 3 must be in bounds and currently wall tiles
                 valid = True
                 for px, py in positions:
@@ -2724,12 +2862,14 @@ def _place_airlocks(
             game_map.tiles[switch_pos[0], switch_pos[1]] = tile_types.airlock_switch_off
             used_positions.add(switch_pos)
 
-        game_map.airlocks.append({
-            "interior_door": positions[0],
-            "exterior_door": positions[2],
-            "direction": (dx, dy),
-            "switch": switch_pos,
-        })
+        game_map.airlocks.append(
+            {
+                "interior_door": positions[0],
+                "exterior_door": positions[2],
+                "direction": (dx, dy),
+                "switch": switch_pos,
+            }
+        )
         placed += 1
 
 
@@ -2756,7 +2896,9 @@ def _enforce_airlock_walls(game_map: GameMap, wall_tile: np.ndarray) -> None:
 
 
 def _place_hull_breaches(
-    game_map: GameMap, rng: random.Random, wall_tile: np.ndarray,
+    game_map: GameMap,
+    rng: random.Random,
+    wall_tile: np.ndarray,
 ) -> None:
     """Place 1-3 hull breaches on a derelict/ship map.
 
@@ -2800,7 +2942,8 @@ def _place_hull_breaches(
 
 
 def _place_asteroid_breaches(
-    game_map: GameMap, rng: random.Random,
+    game_map: GameMap,
+    rng: random.Random,
 ) -> None:
     """Place 1-2 hull breaches on an asteroid/cave map.
 
@@ -2816,8 +2959,7 @@ def _place_asteroid_breaches(
             if int(game_map.tiles["tile_id"][x, y]) != rock_wall_tid:
                 continue
             # Must be at map perimeter or adjacent to map edge
-            at_edge = (x <= 1 or x >= game_map.width - 2
-                       or y <= 1 or y >= game_map.height - 2)
+            at_edge = x <= 1 or x >= game_map.width - 2 or y <= 1 or y >= game_map.height - 2
             if not at_edge:
                 continue
             # Check for adjacent interior walkable tile and a direction for space
@@ -2867,10 +3009,10 @@ def _convert_hull_to_space(game_map: GameMap, wall_tile: np.ndarray) -> None:
     # (diagonal checks prevent corner gaps that allow FOV peek-through)
     adj = np.zeros_like(interesting)
     # Cardinal
-    adj[1:, :] |= interesting[:-1, :]   # neighbor to the left
-    adj[:-1, :] |= interesting[1:, :]   # neighbor to the right
-    adj[:, 1:] |= interesting[:, :-1]   # neighbor above
-    adj[:, :-1] |= interesting[:, 1:]   # neighbor below
+    adj[1:, :] |= interesting[:-1, :]  # neighbor to the left
+    adj[:-1, :] |= interesting[1:, :]  # neighbor to the right
+    adj[:, 1:] |= interesting[:, :-1]  # neighbor above
+    adj[:, :-1] |= interesting[:, 1:]  # neighbor below
     # Diagonal
     adj[1:, 1:] |= interesting[:-1, :-1]
     adj[1:, :-1] |= interesting[:-1, 1:]
@@ -2943,7 +3085,10 @@ def _convert_hull_to_space(game_map: GameMap, wall_tile: np.ndarray) -> None:
 
 
 def _value_noise_2d(
-    width: int, height: int, rng: random.Random, cell_size: int = 6,
+    width: int,
+    height: int,
+    rng: random.Random,
+    cell_size: int = 6,
 ) -> np.ndarray:
     """Generate smooth 2D value noise in [0, 1] via bilinear interpolation."""
     gw = width // cell_size + 2
@@ -2971,7 +3116,9 @@ def _value_noise_2d(
 
 
 def _apply_hull_patina(
-    game_map: GameMap, rng: random.Random, wall_tile: np.ndarray,
+    game_map: GameMap,
+    rng: random.Random,
+    wall_tile: np.ndarray,
     damage_level: float = 1.0,
 ) -> None:
     """Apply smooth color variation to wall tiles for a weathered hull look.
@@ -3009,7 +3156,7 @@ def _apply_hull_patina(
             bg_ch = bg[..., ch].astype(np.int16)
 
             fg_ch[is_wall] += offset[is_wall]
-            bg_ch[is_wall] += (offset[is_wall] // 2)
+            bg_ch[is_wall] += offset[is_wall] // 2
 
             # Warm tint: boost red, reduce blue — visible rust patches
             # Scale tint by damage: pristine = subtle steel variation,
@@ -3035,7 +3182,9 @@ def _apply_hull_patina(
 
 
 def _scatter_floor_debris(
-    game_map: GameMap, rng: random.Random, floor_tile: np.ndarray,
+    game_map: GameMap,
+    rng: random.Random,
+    floor_tile: np.ndarray,
     damage_level: float = 1.0,
 ) -> None:
     """Scatter debris characters on floor tiles.
@@ -3060,10 +3209,10 @@ def _scatter_floor_debris(
     ]
     # Slightly muted variations of floor colors
     color_shifts = [
-        (-20, -20, -10),   # darker/warmer
-        (-10, -15, -20),   # darker/cooler
-        (10, 5, -10),      # slightly warm
-        (-15, -10, -5),    # slightly dim
+        (-20, -20, -10),  # darker/warmer
+        (-10, -15, -20),  # darker/cooler
+        (10, 5, -10),  # slightly warm
+        (-15, -10, -5),  # slightly dim
     ]
 
     # Seed density scales with damage: 0% at pristine, ~5% at wrecked
@@ -3079,14 +3228,13 @@ def _scatter_floor_debris(
             bx, by = cluster[-1]
             dx, dy = rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
             nx, ny = bx + dx, by + dy
-            if (game_map.in_bounds(nx, ny)
-                    and int(game_map.tiles["tile_id"][nx, ny]) == floor_tid):
+            if game_map.in_bounds(nx, ny) and int(game_map.tiles["tile_id"][nx, ny]) == floor_tid:
                 cluster.append((nx, ny))
 
         for cx, cy in cluster:
             if (cx, cy) in entity_positions:
                 continue
-            ch, _name = rng.choice(debris_chars)
+            ch, _ = rng.choice(debris_chars)
             shift = rng.choice(color_shifts)
             for layer in ("dark", "light", "lit"):
                 game_map.tiles[layer]["ch"][cx, cy] = ch
@@ -3096,7 +3244,9 @@ def _scatter_floor_debris(
 
 
 def _place_scorch_marks(
-    game_map: GameMap, rng: random.Random, floor_tile: np.ndarray,
+    game_map: GameMap,
+    rng: random.Random,
+    floor_tile: np.ndarray,
     wall_tile: np.ndarray | None = None,
 ) -> None:
     """Darken floor and wall tiles near hull breaches and engine-room reactors."""
@@ -3142,7 +3292,9 @@ def _place_scorch_marks(
 
 
 def _place_bloodstains(
-    game_map: GameMap, rng: random.Random, floor_tile: np.ndarray,
+    game_map: GameMap,
+    rng: random.Random,
+    floor_tile: np.ndarray,
     damage_level: float = 1.0,
 ) -> None:
     """Place dark reddish floor stains near enemy spawn positions.
@@ -3152,10 +3304,7 @@ def _place_bloodstains(
     if damage_level <= 0:
         return
     floor_tid = int(floor_tile["tile_id"])
-    enemies = [
-        e for e in game_map.entities
-        if e.blocks_movement and getattr(e, "fighter", None)
-    ]
+    enemies = [e for e in game_map.entities if e.blocks_movement and getattr(e, "fighter", None)]
     if not enemies:
         return
 
@@ -3186,8 +3335,10 @@ def _place_bloodstains(
 
 
 def _apply_ship_cosmetics(
-    game_map: GameMap, rng: random.Random,
-    wall_tile: np.ndarray, floor_tile: np.ndarray,
+    game_map: GameMap,
+    rng: random.Random,
+    wall_tile: np.ndarray,
+    floor_tile: np.ndarray,
 ) -> None:
     """Apply cosmetic variation scaled by damage (hull breach count).
 
@@ -3207,19 +3358,20 @@ def _apply_ship_cosmetics(
 # Public API
 # -------------------------------------------------------------------
 
+
 def generate_dungeon(
     width: int = 80,
     height: int = 45,
     max_rooms: int = 12,
     room_min: int = 4,
     room_max: int = 10,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     max_enemies: int = 2,
     max_items: int = 1,
     loc_type: str = "derelict",
     max_total_enemies: int = MAX_ENEMIES_PER_LEVEL,
     has_nav_unit: bool = False,
-) -> Tuple[GameMap, List[RectRoom], Optional[Tuple[int, int]]]:
+) -> tuple[GameMap, list[RectRoom], tuple[int, int] | None]:
     """Returns (game_map, rooms, exit_pos)."""
     rng = random.Random(seed)
     profile = get_profile(loc_type)
@@ -3230,14 +3382,19 @@ def generate_dungeon(
     game_map.fully_lit = profile.fully_lit
     game_map.fov_radius = profile.fov_radius
     from debug import VISIBLE_ALL
+
     game_map.debug_visible_all = VISIBLE_ALL
     gen_fn = _GENERATORS.get(profile.generator)
     if gen_fn:
-        rooms = gen_fn(game_map, rng, profile, wall_tile, floor_tile,
-                       has_nav_unit=has_nav_unit)
+        rooms = gen_fn(game_map, rng, profile, wall_tile, floor_tile, has_nav_unit=has_nav_unit)
     else:
         rooms = _generate_fallback(
-            game_map, rng, max_rooms, room_min, room_max, floor_tile,
+            game_map,
+            rng,
+            max_rooms,
+            room_min,
+            room_max,
+            floor_tile,
         )
 
     # Place doors at room entrances (skip organic/cave layouts)
@@ -3245,7 +3402,7 @@ def generate_dungeon(
         _place_doors(game_map, rng, floor_tile, rooms)
 
     # Exit hatch at entrance so the player can always leave from where they entered.
-    exit_pos: Optional[Tuple[int, int]] = None
+    exit_pos: tuple[int, int] | None = None
     if rooms:
         exit_pos = rooms[0].center
         if game_map.in_bounds(exit_pos[0], exit_pos[1]):
@@ -3256,8 +3413,12 @@ def generate_dungeon(
         remaining = max_total_enemies - total_spawned
         if remaining > 0:
             total_spawned += _spawn_enemies(
-                room, game_map, rng, max_enemies,
-                exit_pos=exit_pos, remaining=remaining,
+                room,
+                game_map,
+                rng,
+                max_enemies,
+                exit_pos=exit_pos,
+                remaining=remaining,
             )
         _spawn_items(room, game_map, rng, max_items, exit_pos=exit_pos)
 
@@ -3270,7 +3431,11 @@ def generate_dungeon(
                 for _ in range(rng.randint(1, 3)):
                     room = rng.choice(rooms[1:])
                     _spawn_interactables(
-                        room, game_map, rng, count=1, hazard_chance=0.2,
+                        room,
+                        game_map,
+                        rng,
+                        count=1,
+                        hazard_chance=0.2,
                         wall_interactable_name=profile.wall_interactable,
                         exit_pos=exit_pos,
                     )
@@ -3279,7 +3444,11 @@ def generate_dungeon(
             for _ in range(num_interactables):
                 room = rng.choice(rooms[1:]) if len(rooms) > 1 else rooms[0]
                 _spawn_interactables(
-                    room, game_map, rng, count=1, hazard_chance=0.2,
+                    room,
+                    game_map,
+                    rng,
+                    count=1,
+                    hazard_chance=0.2,
                     wall_interactable_name=profile.wall_interactable,
                     exit_pos=exit_pos,
                 )
@@ -3314,7 +3483,7 @@ def generate_dungeon(
     if profile.generator in ("ship", "standard"):
         _apply_ship_cosmetics(game_map, rng, wall_tile, floor_tile)
 
-    game_map._hazards_dirty = True
+    game_map.invalidate_hazards()
     return game_map, rooms, exit_pos
 
 
@@ -3325,9 +3494,9 @@ def _generate_fallback(
     room_min: int,
     room_max: int,
     floor_tile: np.ndarray,
-) -> List[RectRoom]:
+) -> list[RectRoom]:
     """Original room-and-corridor algorithm as fallback."""
-    rooms: List[RectRoom] = []
+    rooms: list[RectRoom] = []
     w, h = game_map.width, game_map.height
 
     for _ in range(max_rooms * 3):
@@ -3347,12 +3516,7 @@ def _generate_fallback(
         if rooms:
             prev_cx, prev_cy = rooms[-1].center
             new_cx, new_cy = room.center
-            if rng.random() < 0.5:
-                _carve_h_tunnel(game_map, prev_cx, new_cx, prev_cy, floor_tile)
-                _carve_v_tunnel(game_map, prev_cy, new_cy, new_cx, floor_tile)
-            else:
-                _carve_v_tunnel(game_map, prev_cy, new_cy, prev_cx, floor_tile)
-                _carve_h_tunnel(game_map, prev_cx, new_cx, new_cy, floor_tile)
+            _connect_l_corridor(game_map, rng, prev_cx, prev_cy, new_cx, new_cy, floor_tile)
 
         rooms.append(room)
     return rooms
@@ -3360,9 +3524,9 @@ def _generate_fallback(
 
 def respawn_creatures(
     game_map: GameMap,
-    rooms: List[RectRoom],
+    rooms: list[RectRoom],
     max_enemies: int = 2,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     max_total_enemies: int = MAX_ENEMIES_PER_LEVEL,
 ) -> None:
     """Remove all entities with AI (creatures) and spawn new ones in rooms[1:].

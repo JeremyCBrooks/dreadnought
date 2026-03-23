@@ -1,7 +1,8 @@
 """Tests for enemy item drops on death (Phase 4)."""
+
 from game.entity import Entity, Fighter
-from game.helpers import find_drop_tile, drop_all_inventory
-from tests.conftest import make_arena, make_creature, make_heal_item, make_melee_weapon, MockEngine
+from game.helpers import drop_all_inventory, find_drop_tile
+from tests.conftest import MockEngine, make_arena, make_creature, make_heal_item, make_melee_weapon
 
 
 class TestFindDropTile:
@@ -38,7 +39,7 @@ class TestDropAllInventory:
         gm = make_arena()
         player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
         gm.entities.append(player)
-        engine = MockEngine(gm, player)
+        MockEngine(gm, player)
 
         enemy = make_creature(x=3, y=3)
         item = make_heal_item()
@@ -108,6 +109,7 @@ class TestDeathDropsIntegration:
         gm.entities.append(enemy)
 
         from game.actions import MeleeAction
+
         MeleeAction(enemy).perform(engine, player)
 
         # Enemy should be dead and removed
@@ -126,13 +128,14 @@ class TestDeathDropsIntegration:
 
         enemy = make_creature(x=8, y=10, hp=1, power=0)
         from tests.conftest import make_weapon
-        blaster = make_weapon(name="Blaster", weapon_class="ranged", value=2,
-                              ammo=5, max_ammo=5, range_=5)
+
+        blaster = make_weapon(name="Blaster", weapon_class="ranged", value=2, ammo=5, max_ammo=5, range_=5)
         enemy.inventory.append(blaster)
         gm.entities.append(enemy)
 
         # Enemy fires at player
         from game.actions import RangedAction
+
         RangedAction(player).perform(engine, enemy)
         assert blaster.item["ammo"] == 4  # 1 shot fired
 
@@ -142,6 +145,7 @@ class TestDeathDropsIntegration:
 
         # Now kill the enemy — weapon should drop with ammo=3
         from game.actions import MeleeAction
+
         enemy.fighter.hp = 1
         player.fighter.power = 99
         MeleeAction(enemy).perform(engine, player)
@@ -164,6 +168,7 @@ class TestDeathDropsIntegration:
         gm.entities.append(enemy)
 
         from game.actions import MeleeAction
+
         MeleeAction(enemy).perform(engine, player)
 
         assert weapon in gm.entities
@@ -180,5 +185,6 @@ class TestDeathDropsIntegration:
         gm.entities.append(enemy)
 
         from game.actions import MeleeAction
+
         MeleeAction(enemy).perform(engine, player)
         assert enemy not in gm.entities

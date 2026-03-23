@@ -1,7 +1,8 @@
 """Inventory overlay state: single combined list with equipped status."""
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Tuple
+from typing import TYPE_CHECKING, Any
 
 from engine.game_state import State
 from ui.colors import DARK_GRAY, GRAY
@@ -15,13 +16,14 @@ class InventoryState(State):
     def __init__(self) -> None:
         self.selected = 0
 
-    def _combined_items(self, engine: Engine) -> List[Tuple[Entity, bool]]:
+    def _combined_items(self, engine: Engine) -> list[tuple[Entity, bool]]:
         """Return [(item, is_equipped), ...] in stable insertion order."""
         from game.loadout import combined_items
+
         return combined_items(engine.player.inventory, engine.player.loadout)
 
-    def ev_keydown(self, engine: Engine, event: Any) -> bool:
-        from ui.keys import move_keys, cancel_keys, is_action
+    def ev_key(self, engine: Engine, event: Any) -> bool:
+        from ui.keys import cancel_keys, is_action, move_keys
 
         key = event.sym
 
@@ -46,6 +48,7 @@ class InventoryState(State):
             return True
 
         import tcod.event
+
         if key == tcod.event.KeySym.d:
             self._drop(engine)
             return True
@@ -66,6 +69,7 @@ class InventoryState(State):
             toggle_equip(engine, engine.player, item)
         else:
             from game.consumables import use_consumable
+
             use_consumable(engine, engine.player, item)
 
         self._clamp_selected(engine)
@@ -73,6 +77,7 @@ class InventoryState(State):
     def _in_tactical(self, engine: Engine) -> bool:
         """Return True if the inventory is overlaid on a TacticalState."""
         from ui.tactical_state import TacticalState
+
         return any(isinstance(s, TacticalState) for s in engine._state_stack)
 
     def _drop(self, engine: Engine) -> None:
@@ -85,6 +90,7 @@ class InventoryState(State):
         item, _is_equipped = combined[self.selected]
         idx = engine.player.inventory.index(item)
         from game.actions import DropAction
+
         DropAction(idx).perform(engine, engine.player)
         self._clamp_selected(engine)
 
@@ -102,6 +108,7 @@ class InventoryState(State):
         bx = (cw - bw) // 2
         by = (ch - bh) // 2
         from ui.colors import DIALOG_BG, HEADER_TITLE
+
         console.draw_rect(bx, by, bw, bh, ch=32, bg=DIALOG_BG)
 
         title = "=== INVENTORY ==="
@@ -126,11 +133,12 @@ class InventoryState(State):
                 if item.item:
                     line += f" [{item.item.get('type', '?')}]"
                 if label_width > 3 and len(line) > label_width:
-                    line = line[:label_width - 3] + "..."
+                    line = line[: label_width - 3] + "..."
                 console.print(x=bx + 2, y=row + j, string=line, fg=color)
 
         console.print(
-            x=bx + 2, y=by + bh - 2,
+            x=bx + 2,
+            y=by + bh - 2,
             string="[UP/DOWN] Select [E] Use/Equip [D] Drop [ESC] Close",
             fg=DARK_GRAY,
         )

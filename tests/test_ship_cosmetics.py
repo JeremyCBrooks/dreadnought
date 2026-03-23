@@ -1,11 +1,12 @@
 """Tests for ship cosmetic variation (hull patina, debris, scorch marks, bloodstains)."""
+
 import random
 
 import numpy as np
 
-from world.game_map import GameMap
-from world import tile_types
 from game.entity import Entity, Fighter
+from world import tile_types
+from world.game_map import GameMap
 
 
 def _make_ship_map(w=30, h=20, breach_count=1):
@@ -39,8 +40,7 @@ class TestHullPatina:
         _apply_hull_patina(gm, rng, tile_types.wall)
 
         new_fg_light = gm.tiles["light"]["fg"][is_wall]
-        assert not np.all(new_fg_light == orig_fg_light), \
-            "Patina should modify at least some wall tile colors"
+        assert not np.all(new_fg_light == orig_fg_light), "Patina should modify at least some wall tile colors"
 
     def test_variation_is_smooth(self):
         """Adjacent wall tiles should have similar (not wildly different) colors."""
@@ -62,8 +62,7 @@ class TestHullPatina:
                 for dx, dy in ((1, 0), (0, 1)):
                     nx, ny = x + dx, y + dy
                     if nx < gm.width and ny < gm.height and is_wall[nx, ny]:
-                        diff = max(abs(int(fg[x, y][c]) - int(fg[nx, ny][c]))
-                                   for c in range(3))
+                        diff = max(abs(int(fg[x, y][c]) - int(fg[nx, ny][c])) for c in range(3))
                         max_diff = max(max_diff, diff)
         assert max_diff <= 60, f"Adjacent walls differ by {max_diff} — not smooth"
 
@@ -94,8 +93,7 @@ class TestHullPatina:
             fg = gm.tiles["light"]["fg"]
             spreads[level] = int(fg[..., 0].max()) - int(fg[..., 0].min())
 
-        assert spreads[0.0] < spreads[1.0], \
-            f"Pristine spread {spreads[0.0]} should be less than wrecked {spreads[1.0]}"
+        assert spreads[0.0] < spreads[1.0], f"Pristine spread {spreads[0.0]} should be less than wrecked {spreads[1.0]}"
 
 
 class TestDebrisScatter:
@@ -171,8 +169,7 @@ class TestScorchMarks:
         _place_scorch_marks(gm, rng, tile_types.floor)
 
         new_bg = gm.tiles["light"]["bg"][4, 5]
-        assert any(int(new_bg[c]) <= int(orig_bg[c]) for c in range(3)), \
-            "Tiles near breach should not get brighter"
+        assert any(int(new_bg[c]) <= int(orig_bg[c]) for c in range(3)), "Tiles near breach should not get brighter"
 
     def test_also_scorches_wall_tiles(self):
         """Scorch marks should affect wall tiles near breaches too."""
@@ -187,8 +184,7 @@ class TestScorchMarks:
         _place_scorch_marks(gm, rng, tile_types.floor, tile_types.wall)
 
         new_fg = gm.tiles["light"]["fg"][2, 5]
-        assert any(int(new_fg[c]) < int(orig_fg[c]) for c in range(3)), \
-            "Wall tiles near breach should be scorched"
+        assert any(int(new_fg[c]) < int(orig_fg[c]) for c in range(3)), "Wall tiles near breach should be scorched"
 
 
 class TestBloodstains:
@@ -200,8 +196,12 @@ class TestBloodstains:
         rng = random.Random(42)
         for i in range(5):
             enemy = Entity(
-                x=10 + i * 3, y=10, name="Alien", char="A",
-                color=(255, 0, 0), blocks_movement=True,
+                x=10 + i * 3,
+                y=10,
+                name="Alien",
+                char="A",
+                color=(255, 0, 0),
+                blocks_movement=True,
                 fighter=Fighter(hp=5, max_hp=5, defense=0, power=1),
             )
             gm.entities.append(enemy)
@@ -232,11 +232,17 @@ class TestBloodstains:
         gm = _make_ship_map()
         rng = random.Random(42)
         for i in range(5):
-            gm.entities.append(Entity(
-                x=10 + i * 3, y=10, name="Alien", char="A",
-                color=(255, 0, 0), blocks_movement=True,
-                fighter=Fighter(hp=5, max_hp=5, defense=0, power=1),
-            ))
+            gm.entities.append(
+                Entity(
+                    x=10 + i * 3,
+                    y=10,
+                    name="Alien",
+                    char="A",
+                    color=(255, 0, 0),
+                    blocks_movement=True,
+                    fighter=Fighter(hp=5, max_hp=5, defense=0, power=1),
+                )
+            )
 
         floor_tid = int(tile_types.floor["tile_id"])
         is_floor = gm.tiles["tile_id"] == floor_tid
@@ -261,8 +267,9 @@ class TestDamageLevelScaling:
         _apply_ship_cosmetics(gm, rng, tile_types.wall, tile_types.floor)
 
         # No breaches → no debris
-        assert np.array_equal(gm.tiles["light"]["ch"][is_floor], orig_chars), \
+        assert np.array_equal(gm.tiles["light"]["ch"][is_floor], orig_chars), (
             "Zero breaches should produce no floor debris"
+        )
 
     def test_more_breaches_means_more_debris(self):
         """More hull breaches should produce more debris tiles."""
@@ -279,8 +286,7 @@ class TestDamageLevelScaling:
             chars = gm.tiles["light"]["ch"][is_floor]
             counts[n_breaches] = int(np.sum(chars != ord(".")))
 
-        assert counts[3] > counts[1], \
-            f"3 breaches ({counts[3]} debris) should produce more than 1 ({counts[1]})"
+        assert counts[3] > counts[1], f"3 breaches ({counts[3]} debris) should produce more than 1 ({counts[1]})"
 
 
 class TestFullIntegration:
@@ -327,7 +333,6 @@ class TestFullIntegration:
                 chars = gm.tiles["light"]["ch"][is_floor]
                 debris_chars = {ord(","), ord("'"), ord("`"), ord(";")}
                 has_debris = any(int(c) in debris_chars for c in chars)
-                assert not has_debris, \
-                    f"Starbase with 0 breaches (seed={seed}) should have no debris"
+                assert not has_debris, f"Starbase with 0 breaches (seed={seed}) should have no debris"
                 return
         # If all seeds had breaches, that's fine — skip

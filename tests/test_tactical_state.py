@@ -1,18 +1,23 @@
 """Tests for TacticalState logic (lifecycle, input routing, death, drift)."""
-import pytest
+
 from types import SimpleNamespace
 
-from tests.conftest import (
-    FakeEvent, MockEngine, make_arena, make_weapon, make_melee_weapon,
-    make_scanner, make_creature,
-)
 from game.entity import Entity, Fighter
 from game.loadout import Loadout
+from tests.conftest import (
+    FakeEvent,
+    MockEngine,
+    make_arena,
+    make_creature,
+    make_scanner,
+    make_weapon,
+)
 from ui.tactical_state import TacticalState, _area_key, _area_seed, _layout
 
 
 def _sym(name):
     import tcod.event
+
     return getattr(tcod.event.KeySym, name)
 
 
@@ -20,7 +25,11 @@ def _make_tactical_engine(env=None, items=None, loadout=None):
     """Build an engine with a TacticalState-compatible setup."""
     gm = make_arena(w=20, h=20)
     player = Entity(
-        x=5, y=5, char="@", color=(255, 255, 255), name="Player",
+        x=5,
+        y=5,
+        char="@",
+        color=(255, 255, 255),
+        name="Player",
         blocks_movement=True,
         fighter=Fighter(hp=10, max_hp=10, defense=0, power=1),
     )
@@ -59,6 +68,7 @@ def _make_tactical_engine(env=None, items=None, loadout=None):
 # Utility functions
 # ------------------------------------------------------------------
 
+
 class TestAreaKeyAndSeed:
     def test_area_key_with_location(self):
         loc = SimpleNamespace(name="Derelict Alpha")
@@ -81,27 +91,30 @@ class TestAreaKeyAndSeed:
 class TestLayout:
     def test_layout_returns_namespace(self):
         engine = SimpleNamespace(CONSOLE_WIDTH=160, CONSOLE_HEIGHT=50)
-        l = _layout(engine)
-        assert hasattr(l, "viewport_w")
-        assert hasattr(l, "viewport_h")
-        assert hasattr(l, "stats_w")
-        assert l.viewport_w + l.stats_w == 160
-        assert l.viewport_h + l.log_h == 50
+        lay = _layout(engine)
+        assert hasattr(lay, "viewport_w")
+        assert hasattr(lay, "viewport_h")
+        assert hasattr(lay, "stats_w")
+        assert lay.viewport_w + lay.stats_w == 160
+        assert lay.viewport_h + lay.log_h == 50
 
 
 # ------------------------------------------------------------------
 # _get_action
 # ------------------------------------------------------------------
 
+
 class TestGetAction:
     def test_movement_key_returns_bump_action(self):
         from game.actions import BumpAction
+
         action = TacticalState._get_action(_sym("UP"))
         assert isinstance(action, BumpAction)
 
     def test_wait_key_returns_wait_action(self):
         from game.actions import WaitAction
         from ui.keys import action_keys
+
         wait_keyset = action_keys()["wait"][0]
         wait_key = next(iter(wait_keyset))
         action = TacticalState._get_action(wait_key)
@@ -115,6 +128,7 @@ class TestGetAction:
 # ------------------------------------------------------------------
 # Player death
 # ------------------------------------------------------------------
+
 
 class TestPlayerDeath:
     def test_handle_player_death_sets_cause(self):
@@ -145,8 +159,9 @@ class TestPlayerDeath:
 
 
 # ------------------------------------------------------------------
-# ev_keydown routing
+# ev_key routing
 # ------------------------------------------------------------------
+
 
 class TestEvKeydownRouting:
     def _setup(self):
@@ -161,35 +176,39 @@ class TestEvKeydownRouting:
     def test_death_blocks_input(self):
         engine, state = self._setup()
         state._death_cause = "dead"
-        result = state.ev_keydown(engine, FakeEvent(_sym("UP")))
+        result = state.ev_key(engine, FakeEvent(_sym("UP")))
         assert result is True
 
     def test_escape_consumed(self):
         engine, state = self._setup()
-        result = state.ev_keydown(engine, FakeEvent(_sym("ESCAPE")))
+        result = state.ev_key(engine, FakeEvent(_sym("ESCAPE")))
         assert result is True
 
     def test_inventory_key_pushes_state(self):
         engine, state = self._setup()
         from ui.keys import action_keys
+
         inv_keyset = action_keys()["inventory"][0]
         inv_key = next(iter(inv_keyset))
         pushed = []
         original_push = engine.push_state
+
         def capture_push(s):
             pushed.append(s)
             original_push(s)
+
         engine.push_state = capture_push
-        state.ev_keydown(engine, FakeEvent(inv_key))
+        state.ev_key(engine, FakeEvent(inv_key))
         assert len(pushed) == 1
         from ui.inventory_state import InventoryState
+
         assert isinstance(pushed[0], InventoryState)
 
     def test_movement_consumes_turn(self):
         engine, state = self._setup()
         old_x = engine.player.x
         # Move right
-        result = state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+        result = state.ev_key(engine, FakeEvent(_sym("RIGHT")))
         assert result is True
         # Player should have moved (or bumped into wall)
         # On a 20x20 arena, player at (5,5) should be able to move right
@@ -197,14 +216,14 @@ class TestEvKeydownRouting:
 
     def test_unknown_key_not_consumed(self):
         engine, state = self._setup()
-        result = state.ev_keydown(engine, FakeEvent(_sym("F12")))
+        result = state.ev_key(engine, FakeEvent(_sym("F12")))
         assert result is False
 
     def test_drifting_blocks_turn_consuming_input(self):
         engine, state = self._setup()
         engine.player.drifting = True
-        old_x, old_y = engine.player.x, engine.player.y
-        result = state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+        old_x, _old_y = engine.player.x, engine.player.y
+        result = state.ev_key(engine, FakeEvent(_sym("RIGHT")))
         assert result is True
         # Should NOT have moved — drifting blocks movement
         assert engine.player.x == old_x
@@ -212,38 +231,41 @@ class TestEvKeydownRouting:
     def test_look_mode_entered(self):
         engine, state = self._setup()
         from ui.keys import action_keys
+
         look_keyset = action_keys()["look"][0]
         look_key = next(iter(look_keyset))
-        state.ev_keydown(engine, FakeEvent(look_key))
+        state.ev_key(engine, FakeEvent(look_key))
         assert state._look_cursor is not None
 
     def test_look_mode_escape_exits(self):
         engine, state = self._setup()
         state._look_cursor = (5, 5)
-        state.ev_keydown(engine, FakeEvent(_sym("ESCAPE")))
+        state.ev_key(engine, FakeEvent(_sym("ESCAPE")))
         assert state._look_cursor is None
 
     def test_ranged_no_weapon_shows_message(self):
         engine, state = self._setup()
         from ui.keys import action_keys
+
         fire_keyset = action_keys()["fire"][0]
         fire_key = next(iter(fire_keyset))
-        state.ev_keydown(engine, FakeEvent(fire_key))
-        assert any("ranged" in m[0].lower() or "ammo" in m[0].lower()
-                    for m in engine.message_log.messages)
+        state.ev_key(engine, FakeEvent(fire_key))
+        assert any("ranged" in m[0].lower() or "ammo" in m[0].lower() for m in engine.message_log.messages)
 
     def test_interact_nothing_nearby(self):
         engine, state = self._setup()
         from ui.keys import action_keys
+
         interact_keyset = action_keys()["interact"][0]
         interact_key = next(iter(interact_keyset))
-        state.ev_keydown(engine, FakeEvent(interact_key))
+        state.ev_key(engine, FakeEvent(interact_key))
         assert any("nothing" in m[0].lower() for m in engine.message_log.messages)
 
 
 # ------------------------------------------------------------------
 # Exit position triggers pop
 # ------------------------------------------------------------------
+
 
 class TestExitPosition:
     def test_stepping_on_exit_pops_state(self):
@@ -254,13 +276,14 @@ class TestExitPosition:
         engine._state_stack.append(state)
         engine.current_state = state
         engine.game_map.update_fov(engine.player.x, engine.player.y)
-        state.ev_keydown(engine, FakeEvent(_sym("RIGHT")))
+        state.ev_key(engine, FakeEvent(_sym("RIGHT")))
         assert any("ship" in m[0].lower() for m in engine.message_log.messages)
 
 
 # ------------------------------------------------------------------
 # on_exit saves player state
 # ------------------------------------------------------------------
+
 
 class TestOnExit:
     def test_on_exit_saves_player(self):
@@ -294,6 +317,7 @@ class TestOnExit:
 # _after_player_turn
 # ------------------------------------------------------------------
 
+
 class TestAfterPlayerTurn:
     def _setup(self):
         engine = _make_tactical_engine(env={"vacuum": 1})
@@ -304,20 +328,21 @@ class TestAfterPlayerTurn:
         engine.game_map.update_fov(engine.player.x, engine.player.y)
         # Give player a suit so env tick doesn't kill them
         from game.suit import EVA_SUIT
-        engine.suit = EVA_SUIT
-        engine.suit.refill_pools()
+
+        engine.suit = EVA_SUIT.copy()
         return engine, state
 
     def test_environment_tick_runs(self):
         engine, state = self._setup()
         import numpy as np
+
         overlay = np.full(
             (engine.game_map.width, engine.game_map.height),
-            fill_value=True, order="F",
+            fill_value=True,
+            order="F",
         )
         engine.game_map.hazard_overlays["vacuum"] = overlay
         engine.game_map._hazards_dirty = False
-        pool_before = engine.suit.current_pools.get("vacuum", 0)
         state._after_player_turn(engine)
         # Either pool drained or still same (depends on drain interval)
         # At minimum, no crash
@@ -337,9 +362,11 @@ class TestAfterPlayerTurn:
         engine.player.fighter.max_hp = 1
         engine.suit = None  # no suit = take damage
         import numpy as np
+
         overlay = np.full(
             (engine.game_map.width, engine.game_map.height),
-            fill_value=True, order="F",
+            fill_value=True,
+            order="F",
         )
         engine.game_map.hazard_overlays["vacuum"] = overlay
         engine.game_map._hazards_dirty = False
@@ -352,6 +379,7 @@ class TestAfterPlayerTurn:
 # ------------------------------------------------------------------
 # Scan input
 # ------------------------------------------------------------------
+
 
 class TestScanInput:
     def _setup_with_scanner(self):
@@ -374,15 +402,16 @@ class TestScanInput:
         engine.current_state = state
         engine.game_map.update_fov(engine.player.x, engine.player.y)
         from ui.keys import action_keys
+
         scan_keyset = action_keys()["scan"][0]
         scan_key = next(iter(scan_keyset))
-        state.ev_keydown(engine, FakeEvent(scan_key))
+        state.ev_key(engine, FakeEvent(scan_key))
         assert any("scanner" in m[0].lower() for m in engine.message_log.messages)
 
     def test_scan_pending_cancel(self):
         engine, state = self._setup_with_scanner()
         state._scan_pending = [make_scanner()]
-        state.ev_keydown(engine, FakeEvent(_sym("ESCAPE")))
+        state.ev_key(engine, FakeEvent(_sym("ESCAPE")))
         assert state._scan_pending is None
 
 
@@ -409,6 +438,7 @@ class TestEnemyScaling:
 def test_on_exit_no_crash_when_player_not_in_entities():
     """on_exit should not crash if player was already removed from entities."""
     from tests.conftest import make_engine
+
     engine = make_engine()
     state = TacticalState()
     # Manually remove player from entities before calling on_exit

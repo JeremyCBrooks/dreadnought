@@ -1,15 +1,12 @@
 """Edge case tests for areas with insufficient coverage."""
-from game.entity import Entity, Fighter
-from game.actions import MeleeAction, ScanAction, InteractAction, PickupAction
-from game.loadout import Loadout
-from game.ai import HostileAI
-from game.hazards import trigger_hazard, apply_dot_effects
-from game.suit import Suit
-from engine.game_state import Engine
-from world.game_map import GameMap
-from world import tile_types
-from tests.conftest import make_engine, make_arena, MockEngine
 
+from engine.game_state import Engine
+from game.actions import InteractAction, MeleeAction, PickupAction, ScanAction
+from game.entity import Entity, Fighter
+from game.hazards import apply_dot_effects, trigger_hazard
+from game.loadout import Loadout
+from game.suit import Suit
+from tests.conftest import MockEngine, make_arena, make_engine
 
 # --- Scan tier 3 ---
 
@@ -20,7 +17,10 @@ def test_scan_tier3_shows_details():
     engine.player.loadout = Loadout(slot1=scanner)
     hazard = {"type": "electric", "damage": 3, "severity": "severe", "equipment_damage": True}
     inter = Entity(
-        x=6, y=5, name="Console", blocks_movement=False,
+        x=6,
+        y=5,
+        name="Console",
+        blocks_movement=False,
         interactable={"kind": "console", "hazard": hazard, "loot": None},
     )
     engine.game_map.entities.append(inter)
@@ -76,6 +76,7 @@ def test_electric_equipment_damage(monkeypatch):
 
     # Force random to always trigger damage
     import random
+
     monkeypatch.setattr(random, "random", lambda: 0.1)
     monkeypatch.setattr(random, "choice", lambda lst: lst[0])
 
@@ -97,6 +98,7 @@ def test_electric_equipment_no_damage_when_random_high(monkeypatch):
     hazard = {"type": "electric", "damage": 1, "equipment_damage": True, "dot": 0, "duration": 0}
 
     import random
+
     monkeypatch.setattr(random, "random", lambda: 0.9)
 
     trigger_hazard(engine, hazard, "Console")
@@ -179,15 +181,14 @@ def test_rect_room_touching_edge():
 
 def test_multiple_environment_hazards():
     import numpy as np
+
     from game.environment import apply_environment_tick
 
     suit = Suit("Test", {"vacuum": 2, "radiation": 1}, defense_bonus=0)
     engine = make_engine(env={"vacuum": 1, "radiation": 1}, suit=suit)
     # Vacuum is spatial: add overlay covering the whole map
     gm = engine.game_map
-    gm.hazard_overlays["vacuum"] = np.full(
-        (gm.width, gm.height), fill_value=True, order="F"
-    )
+    gm.hazard_overlays["vacuum"] = np.full((gm.width, gm.height), fill_value=True, order="F")
     gm._hazards_dirty = False
 
     DI = Suit.DRAIN_INTERVAL
@@ -216,9 +217,7 @@ def test_all_loc_types_generate():
     from world.dungeon_gen import generate_dungeon
 
     for loc_type in ("derelict", "asteroid", "starbase", "colony"):
-        game_map, rooms, exit_pos = generate_dungeon(
-            seed=42, loc_type=loc_type, width=80, height=45
-        )
+        game_map, rooms, exit_pos = generate_dungeon(seed=42, loc_type=loc_type, width=80, height=45)
         assert game_map is not None
         assert len(rooms) >= 1
 
@@ -264,7 +263,10 @@ def test_interact_hazard_and_loot():
     hazard = {"type": "electric", "damage": 1, "equipment_damage": False}
     loot = {"char": "!", "color": (0, 255, 0), "name": "Med-kit", "type": "heal", "value": 5}
     inter = Entity(
-        x=6, y=5, name="Crate", blocks_movement=False,
+        x=6,
+        y=5,
+        name="Crate",
+        blocks_movement=False,
         interactable={"kind": "crate", "hazard": hazard, "loot": loot},
     )
     engine.game_map.entities.append(inter)

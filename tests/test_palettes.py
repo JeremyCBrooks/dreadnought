@@ -1,5 +1,4 @@
 """Tests for colony biome palettes and tile color variation."""
-from __future__ import annotations
 
 import random
 
@@ -106,8 +105,7 @@ def test_ground_noise_is_spatially_smooth():
     dist_diffs.append(np.abs(bg[:, 10:, :] - bg[:, :-10, :]).mean())
     avg_distant = np.mean(dist_diffs)
     assert avg_adjacent < avg_distant, (
-        f"adjacent diff ({avg_adjacent:.2f}) should be less than "
-        f"distant diff ({avg_distant:.2f})"
+        f"adjacent diff ({avg_adjacent:.2f}) should be less than distant diff ({avg_distant:.2f})"
     )
 
 
@@ -133,20 +131,17 @@ def test_path_tile_has_unique_tile_id():
 
 def test_all_biomes_have_path_materials():
     for name, biome in BIOMES.items():
-        assert biome.path_materials and len(biome.path_materials) >= 1, (
-            f"biome {name} needs >= 1 path material"
-        )
+        assert biome.path_materials and len(biome.path_materials) >= 1, f"biome {name} needs >= 1 path material"
 
 
 def test_path_materials_contrast_with_ground():
     """Path bg colors must have sufficient RGB distance from ground bg."""
     import math
+
     min_distance = 8  # minimum Euclidean distance in RGB space
     for name, biome in BIOMES.items():
         for mat in biome.path_materials:
-            dist = math.sqrt(sum(
-                (a - b) ** 2 for a, b in zip(mat.light_bg, biome.ground_light_bg)
-            ))
+            dist = math.sqrt(sum((a - b) ** 2 for a, b in zip(mat.light_bg, biome.ground_light_bg)))
             assert dist >= min_distance, (
                 f"biome {name}, material {mat.name}: "
                 f"path bg {mat.light_bg} too close to ground bg {biome.ground_light_bg} "
@@ -172,9 +167,7 @@ def test_alien_biome_exists():
 
 def test_all_biomes_have_flora():
     for name, biome in BIOMES.items():
-        assert biome.flora and len(biome.flora) >= 1, (
-            f"biome {name} needs >= 1 flora entry"
-        )
+        assert biome.flora and len(biome.flora) >= 1, f"biome {name} needs >= 1 flora entry"
 
 
 def test_flora_tile_ids_are_distinct():
@@ -197,7 +190,8 @@ def test_flora_tile_ids_are_distinct():
 
 
 def test_make_flora_tile_preserves_tile_id():
-    from world.palettes import FloraEntry, make_flora_tile
+    from world.palettes import make_flora_tile
+
     rng = random.Random(42)
     palette = pick_biome(rng)
     entry = palette.flora[0]
@@ -225,21 +219,16 @@ def test_scatter_flora_places_tiles():
         int(tile_types.flora_scrub["tile_id"]),
         int(tile_types.flora_sprout["tile_id"]),
     }
-    flora_count = sum(
-        1 for x in range(40) for y in range(40)
-        if int(gm.tiles["tile_id"][x, y]) in flora_tids
-    )
+    flora_count = sum(1 for x in range(40) for y in range(40) if int(gm.tiles["tile_id"][x, y]) in flora_tids)
     assert flora_count > 0, "no flora placed"
     # Should not cover everything
-    ground_count = sum(
-        1 for x in range(40) for y in range(40)
-        if int(gm.tiles["tile_id"][x, y]) == ground_tid
-    )
+    ground_count = sum(1 for x in range(40) for y in range(40) if int(gm.tiles["tile_id"][x, y]) == ground_tid)
     assert ground_count > flora_count, "flora should be sparse, not dominant"
 
 
 def test_flora_tiles_are_walkable_and_transparent():
-    from world.palettes import FloraEntry, make_flora_tile
+    from world.palettes import make_flora_tile
+
     rng = random.Random(42)
     palette = pick_biome(rng)
     for entry in palette.flora:
@@ -289,8 +278,7 @@ def test_flora_is_clustered():
     # would predict. At high densities adjacency naturally approaches 1.0,
     # so compare against density directly rather than a multiplied threshold.
     assert adjacency_rate > flora_density, (
-        f"flora not clustered: adjacency_rate={adjacency_rate:.3f} "
-        f"should exceed density={flora_density:.3f}"
+        f"flora not clustered: adjacency_rate={adjacency_rate:.3f} should exceed density={flora_density:.3f}"
     )
 
 
@@ -318,7 +306,8 @@ def test_scatter_produces_multiple_flora_types():
             scatter_flora(gm, rng, palette, ground_tid)
             types_present = {
                 int(gm.tiles["tile_id"][x, y])
-                for x in range(60) for y in range(60)
+                for x in range(60)
+                for y in range(60)
                 if int(gm.tiles["tile_id"][x, y]) in flora_tids
             }
             if len(types_present) >= 2:
@@ -347,3 +336,26 @@ def test_path_materials_none_returns_default():
     rng = random.Random(42)
     tile = make_path_tile(palette, rng)
     assert tile is not None
+
+
+def test_biome_flavors_cover_all_biomes():
+    """Every biome in BIOMES must have a BIOME_FLAVORS entry."""
+    from world.palettes import BIOME_FLAVORS
+
+    for name in BIOMES:
+        assert name in BIOME_FLAVORS, f"biome {name!r} missing from BIOME_FLAVORS"
+
+
+def test_biome_flavors_cover_all_flora_types():
+    """Each biome's BIOME_FLAVORS should have entries for all its flora tile IDs."""
+    from world.palettes import BIOME_FLAVORS, FLORA_CHAR_MAP
+
+    for name, biome in BIOMES.items():
+        flavors = BIOME_FLAVORS.get(name, {})
+        if not biome.flora:
+            continue
+        for entry in biome.flora:
+            tid = FLORA_CHAR_MAP[entry.char]
+            assert tid in flavors, (
+                f"biome {name!r}: flora char {entry.char!r} (tid={tid}) missing from BIOME_FLAVORS"
+            )

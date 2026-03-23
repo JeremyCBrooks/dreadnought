@@ -1,26 +1,28 @@
 """Pytest fixtures shared across all test modules."""
+
 import pytest
 
 from engine.game_state import Engine
 from engine.message_log import MessageLog
-from world.game_map import GameMap
-from world import tile_types
-from game.entity import Entity, Fighter
-from game.suit import Suit
-from game.loadout import Loadout
 from game.ai import CreatureAI
+from game.entity import Entity, Fighter
+from world import tile_types
+from world.game_map import GameMap
 
 
 @pytest.fixture(autouse=True)
 def _reset_debug_flags():
     """Reset all debug flags before each test so dev toggles don't break the suite."""
     import debug
+
     debug.GOD_MODE = False
     debug.DISABLE_OXYGEN = False
     debug.DISABLE_HAZARDS = False
     debug.DISABLE_ENEMY_AI = False
     debug.ONE_HIT_KILL = False
+    debug.VISIBLE_ALL = False
     debug.MAX_NAV_UNITS = None
+    debug.START_INVENTORY = list(debug._DEFAULT_START_INVENTORY)
 
 
 @pytest.fixture
@@ -68,6 +70,7 @@ class MockEngine:
         self.scan_results = None
         self.scan_glow = None
         self.mission_loadout = []
+        self.galaxy = None
         self._switched_state = None
         self.current_state = None
 
@@ -77,21 +80,31 @@ class MockEngine:
 
 # ---- Shared helpers for common entity creation ----
 
-def make_weapon(name="Laser Pistol", weapon_class="ranged", value=3,
-                ammo=5, max_ammo=5, range_=5):
+
+def make_weapon(name="Laser Pistol", weapon_class="ranged", value=3, ammo=5, max_ammo=5, range_=5):
     """Create a weapon Entity."""
     return Entity(
-        char=")", color=(255, 200, 100), name=name,
+        char=")",
+        color=(255, 200, 100),
+        name=name,
         blocks_movement=False,
-        item={"type": "weapon", "weapon_class": weapon_class, "value": value,
-              "ammo": ammo, "max_ammo": max_ammo, "range": range_},
+        item={
+            "type": "weapon",
+            "weapon_class": weapon_class,
+            "value": value,
+            "ammo": ammo,
+            "max_ammo": max_ammo,
+            "range": range_,
+        },
     )
 
 
 def make_melee_weapon(name="Combat Knife", value=3):
     """Create a melee weapon Entity."""
     return Entity(
-        char=")", color=(200, 200, 200), name=name,
+        char=")",
+        color=(200, 200, 200),
+        name=name,
         blocks_movement=False,
         item={"type": "weapon", "weapon_class": "melee", "value": value},
     )
@@ -100,17 +113,20 @@ def make_melee_weapon(name="Combat Knife", value=3):
 def make_scanner(name="Scanner", tier=1, scan_range=8):
     """Create a scanner Entity."""
     return Entity(
-        char="~", color=(100, 200, 255), name=name,
+        char="~",
+        color=(100, 200, 255),
+        name=name,
         blocks_movement=False,
-        item={"type": "scanner", "scanner_tier": tier, "range": scan_range,
-              "value": tier, "uses": 99},
+        item={"type": "scanner", "scanner_tier": tier, "range": scan_range, "value": tier, "uses": 99},
     )
 
 
 def make_heal_item(name="Medkit", value=5):
     """Create a heal consumable Entity."""
     return Entity(
-        char="+", color=(0, 255, 0), name=name,
+        char="+",
+        color=(0, 255, 0),
+        name=name,
         blocks_movement=False,
         item={"type": "heal", "value": value},
     )
@@ -128,14 +144,17 @@ DEFAULT_AI_CONFIG = {
 }
 
 
-def make_creature(x=3, y=3, hp=5, power=1, defense=0, name="Drone",
-                  ai_config=None, ai_state="wandering", organic=True):
+def make_creature(x=3, y=3, hp=5, power=1, defense=0, name="Drone", ai_config=None, ai_state="wandering", organic=True):
     """Create an enemy Entity with CreatureAI."""
     cfg = dict(DEFAULT_AI_CONFIG)
     if ai_config:
         cfg.update(ai_config)
     e = Entity(
-        x=x, y=y, char="d", color=(255, 100, 100), name=name,
+        x=x,
+        y=y,
+        char="d",
+        color=(255, 100, 100),
+        name=name,
         blocks_movement=True,
         fighter=Fighter(hp=hp, max_hp=hp, defense=defense, power=power),
         ai=CreatureAI(),
@@ -148,6 +167,7 @@ def make_creature(x=3, y=3, hp=5, power=1, defense=0, name="Drone",
 
 class FakeEvent:
     """Minimal tcod event stand-in for UI state tests."""
+
     def __init__(self, sym, mod=0):
         self.sym = sym
         self.mod = mod

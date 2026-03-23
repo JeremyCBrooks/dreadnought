@@ -1,16 +1,20 @@
 """Tests for InteractAction and ScanAction."""
-from game.entity import Entity, Fighter
-from game.actions import InteractAction, ScanAction, ToggleDoorAction
+
+from game.actions import InteractAction, ScanAction
+from game.entity import Entity
 from game.loadout import Loadout
-from world import tile_types
 from tests.conftest import make_engine as _make_engine
+from world import tile_types
 
 
 def test_interact_with_loot():
     engine = _make_engine()
     loot = {"char": "!", "color": (0, 255, 100), "name": "Med-kit", "type": "heal", "value": 5}
     inter = Entity(
-        x=6, y=5, name="Crate", blocks_movement=False,
+        x=6,
+        y=5,
+        name="Crate",
+        blocks_movement=False,
         interactable={"kind": "crate", "hazard": None, "loot": loot},
     )
     engine.game_map.entities.append(inter)
@@ -23,7 +27,10 @@ def test_interact_with_loot():
 def test_interact_no_loot():
     engine = _make_engine()
     inter = Entity(
-        x=6, y=5, name="Console", blocks_movement=False,
+        x=6,
+        y=5,
+        name="Console",
+        blocks_movement=False,
         interactable={"kind": "console", "hazard": None, "loot": None},
     )
     engine.game_map.entities.append(inter)
@@ -36,7 +43,10 @@ def test_interact_with_hazard():
     engine = _make_engine()
     hazard = {"type": "electric", "damage": 2, "equipment_damage": False}
     inter = Entity(
-        x=6, y=5, name="Console", blocks_movement=False,
+        x=6,
+        y=5,
+        name="Console",
+        blocks_movement=False,
         interactable={"kind": "console", "hazard": hazard, "loot": None},
     )
     engine.game_map.entities.append(inter)
@@ -58,7 +68,10 @@ def test_scan_tier1():
     engine.player.loadout = Loadout(slot1=scanner)
     hazard = {"type": "electric", "damage": 2, "equipment_damage": False}
     inter = Entity(
-        x=6, y=5, name="Console", blocks_movement=False,
+        x=6,
+        y=5,
+        name="Console",
+        blocks_movement=False,
         interactable={"kind": "console", "hazard": hazard, "loot": None},
     )
     engine.game_map.entities.append(inter)
@@ -77,7 +90,10 @@ def test_scan_tier2():
     engine.player.loadout = Loadout(slot1=scanner)
     hazard = {"type": "radiation", "damage": 1, "severity": "moderate", "equipment_damage": False}
     inter = Entity(
-        x=6, y=5, name="Console", blocks_movement=False,
+        x=6,
+        y=5,
+        name="Console",
+        blocks_movement=False,
         interactable={"kind": "console", "hazard": hazard, "loot": None},
     )
     engine.game_map.entities.append(inter)
@@ -92,7 +108,10 @@ def test_scan_safe():
     scanner = Entity(name="Scanner", item={"type": "scanner", "scanner_tier": 1, "range": 8, "uses": 99})
     engine.player.loadout = Loadout(slot1=scanner)
     inter = Entity(
-        x=6, y=5, name="Console", blocks_movement=False,
+        x=6,
+        y=5,
+        name="Console",
+        blocks_movement=False,
         interactable={"kind": "console", "hazard": None, "loot": None},
     )
     engine.game_map.entities.append(inter)
@@ -107,7 +126,10 @@ def test_scan_mitigates_hazard():
     engine.player.loadout = Loadout(slot1=scanner)
     hazard = {"type": "electric", "damage": 2, "equipment_damage": False}
     inter = Entity(
-        x=6, y=5, name="Console", blocks_movement=False,
+        x=6,
+        y=5,
+        name="Console",
+        blocks_movement=False,
         interactable={"kind": "console", "hazard": hazard, "loot": None},
     )
     engine.game_map.entities.append(inter)
@@ -122,12 +144,33 @@ def test_unscanned_still_triggers():
     engine = _make_engine()
     hazard = {"type": "electric", "damage": 2, "equipment_damage": False}
     inter = Entity(
-        x=6, y=5, name="Console", blocks_movement=False,
+        x=6,
+        y=5,
+        name="Console",
+        blocks_movement=False,
         interactable={"kind": "console", "hazard": hazard, "loot": None},
     )
     engine.game_map.entities.append(inter)
     InteractAction().perform(engine, engine.player)
     assert engine.player.fighter.hp == 8  # Took 2 damage
+
+
+def test_fatal_hazard_blocks_loot():
+    """If a hazard kills the player, loot should NOT be added to inventory."""
+    engine = _make_engine()
+    loot = {"char": "!", "color": (0, 255, 100), "name": "Med-kit", "type": "heal", "value": 5}
+    hazard = {"type": "explosive", "damage": 99, "equipment_damage": False}
+    inter = Entity(
+        x=6,
+        y=5,
+        name="Crate",
+        blocks_movement=False,
+        interactable={"kind": "crate", "hazard": hazard, "loot": loot},
+    )
+    engine.game_map.entities.append(inter)
+    InteractAction().perform(engine, engine.player)
+    assert engine.player.fighter.hp == 0
+    assert len(engine.player.inventory) == 0  # No loot for dead player
 
 
 def test_scan_then_interact_full_flow():
@@ -138,7 +181,10 @@ def test_scan_then_interact_full_flow():
     loot = {"char": "!", "color": (0, 255, 100), "name": "Med-kit", "type": "heal", "value": 5}
     hazard = {"type": "radiation", "damage": 1, "severity": "moderate", "equipment_damage": False}
     inter = Entity(
-        x=6, y=5, name="Crate", blocks_movement=False,
+        x=6,
+        y=5,
+        name="Crate",
+        blocks_movement=False,
         interactable={"kind": "crate", "hazard": hazard, "loot": loot},
     )
     engine.game_map.entities.append(inter)
@@ -153,7 +199,10 @@ def test_scan_then_interact_full_flow():
 def test_scan_no_scanner():
     engine = _make_engine()
     inter = Entity(
-        x=6, y=5, name="Console", blocks_movement=False,
+        x=6,
+        y=5,
+        name="Console",
+        blocks_movement=False,
         interactable={"kind": "console", "hazard": None, "loot": None},
     )
     engine.game_map.entities.append(inter)
@@ -170,7 +219,10 @@ def test_interact_directed_entity():
     engine = _make_engine()
     loot = {"char": "!", "color": (0, 255, 100), "name": "Med-kit", "type": "heal", "value": 5}
     inter = Entity(
-        x=6, y=6, name="Crate", blocks_movement=False,
+        x=6,
+        y=6,
+        name="Crate",
+        blocks_movement=False,
         interactable={"kind": "crate", "hazard": None, "loot": loot},
     )
     engine.game_map.entities.append(inter)
@@ -185,7 +237,10 @@ def test_interact_directed_misses():
     """InteractAction with dx/dy targeting empty space finds nothing."""
     engine = _make_engine()
     inter = Entity(
-        x=6, y=5, name="Crate", blocks_movement=False,
+        x=6,
+        y=5,
+        name="Crate",
+        blocks_movement=False,
         interactable={"kind": "crate", "hazard": None, "loot": None},
     )
     engine.game_map.entities.append(inter)
@@ -203,7 +258,10 @@ def test_scan_directed():
     engine.player.loadout = Loadout(slot1=scanner)
     hazard = {"type": "electric", "damage": 2, "equipment_damage": False}
     inter = Entity(
-        x=6, y=6, name="Console", blocks_movement=False,
+        x=6,
+        y=6,
+        name="Console",
+        blocks_movement=False,
         interactable={"kind": "console", "hazard": hazard, "loot": None},
     )
     engine.game_map.entities.append(inter)
@@ -215,12 +273,16 @@ def test_scan_directed():
 def test_adjacent_interact_dirs_mixed():
     """_adjacent_interact_dirs finds both doors and entities in all 8 dirs."""
     from ui.tactical_state import TacticalState
+
     engine = _make_engine()
     # Place a door to the east (cardinal)
     engine.game_map.tiles[6, 5] = tile_types.door_closed
     # Place an interactable entity to the northeast (diagonal)
     inter = Entity(
-        x=6, y=4, name="Console", blocks_movement=False,
+        x=6,
+        y=4,
+        name="Console",
+        blocks_movement=False,
         interactable={"kind": "console", "hazard": None, "loot": None},
     )
     engine.game_map.entities.append(inter)
@@ -234,6 +296,7 @@ def test_adjacent_interact_dirs_mixed():
 def test_adjacent_interact_dirs_diagonal_door():
     """Doors at diagonal offsets are now detected (8-directional)."""
     from ui.tactical_state import TacticalState
+
     engine = _make_engine()
     # Place a door diagonally (northeast)
     engine.game_map.tiles[6, 4] = tile_types.door_closed

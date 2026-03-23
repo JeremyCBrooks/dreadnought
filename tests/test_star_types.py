@@ -1,7 +1,8 @@
 """Tests for star type definitions and selection."""
+
 import random
 
-from data.star_types import STAR_TYPES, STAR_TYPE_WEIGHTS, StarType, pick_star_type
+from data.star_types import STAR_TYPES, StarType, pick_star_type
 
 
 class TestStarTypeDefinitions:
@@ -20,18 +21,32 @@ class TestStarTypeDefinitions:
             assert isinstance(st.corona_width, int), f"{key}.corona_width"
             assert isinstance(st.surface_chars, str) and len(st.surface_chars) > 0, f"{key}.surface_chars"
 
+    def test_color_channels_in_valid_range(self):
+        for key, st in STAR_TYPES.items():
+            for label, color in [
+                ("core_color", st.core_color),
+                ("mid_color", st.mid_color),
+                ("edge_color", st.edge_color),
+                ("corona_color", st.corona_color),
+            ]:
+                for i, c in enumerate(color):
+                    assert 0 <= c <= 255, f"{key}.{label}[{i}]={c} out of 0-255"
+
+    def test_corona_width_positive(self):
+        for key, st in STAR_TYPES.items():
+            assert st.corona_width > 0, f"{key}.corona_width={st.corona_width}"
+
     def test_radii_are_reasonable(self):
         for key, st in STAR_TYPES.items():
             assert 1 <= st.radius <= 20, f"{key}.radius={st.radius} out of range"
 
-    def test_weights_match_types(self):
-        assert set(STAR_TYPE_WEIGHTS.keys()) == set(STAR_TYPES.keys())
-        for w in STAR_TYPE_WEIGHTS.values():
-            assert w > 0
+    def test_weight_is_on_star_type(self):
+        for key, st in STAR_TYPES.items():
+            assert isinstance(st.weight, (int, float)), f"{key}.weight"
+            assert st.weight > 0, f"{key}.weight={st.weight}"
 
     def test_at_least_seventeen_types(self):
         assert len(STAR_TYPES) >= 17
-
 
     def test_render_hints_are_valid(self):
         valid_hints = {"", "pulsar", "black_hole"}
@@ -43,7 +58,6 @@ class TestStarTypeDefinitions:
         assert "pulsar" in hints
         assert "black_hole" in hints
 
-
     def test_yellow_white_dwarf_exists_and_sized_correctly(self):
         yw = STAR_TYPES["yellow_white_dwarf"]
         yd = STAR_TYPES["yellow_dwarf"]
@@ -52,7 +66,7 @@ class TestStarTypeDefinitions:
         assert yw.radius <= bg.radius, "yellow/white dwarf should be smaller than blue giant"
 
     def test_yellow_white_dwarf_less_common_than_yellow_dwarf(self):
-        assert STAR_TYPE_WEIGHTS["yellow_white_dwarf"] < STAR_TYPE_WEIGHTS["yellow_dwarf"]
+        assert STAR_TYPES["yellow_white_dwarf"].weight < STAR_TYPES["yellow_dwarf"].weight
 
     def test_white_star_exists_and_sized_correctly(self):
         ws = STAR_TYPES["white_star"]
@@ -62,8 +76,8 @@ class TestStarTypeDefinitions:
         assert ws.radius <= bg.radius, "white star should be no larger than blue giant"
 
     def test_white_star_rarity_between_yellow_white_and_blue_giant(self):
-        assert STAR_TYPE_WEIGHTS["blue_giant"] < STAR_TYPE_WEIGHTS["white_star"]
-        assert STAR_TYPE_WEIGHTS["white_star"] < STAR_TYPE_WEIGHTS["yellow_white_dwarf"]
+        assert STAR_TYPES["blue_giant"].weight < STAR_TYPES["white_star"].weight
+        assert STAR_TYPES["white_star"].weight < STAR_TYPES["yellow_white_dwarf"].weight
 
 
 class TestPickStarType:
@@ -86,3 +100,9 @@ class TestPickStarType:
         for _ in range(5000):
             seen.add(pick_star_type(rng))
         assert seen == set(STAR_TYPES.keys()), f"Missing types: {set(STAR_TYPES.keys()) - seen}"
+
+    def test_cached_keys_and_weights_are_immutable(self):
+        from data.star_types import _KEYS, _WEIGHTS
+
+        assert isinstance(_KEYS, tuple)
+        assert isinstance(_WEIGHTS, tuple)

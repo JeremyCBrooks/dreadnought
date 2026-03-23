@@ -1,24 +1,32 @@
 """Tests for AI consumable usage (Phase 5)."""
-import random
+
 from unittest.mock import patch
 
 from game.entity import Entity, Fighter
-from game.ai import CreatureAI
 from tests.conftest import (
-    make_arena, make_creature, make_heal_item, make_melee_weapon,
-    MockEngine, DEFAULT_AI_CONFIG,
+    DEFAULT_AI_CONFIG,
+    MockEngine,
+    make_arena,
+    make_creature,
+    make_heal_item,
+    make_melee_weapon,
 )
 
 
-def _make_engine_with_enemy(enemy_x=3, enemy_y=3, enemy_hp=10, enemy_max_hp=10,
-                            organic=True, ai_state="hunting", power=1):
+def _make_engine_with_enemy(
+    enemy_x=3, enemy_y=3, enemy_hp=10, enemy_max_hp=10, organic=True, ai_state="hunting", power=1
+):
     gm = make_arena(20, 20)
     player = Entity(x=15, y=15, name="Player", fighter=Fighter(10, 10, 0, 1))
     gm.entities.append(player)
     engine = MockEngine(gm, player)
     enemy = make_creature(
-        x=enemy_x, y=enemy_y, hp=enemy_hp, power=power,
-        ai_state=ai_state, organic=organic,
+        x=enemy_x,
+        y=enemy_y,
+        hp=enemy_hp,
+        power=power,
+        ai_state=ai_state,
+        organic=organic,
         ai_config={**DEFAULT_AI_CONFIG, "flee_threshold": 0.0},
     )
     enemy.fighter.max_hp = enemy_max_hp
@@ -52,9 +60,7 @@ class TestTryUseItem:
         assert medkit in enemy.inventory
 
     def test_nonorganic_enemy_never_heals(self):
-        engine, enemy = _make_engine_with_enemy(
-            enemy_hp=3, enemy_max_hp=10, organic=False
-        )
+        engine, enemy = _make_engine_with_enemy(enemy_hp=3, enemy_max_hp=10, organic=False)
         medkit = make_heal_item(value=5)
         enemy.inventory.append(medkit)
 
@@ -65,15 +71,15 @@ class TestTryUseItem:
         assert enemy.fighter.hp == 3
 
     def test_mechanical_enemy_repairs_damaged_weapon(self):
-        engine, enemy = _make_engine_with_enemy(
-            enemy_hp=5, enemy_max_hp=10, organic=False
-        )
+        engine, enemy = _make_engine_with_enemy(enemy_hp=5, enemy_max_hp=10, organic=False)
         weapon = make_melee_weapon(value=3)
         weapon.item["damaged"] = True
         weapon.item["durability"] = 0
         weapon.item["max_durability"] = 5
         repair_kit = Entity(
-            char="#", color=(180, 140, 80), name="Repair Kit",
+            char="#",
+            color=(180, 140, 80),
+            name="Repair Kit",
             blocks_movement=False,
             item={"type": "repair", "value": 5},
         )
@@ -136,7 +142,9 @@ class TestAIItemUsageInStates:
     def test_hunting_uses_item_consumes_turn(self):
         """When hunting and item is used, no movement/attack happens."""
         engine, enemy = _make_engine_with_enemy(
-            enemy_hp=3, enemy_max_hp=10, ai_state="hunting",
+            enemy_hp=3,
+            enemy_max_hp=10,
+            ai_state="hunting",
         )
         medkit = make_heal_item(value=5)
         enemy.inventory.append(medkit)
@@ -150,7 +158,9 @@ class TestAIItemUsageInStates:
 
     def test_wandering_uses_item(self):
         engine, enemy = _make_engine_with_enemy(
-            enemy_hp=3, enemy_max_hp=10, ai_state="wandering",
+            enemy_hp=3,
+            enemy_max_hp=10,
+            ai_state="wandering",
         )
         medkit = make_heal_item(value=5)
         enemy.inventory.append(medkit)
@@ -161,7 +171,9 @@ class TestAIItemUsageInStates:
 
     def test_fleeing_uses_item(self):
         engine, enemy = _make_engine_with_enemy(
-            enemy_hp=3, enemy_max_hp=10, ai_state="fleeing",
+            enemy_hp=3,
+            enemy_max_hp=10,
+            ai_state="fleeing",
         )
         medkit = make_heal_item(value=5)
         enemy.inventory.append(medkit)

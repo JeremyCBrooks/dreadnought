@@ -1,13 +1,28 @@
 """Briefing screen shown before entering a tactical mission."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
 from engine.game_state import State
-from ui.colors import DARK_GRAY, GRAY, NEUTRAL
+from ui.colors import (
+    DARK_GRAY,
+    DIALOG_BG,
+    GRAY,
+    HEADER_TEXT,
+    HEADER_TITLE,
+    NEUTRAL,
+    PICKUP,
+    THREAT_HIGH,
+    THREAT_LOW,
+    THREAT_MODERATE,
+    WARNING,
+    WHITE,
+)
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
+    from game.suit import Suit
     from world.galaxy import Location
 
 
@@ -28,11 +43,9 @@ def _threat_level(env: dict | None, depth: int) -> str:
     score = _threat_score(env, depth)
     if score <= 1:
         return "LOW"
-    elif score <= 3:
+    if score <= 3:
         return "MODERATE"
-    else:
-        return "HIGH"
-
+    return "HIGH"
 
 
 class BriefingState(State):
@@ -42,10 +55,11 @@ class BriefingState(State):
         self.location = location
         self.depth = depth
         self._suit_index = 0
-        self._suits: list = []
+        self._suits: list[Suit] = []
 
     def on_enter(self, engine: Engine) -> None:
         from game.suit import EVA_SUIT, HAZARD_SUIT
+
         self._suits = [EVA_SUIT, HAZARD_SUIT]
         engine.mission_loadout = []
         if engine.suit:
@@ -54,8 +68,8 @@ class BriefingState(State):
                     self._suit_index = i
                     break
 
-    def ev_keydown(self, engine: Engine, event: Any) -> bool:
-        from ui.keys import confirm_keys, cancel_keys, move_keys
+    def ev_key(self, engine: Engine, event: Any) -> bool:
+        from ui.keys import cancel_keys, confirm_keys, move_keys
 
         key = event.sym
 
@@ -74,14 +88,17 @@ class BriefingState(State):
 
         if key in confirm_keys():
             if self._suits:
-                engine.suit = self._suits[self._suit_index]
+                engine.suit = self._suits[self._suit_index].copy()
             from ui.tactical_state import TacticalState
+
             engine.switch_state(TacticalState(location=self.location, depth=self.depth))
             return True
 
         import tcod.event
+
         if key == tcod.event.KeySym.c:
             from ui.cargo_state import CargoState
+
             engine.push_state(CargoState())
             return True
 
@@ -93,16 +110,16 @@ class BriefingState(State):
         bh = min(25, ch - 10)
         bx = (cw - bw) // 2
         by = (ch - bh) // 2
-        from ui.colors import DIALOG_BG, HEADER_TITLE
+
         console.draw_rect(bx, by, bw, bh, ch=32, bg=DIALOG_BG)
 
         title = "=== MISSION BRIEFING ==="
         console.print(x=bx + (bw - len(title)) // 2, y=by + 1, string=title, fg=HEADER_TITLE)
 
         y = by + 3
-        console.print(x=bx + 2, y=y, string=f"Location: {self.location.name}", fg=(200, 200, 255))
+        console.print(x=bx + 2, y=y, string=f"Location: {self.location.name}", fg=PICKUP)
         y += 1
-        console.print(x=bx + 2, y=y, string=f"Type: {self.location.loc_type}", fg=(180, 180, 200))
+        console.print(x=bx + 2, y=y, string=f"Type: {self.location.loc_type}", fg=HEADER_TEXT)
 
         # Environment hazards come directly from the location data
         # (galaxy assigns vacuum to derelicts/asteroids).
@@ -110,36 +127,36 @@ class BriefingState(State):
 
         y += 2
         threat = _threat_level(env, self.depth)
-        from ui.colors import THREAT_LOW, THREAT_MODERATE, THREAT_HIGH
         threat_color = {"LOW": THREAT_LOW, "MODERATE": THREAT_MODERATE, "HIGH": THREAT_HIGH}
         console.print(x=bx + 2, y=y, string=f"Threat Level: {threat}", fg=threat_color.get(threat, NEUTRAL))
 
         y += 2
-        console.print(x=bx + 2, y=y, string="Environmental Hazards:", fg=(180, 180, 200))
+        console.print(x=bx + 2, y=y, string="Environmental Hazards:", fg=HEADER_TEXT)
         y += 1
         if env:
             for hazard_type, severity in env.items():
                 label = hazard_type.replace("_", " ").title()
-                console.print(x=bx + 4, y=y, string=f"- {label} (severity: {severity})", fg=(255, 200, 100))
+                console.print(x=bx + 4, y=y, string=f"- {label} (severity: {severity})", fg=WARNING)
                 y += 1
         else:
-            console.print(x=bx + 4, y=y, string="None detected", fg=(100, 200, 100))
+            console.print(x=bx + 4, y=y, string="None detected", fg=THREAT_LOW)
             y += 1
 
         # Suit picker
         y += 1
-        console.print(x=bx + 2, y=y, string="Select Suit:", fg=(180, 180, 200))
+        console.print(x=bx + 2, y=y, string="Select Suit:", fg=HEADER_TEXT)
         y += 1
         for i, suit in enumerate(self._suits):
             prefix = ">" if i == self._suit_index else " "
-            color = (255, 255, 255) if i == self._suit_index else GRAY
+            color = WHITE if i == self._suit_index else GRAY
             res_str = ", ".join(f"{k}:{v}" for k, v in suit.resistances.items())
             label = f"{prefix} {suit.name} (DEF+{suit.defense_bonus}, {res_str})"
-            console.print(x=bx + 4, y=y, string=label[:max(1, bw - 6)], fg=color)
+            console.print(x=bx + 4, y=y, string=label[: max(1, bw - 6)], fg=color)
             y += 1
 
         console.print(
-            x=bx + 2, y=by + bh - 2,
+            x=bx + 2,
+            y=by + bh - 2,
             string="[ENTER] Deploy  [UP/DOWN] Suit  [C] Cargo  [ESC] Back",
             fg=DARK_GRAY,
         )

@@ -1,11 +1,16 @@
 """Trigger hazard effects on the player (from interactable objects)."""
+
 from __future__ import annotations
 
 import random
 from typing import TYPE_CHECKING
 
+from game.loadout import has_usable_durability
 from ui.colors import (
-    HAZARD_ELECTRIC, HAZARD_RADIATION, HAZARD_EXPLOSIVE, HAZARD_GAS,
+    HAZARD_ELECTRIC,
+    HAZARD_EXPLOSIVE,
+    HAZARD_GAS,
+    HAZARD_RADIATION,
     HAZARD_STRUCTURAL,
 )
 
@@ -18,9 +23,11 @@ GAS_O2_DRAIN = 5
 # Maps hazard type -> (message template, color).
 # Template receives {source_name} and {damage} via str.format_map().
 _HAZARD_MESSAGES = {
-    "electric":   ("Electric discharge from {source_name}! You take {damage} damage.", HAZARD_ELECTRIC),
-    "radiation":  ("Radiation leak from {source_name}! You take {damage} damage. You feel sick.", HAZARD_RADIATION),
-    "explosive":  ("Explosion at {source_name}! You take {damage} damage.", HAZARD_EXPLOSIVE),
+    "electric": ("Electric discharge from {source_name}! You take {damage} damage.", HAZARD_ELECTRIC),
+    "radiation": ("Radiation leak from {source_name}! You take {damage} damage. You feel sick.", HAZARD_RADIATION),
+    "explosive": ("Explosion at {source_name}! You take {damage} damage.", HAZARD_EXPLOSIVE),
+    "gas": ("Toxic gas from {source_name}! You take {damage} damage.", HAZARD_GAS),
+    "structural": ("Structural collapse at {source_name}! You take {damage} damage.", HAZARD_STRUCTURAL),
 }
 
 
@@ -36,28 +43,22 @@ def _apply_equipment_damage(engine: Engine, player: Entity) -> None:
     if getattr(player, "loadout", None):
         candidates = player.loadout.items_with_durability()
     else:
-        candidates = [
-            e for e in player.inventory
-            if e.item and e.item.get("durability") is not None and e.item.get("durability", 0) > 0
-        ]
+        candidates = [e for e in player.inventory if has_usable_durability(e)]
     if not candidates:
         return
     victim = random.choice(candidates)
     victim.item["durability"] = max(0, victim.item.get("durability", 1) - 1)
     if victim.item["durability"] <= 0:
         victim.item["damaged"] = True
-        engine.message_log.add_message(
-            f"Your {victim.name} is damaged beyond use!", HAZARD_EXPLOSIVE
-        )
+        engine.message_log.add_message(f"Your {victim.name} is damaged beyond use!", HAZARD_EXPLOSIVE)
     else:
-        engine.message_log.add_message(
-            f"Your {victim.name} is damaged!", HAZARD_ELECTRIC
-        )
+        engine.message_log.add_message(f"Your {victim.name} is damaged!", HAZARD_ELECTRIC)
 
 
 def trigger_hazard(engine: Engine, hazard: dict, source_name: str) -> None:
     """Apply hazard effect to the player. hazard has type, severity, damage, equipment_damage."""
     import debug
+
     if debug.DISABLE_HAZARDS:
         return
     if not engine.player or not engine.player.fighter:
@@ -66,42 +67,34 @@ def trigger_hazard(engine: Engine, hazard: dict, source_name: str) -> None:
     damage = hazard.get("damage", 1)
     player = engine.player
 
-    apply_hp_damage(player.fighter, damage)
+    if not debug.GOD_MODE:
+        apply_hp_damage(player.fighter, damage)
 
-    # Type-specific side effects
-    if htype == "electric" and hazard.get("equipment_damage", False):
+    # Data-driven equipment damage (any hazard type can opt in)
+    if hazard.get("equipment_damage", False):
         _apply_equipment_damage(engine, player)
 
-    if htype == "gas":
-        drained = False
+    # Gas-specific side effect: drain suit O2
+    suffix = ""
+    if htype == "gas" and not debug.DISABLE_OXYGEN:
         if engine.suit and "vacuum" in engine.suit.current_pools:
-            engine.suit.current_pools["vacuum"] = max(
-                0, engine.suit.current_pools["vacuum"] - GAS_O2_DRAIN
-            )
-            drained = True
-        suffix = " Suit O2 contaminated!" if drained else ""
-        engine.message_log.add_message(
-            f"Toxic gas from {source_name}! You take {damage} damage.{suffix}",
-            HAZARD_GAS,
-        )
-    elif htype in _HAZARD_MESSAGES:
+            engine.suit.current_pools["vacuum"] = max(0, engine.suit.current_pools["vacuum"] - GAS_O2_DRAIN)
+            suffix = " Suit O2 contaminated!"
+
+    # Log message from lookup table, with generic fallback for unknown types
+    if htype in _HAZARD_MESSAGES:
         template, color = _HAZARD_MESSAGES[htype]
-        engine.message_log.add_message(
-            template.format(source_name=source_name, damage=damage), color
-        )
+        msg = template.format(source_name=source_name, damage=damage)
     else:
-        engine.message_log.add_message(
-            f"Structural collapse at {source_name}! You take {damage} damage.",
-            HAZARD_STRUCTURAL,
-        )
+        msg = f"Hazard at {source_name}! You take {damage} damage."
+        color = HAZARD_STRUCTURAL
+    engine.message_log.add_message(f"{msg}{suffix}", color)
 
     # Data-driven DoT: if hazard defines dot > 0, add an active effect
     dot = hazard.get("dot", 0)
     duration = hazard.get("duration", 0)
     if dot > 0 and duration != 0:
-        engine.active_effects.append(
-            {"type": htype, "dot": dot, "remaining": duration}
-        )
+        engine.active_effects.append({"type": htype, "dot": dot, "remaining": duration})
 
 
 def apply_dot_effects(engine: Engine) -> None:
@@ -111,13 +104,12 @@ def apply_dot_effects(engine: Engine) -> None:
     if not engine.player.fighter:
         return
     import debug
+
     surviving: list[dict] = []
     for effect in engine.active_effects:
         if not debug.GOD_MODE:
             apply_hp_damage(engine.player.fighter, effect["dot"])
-        engine.message_log.add_message(
-            f"{effect['type'].title()} damage!", HAZARD_RADIATION
-        )
+        engine.message_log.add_message(f"{effect['type'].title()} damage!", HAZARD_RADIATION)
         if effect["remaining"] == -1:
             surviving.append(effect)
         else:

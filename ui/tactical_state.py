@@ -1,15 +1,17 @@
 """Tactical (dungeon exploration) state."""
+
 from __future__ import annotations
 
 import hashlib
 import textwrap
 import time
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 from engine.game_state import State
-from game.ship import Ship
 from ui.colors import DARK_GRAY, EQUIP_MSG, GRAY, PROMPT
+from ui.keys import action_keys, cancel_keys, confirm_keys, is_action
+from ui.keys import move_keys as _move_keys
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -47,10 +49,11 @@ def _layout(engine: Engine) -> SimpleNamespace:
         map_h=max(viewport_h, MIN_MAP_H),
     )
 
-Color = Tuple[int, int, int]
+
+Color = tuple[int, int, int]
 
 
-def _area_key(location: Optional[Location], depth: int) -> Tuple[str, int]:
+def _area_key(location: Location | None, depth: int) -> tuple[str, int]:
     """Stable key for area cache: (location_name, depth)."""
     loc_name = location.name if location else "the dungeon"
     return (loc_name, depth)
@@ -58,11 +61,8 @@ def _area_key(location: Optional[Location], depth: int) -> Tuple[str, int]:
 
 def _area_seed(location_name: str, depth: int) -> int:
     """Deterministic seed for dungeon layout so the same area is always the same layout."""
-    raw = hashlib.md5(f"{location_name}_{depth}".encode()).hexdigest()[:8]
+    raw = hashlib.md5(f"{location_name}_{depth}".encode(), usedforsecurity=False).hexdigest()[:8]
     return int(raw, 16)
-
-
-from ui.keys import move_keys as _move_keys, confirm_keys, cancel_keys, action_keys, is_action
 
 
 def _hint(name: str) -> str:
@@ -76,21 +76,21 @@ DEATH_FADE_DURATION = 1.0  # seconds to fade out tactical on player death
 
 
 class TacticalState(State):
-    def __init__(self, location: Optional[Location] = None, depth: int = 0) -> None:
+    def __init__(self, location: Location | None = None, depth: int = 0) -> None:
         self.location = location
         self.depth = depth
-        self.exit_pos: Optional[tuple[int, int]] = None
-        self._look_cursor: Optional[tuple[int, int]] = None
-        self._ranged_cursor: Optional[tuple[int, int]] = None
+        self.exit_pos: tuple[int, int] | None = None
+        self._look_cursor: tuple[int, int] | None = None
+        self._ranged_cursor: tuple[int, int] | None = None
         self._interact_pending: bool = False
-        self._scan_pending: Optional[list] = None  # list of scanner entities when choosing
-        self._visible_enemies: List = []
+        self._scan_pending: list | None = None  # list of scanner entities when choosing
+        self._visible_enemies: list = []
         self._enemy_cycle_index: int = 0
-        self._ground_lines: List[Tuple[str, Color]] = []
-        self._layout: Optional[SimpleNamespace] = None
+        self._ground_lines: list[tuple[str, Color]] = []
+        self._layout: SimpleNamespace | None = None
         self._drift_timer: float = 0.0
         # Death fade-out state
-        self._death_cause: Optional[str] = None
+        self._death_cause: str | None = None
         self._death_fade_start: float = 0.0
 
     def _max_enemies(self) -> int:
@@ -101,9 +101,9 @@ class TacticalState(State):
     # ------------------------------------------------------------------
 
     def on_enter(self, engine: Engine) -> None:
-        from world.dungeon_gen import generate_dungeon, respawn_creatures
         from game.entity import Entity, Fighter
         from game.suit import EVA_SUIT
+        from world.dungeon_gen import generate_dungeon, respawn_creatures
 
         loc_name = self.location.name if self.location else "the dungeon"
         key = _area_key(self.location, self.depth)
@@ -114,7 +114,7 @@ class TacticalState(State):
         # derelicts/asteroids; starbases are pressurised unless breached).
         env = getattr(self.location, "environment", None)
         engine.environment = dict(env) if env else {}
-        engine.suit = getattr(engine, "suit", None) or EVA_SUIT
+        engine.suit = getattr(engine, "suit", None) or EVA_SUIT.copy()
         engine.suit.refill_pools()
 
         engine.active_effects.clear()
@@ -130,12 +130,13 @@ class TacticalState(State):
             respawn_creatures(game_map, rooms, max_enemies=max_enemies, seed=None)
         else:
             game_map, rooms, exit_pos = generate_dungeon(
-                width=layout.map_w, height=layout.map_h,
+                width=layout.map_w,
+                height=layout.map_h,
                 max_enemies=max_enemies,
                 max_items=1,
                 seed=seed,
                 loc_type=loc_type,
-                has_nav_unit=getattr(self.location, 'has_nav_unit', False),
+                has_nav_unit=getattr(self.location, "has_nav_unit", False),
             )
             self.exit_pos = exit_pos
             engine.area_cache[key] = {
@@ -146,16 +147,19 @@ class TacticalState(State):
             }
 
         if not rooms:
-            from ui.strategic_state import StrategicState
             engine.game_map = game_map
             engine.player = None
-            if hasattr(engine, 'galaxy') and engine.galaxy:
+            if hasattr(engine, "galaxy") and engine.galaxy:
                 engine.pop_state()
             return
 
         px, py = rooms[0].center
         player = Entity(
-            x=px, y=py, char="@", color=(255, 255, 255), name="Player",
+            x=px,
+            y=py,
+            char="@",
+            color=(255, 255, 255),
+            name="Player",
             blocks_movement=True,
             fighter=Fighter(hp=10, max_hp=10, defense=0, power=1),
         )
@@ -183,18 +187,20 @@ class TacticalState(State):
             engine.environment.setdefault("vacuum", 1)
 
         # Transfer mission loadout to player inventory on entry
-        if hasattr(engine, 'mission_loadout'):
+        if hasattr(engine, "mission_loadout"):
             for item in engine.mission_loadout:
                 player.inventory.append(item)
             engine.mission_loadout.clear()
 
         # Set carry capacity
         from game.entity import PLAYER_MAX_INVENTORY
+
         player.max_inventory = PLAYER_MAX_INVENTORY
 
         # Auto-equip: first weapon and first tool into loadout if not already set
         if not player.loadout:
             from game.loadout import Loadout, is_equippable
+
             player.loadout = Loadout()
             first_weapon = None
             first_tool = None
@@ -212,13 +218,12 @@ class TacticalState(State):
 
         # Apply melee weapon power bonus
         from game.loadout import recalc_melee_power
+
         recalc_melee_power(player)
 
         game_map.update_fov(player.x, player.y)
 
-        engine.message_log.add_message(
-            f"You enter {loc_name}.", (200, 200, 255)
-        )
+        engine.message_log.add_message(f"You enter {loc_name}.", (200, 200, 255))
         self._update_ground_underfoot(engine)
 
     def on_exit(self, engine: Engine) -> None:
@@ -241,9 +246,8 @@ class TacticalState(State):
             if engine.ship is not None:
                 cores = [i for i in saved_inventory if i.item and i.item.get("type") == "reactor_core"]
                 for core in cores:
-                    added = min(core.item["value"], engine.ship.max_fuel - engine.ship.fuel)
+                    added = engine.ship.add_fuel(core.item["value"])
                     if added > 0:
-                        engine.ship.fuel += added
                         engine.message_log.add_message(
                             f"Reactor core converted to fuel. (+{added} fuel)",
                             EQUIP_MSG,
@@ -252,15 +256,15 @@ class TacticalState(State):
                 # Convert nav units to ship counter
                 nav_items = [i for i in saved_inventory if i.item and i.item.get("type") == "nav_unit"]
                 for nav in nav_items:
-                    engine.ship.nav_units = min(engine.ship.nav_units + 1, engine.ship.max_nav_units)
-                    engine.message_log.add_message(
-                        "Navigation unit installed.", (0, 255, 200)
-                    )
+                    engine.ship.add_nav_unit()
+                    engine.message_log.add_message("Navigation unit installed.", (0, 255, 200))
                     saved_inventory.remove(nav)
                 # Reveal Dreadnought on 6th nav unit
-                if (engine.ship.nav_units >= engine.ship.max_nav_units
-                        and engine.galaxy
-                        and not engine.galaxy.dreadnought_system):
+                if (
+                    engine.ship.nav_units >= engine.ship.max_nav_units
+                    and engine.galaxy
+                    and not engine.galaxy.dreadnought_system
+                ):
                     engine.galaxy.spawn_dreadnought()
                     engine.message_log.add_message(
                         "All navigation units installed. The Dreadnought's coordinates are locked in!",
@@ -269,11 +273,10 @@ class TacticalState(State):
                 # Convert hull repair kits to hull
                 hull_kits = [i for i in saved_inventory if i.item and i.item.get("type") == "hull_repair"]
                 for kit in hull_kits:
-                    added = min(kit.item["value"], engine.ship.max_hull - engine.ship.hull)
-                    if added > 0:
-                        engine.ship.hull += added
+                    repaired = engine.ship.repair_hull(kit.item["value"])
+                    if repaired > 0:
                         engine.message_log.add_message(
-                            f"Hull patched. (+{added} hull integrity)",
+                            f"Hull patched. (+{repaired} hull integrity)",
                             EQUIP_MSG,
                         )
                     saved_inventory.remove(kit)
@@ -286,8 +289,6 @@ class TacticalState(State):
                         "Dreadnought core secured in cargo hold.",
                         (255, 50, 50),
                     )
-                engine._saved_player["inventory"] = saved_inventory
-
             key = _area_key(self.location, self.depth)
             if engine.player in engine.game_map.entities:
                 engine.game_map.entities.remove(engine.player)
@@ -317,11 +318,12 @@ class TacticalState(State):
     # Input
     # ------------------------------------------------------------------
 
-    def ev_keydown(self, engine: Engine, event: Any) -> bool:
+    def ev_key(self, engine: Engine, event: Any) -> bool:
         if self._death_cause is not None:
             return True  # block all input during death fade
 
         import tcod.event
+
         key = event.sym
 
         if self._scan_pending is not None:
@@ -341,6 +343,7 @@ class TacticalState(State):
 
         if is_action("quit", key) and event.mod & (tcod.event.Modifier.LSHIFT | tcod.event.Modifier.RSHIFT):
             from ui.confirm_quit_state import ConfirmQuitState
+
             engine.push_state(ConfirmQuitState(abandon=True))
             return True
 
@@ -349,6 +352,7 @@ class TacticalState(State):
 
         if is_action("inventory", key):
             from ui.inventory_state import InventoryState
+
             engine.push_state(InventoryState())
             return True
 
@@ -378,7 +382,6 @@ class TacticalState(State):
                 return True
             moved = False
         elif is_action("scan", key):
-            from game.loadout import Loadout
             loadout = getattr(engine.player, "loadout", None)
             scanners = loadout.get_all_scanners() if loadout else []
             if len(scanners) == 0:
@@ -386,9 +389,10 @@ class TacticalState(State):
                 consumed = 0
             elif len(scanners) == 1:
                 from game.actions import ScanAction
+
                 consumed = ScanAction(scanner=scanners[0]).perform(engine, engine.player)
             else:
-                labels = " ".join(f"({i+1}) {s.name}" for i, s in enumerate(scanners))
+                labels = " ".join(f"({i + 1}) {s.name}" for i, s in enumerate(scanners))
                 engine.message_log.add_message(f"Which scanner? {labels}", PROMPT)
                 self._scan_pending = scanners
                 return True
@@ -426,13 +430,15 @@ class TacticalState(State):
     def _after_player_turn(self, engine: Engine) -> None:
         """Environment tick, radiation, drift, enemy turns. Switch to game over if dead."""
         from game.environment import (
-            apply_environment_tick, apply_environment_tick_entity,
-            trigger_decompression, process_decompression_step,
+            apply_environment_tick,
+            apply_environment_tick_entity,
+            process_decompression_step,
+            trigger_decompression,
         )
         from game.hazards import apply_dot_effects
 
         engine.game_map.invalidate_entity_index()
-        engine.game_map._fov_cache.clear()
+        engine.game_map.clear_fov_cache()
         apply_environment_tick(engine)
         apply_dot_effects(engine)
         if engine.player.fighter.hp <= 0:
@@ -443,7 +449,9 @@ class TacticalState(State):
         pending = engine.game_map._pending_decompression
         if pending:
             pull_dirs = trigger_decompression(
-                engine, pending["breach_sources"], pending["newly_exposed"],
+                engine,
+                pending["breach_sources"],
+                pending["newly_exposed"],
             )
             engine.game_map._pull_directions = pull_dirs
             engine.game_map._pending_decompression = None
@@ -474,32 +482,28 @@ class TacticalState(State):
             self._handle_player_death(engine, "Crushed by explosive decompression.")
             return
 
-        # Player drift
+        # Drift processing (player + enemies)
+        from world import tile_types as _tt
+
+        _space_tid = int(_tt.space["tile_id"])
+
         if engine.player.drifting:
-            from world import tile_types as _tt
-            _space_tid = int(_tt.space["tile_id"])
             dx, dy = engine.player.drift_direction
             nx, ny = engine.player.x + dx, engine.player.y + dy
             if not engine.game_map.in_bounds(nx, ny):
-                engine.message_log.add_message(
-                    "You drift beyond reach... lost to the void.", (255, 0, 0)
-                )
+                engine.message_log.add_message("You drift beyond reach... lost to the void.", (255, 0, 0))
                 engine.player.fighter.hp = 0
                 self._handle_player_death(engine, "Lost to the void.")
                 return
             # Only space tiles are passable while drifting
             if engine.game_map.tiles["tile_id"][nx, ny] != _space_tid:
-                engine.message_log.add_message(
-                    "You slam into the hull. The impact is fatal.", (255, 0, 0)
-                )
+                engine.message_log.add_message("You slam into the hull. The impact is fatal.", (255, 0, 0))
                 engine.player.fighter.hp = 0
                 self._handle_player_death(engine, "Slammed into the hull.")
                 return
             engine.player.x = nx
             engine.player.y = ny
-            engine.message_log.add_message(
-                "You drift further into space...", (180, 100, 255)
-            )
+            engine.message_log.add_message("You drift further into space...", (180, 100, 255))
 
         # Enemy drift
         for entity in list(engine.game_map.entities):
@@ -507,8 +511,6 @@ class TacticalState(State):
                 continue
             if not entity.drifting:
                 continue
-            from world import tile_types as _tt
-            _space_tid = int(_tt.space["tile_id"])
             edx, edy = entity.drift_direction
             enx, eny = entity.x + edx, entity.y + edy
             if not engine.game_map.in_bounds(enx, eny):
@@ -519,15 +521,14 @@ class TacticalState(State):
             if engine.game_map.tiles["tile_id"][enx, eny] != _space_tid:
                 if entity in engine.game_map.entities:
                     engine.game_map.entities.remove(entity)
-                engine.message_log.add_message(
-                    f"The {entity.name} slams into the hull!", (200, 200, 200)
-                )
+                engine.message_log.add_message(f"The {entity.name} slams into the hull!", (200, 200, 200))
                 continue
             entity.x = enx
             entity.y = eny
 
         engine.game_map.invalidate_entity_index()
         import debug
+
         if not debug.DISABLE_ENEMY_AI:
             for entity in list(engine.game_map.entities):
                 if entity is engine.player:
@@ -555,7 +556,6 @@ class TacticalState(State):
         self._update_ground_look(engine)
 
     def _handle_look_input(self, engine: Engine, key: Any) -> bool:
-        import tcod.event
 
         if key in cancel_keys() | confirm_keys() | action_keys()["look"][0]:
             self._look_cursor = None
@@ -583,6 +583,7 @@ class TacticalState(State):
 
     def _enter_ranged(self, engine: Engine) -> None:
         from game.helpers import get_equipped_ranged_weapon, has_ranged_weapon
+
         weapon = get_equipped_ranged_weapon(engine.player)
         if not weapon:
             if has_ranged_weapon(engine.player):
@@ -594,11 +595,9 @@ class TacticalState(State):
         px, py = engine.player.x, engine.player.y
         self._visible_enemies = sorted(
             [
-                e for e in engine.game_map.entities
-                if e is not engine.player
-                and e.fighter
-                and e.fighter.hp > 0
-                and engine.game_map.visible[e.x, e.y]
+                e
+                for e in engine.game_map.entities
+                if e is not engine.player and e.fighter and e.fighter.hp > 0 and engine.game_map.visible[e.x, e.y]
             ],
             key=lambda e: max(abs(e.x - px), abs(e.y - py)),
         )
@@ -618,12 +617,16 @@ class TacticalState(State):
             return True
 
         # Up/Down cycle through visible enemies
-        if key in (tcod.event.KeySym.UP, tcod.event.KeySym.DOWN,
-                   tcod.event.KeySym.k, tcod.event.KeySym.j,
-                   tcod.event.KeySym.KP_8, tcod.event.KeySym.KP_2):
+        if key in (
+            tcod.event.KeySym.UP,
+            tcod.event.KeySym.DOWN,
+            tcod.event.KeySym.k,
+            tcod.event.KeySym.j,
+            tcod.event.KeySym.KP_8,
+            tcod.event.KeySym.KP_2,
+        ):
             if self._visible_enemies:
-                if key in (tcod.event.KeySym.DOWN, tcod.event.KeySym.j,
-                           tcod.event.KeySym.KP_2):
+                if key in (tcod.event.KeySym.DOWN, tcod.event.KeySym.j, tcod.event.KeySym.KP_2):
                     self._enemy_cycle_index = (self._enemy_cycle_index + 1) % len(self._visible_enemies)
                 else:
                     self._enemy_cycle_index = (self._enemy_cycle_index - 1) % len(self._visible_enemies)
@@ -634,9 +637,11 @@ class TacticalState(State):
         if key in confirm_keys():
             # Re-check ammo before firing (weapon may have been depleted)
             from game.helpers import get_equipped_ranged_weapon
+
             weapon = get_equipped_ranged_weapon(engine.player)
             if not weapon:
                 from game.helpers import has_ranged_weapon
+
                 if has_ranged_weapon(engine.player):
                     engine.message_log.add_message("Out of ammo!", (255, 100, 100))
                 else:
@@ -649,6 +654,7 @@ class TacticalState(State):
             target = engine.game_map.get_blocking_entity(cx, cy)
             if target and target.fighter and target is not engine.player:
                 from game.actions import RangedAction
+
                 consumed = RangedAction(target).perform(engine, engine.player)
                 self._ranged_cursor = None
                 if consumed:
@@ -670,31 +676,34 @@ class TacticalState(State):
     @staticmethod
     def _perform_interact(engine: Engine, dx: int, dy: int, kind: str) -> int:
         """Dispatch an interact action based on kind."""
-        if kind == "door":
-            from game.actions import ToggleDoorAction
-            return ToggleDoorAction(dx, dy).perform(engine, engine.player)
-        elif kind == "switch":
-            from game.actions import ToggleSwitchAction
-            return ToggleSwitchAction(dx, dy).perform(engine, engine.player)
-        elif kind == "reactor":
-            from game.actions import TakeReactorCoreAction
-            return TakeReactorCoreAction(dx, dy).perform(engine, engine.player)
-        else:
-            from game.actions import InteractAction
-            return InteractAction(dx, dy).perform(engine, engine.player)
+        from game.actions import (
+            InteractAction,
+            TakeReactorCoreAction,
+            ToggleDoorAction,
+            ToggleSwitchAction,
+        )
+
+        _INTERACT_ACTIONS: dict[str, type] = {
+            "door": ToggleDoorAction,
+            "switch": ToggleSwitchAction,
+            "reactor": TakeReactorCoreAction,
+        }
+        action_cls = _INTERACT_ACTIONS.get(kind, InteractAction)
+        return action_cls(dx, dy).perform(engine, engine.player)
 
     # ------------------------------------------------------------------
     # Interact direction prompt
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _adjacent_interact_dirs(engine: Engine) -> List[Tuple[int, int, str]]:
+    def _adjacent_interact_dirs(engine: Engine) -> list[tuple[int, int, str]]:
         """Return list of (dx, dy, kind) for all 8-adjacent interactables.
 
         ``kind`` is ``"door"`` for door tiles and ``"entity"`` for
         interactable entities (consoles, crates, lockers, etc.).
         """
         from world import tile_types as tt
+
         door_ids = {
             int(tt.door_closed["tile_id"]),
             int(tt.door_open["tile_id"]),
@@ -707,7 +716,7 @@ class TacticalState(State):
         }
         reactor_core_id = int(tt.reactor_core["tile_id"])
         px, py = engine.player.x, engine.player.y
-        dirs: List[Tuple[int, int, str]] = []
+        dirs: list[tuple[int, int, str]] = []
         for dx in (-1, 0, 1):
             for dy in (-1, 0, 1):
                 if dx == 0 and dy == 0:
@@ -766,20 +775,24 @@ class TacticalState(State):
     def _handle_scan_input(self, engine: Engine, key: Any) -> bool:
         """Handle number key after multi-scanner prompt."""
         import tcod.event
+
         if key in cancel_keys():
             self._scan_pending = None
             return True
 
         # Map number keys 1-9 to scanner index
         num_keys = {
-            tcod.event.KeySym.N1: 0, tcod.event.KeySym.N2: 1,
-            tcod.event.KeySym.N3: 2, tcod.event.KeySym.N4: 3,
+            tcod.event.KeySym.N1: 0,
+            tcod.event.KeySym.N2: 1,
+            tcod.event.KeySym.N3: 2,
+            tcod.event.KeySym.N4: 3,
         }
         idx = num_keys.get(key)
         if idx is not None and idx < len(self._scan_pending):
             scanner = self._scan_pending[idx]
             self._scan_pending = None
             from game.actions import ScanAction
+
             consumed = ScanAction(scanner=scanner).perform(engine, engine.player)
             if consumed:
                 if engine.player.fighter.hp <= 0:
@@ -795,10 +808,6 @@ class TacticalState(State):
         self._scan_pending = None
         return True
 
-    def _update_ground_look_at_cursor(self, engine: Engine, cursor: tuple) -> None:
-        cx, cy = cursor
-        self._ground_lines = engine.game_map.describe_at(cx, cy, visible_only=True)
-
     # ------------------------------------------------------------------
     # Ground text (non-persistent, replaces each move)
     # ------------------------------------------------------------------
@@ -810,13 +819,12 @@ class TacticalState(State):
 
         tid = int(gm.tiles["tile_id"][p.x, p.y])
         from world.tile_types import describe_tile
+
         _, flavor = describe_tile(tid, biome=gm.biome)
 
-        lines: List[Tuple[str, Color]] = [(flavor, (140, 140, 160))]
+        lines: list[tuple[str, Color]] = [(flavor, (140, 140, 160))]
         for item in gm.get_items_at(p.x, p.y):
-            lines.append(
-                (f"You see {item.name} ({item.char}) here.", (180, 200, 255))
-            )
+            lines.append((f"You see {item.name} ({item.char}) here.", (180, 200, 255)))
         self._ground_lines = lines
 
     # ------------------------------------------------------------------
@@ -824,8 +832,8 @@ class TacticalState(State):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _get_action(key: Any) -> Optional[Action]:
-        from game.actions import BumpAction, WaitAction, PickupAction
+    def _get_action(key: Any) -> Action | None:
+        from game.actions import BumpAction, PickupAction, WaitAction
 
         move = _move_keys().get(key)
         if move:
@@ -846,8 +854,10 @@ class TacticalState(State):
         engine.game_map.update_fov(engine.player.x, engine.player.y)
         if engine.scan_glow:
             import time as _time
+
             elapsed = _time.time() - engine.scan_glow["start_time"]
             from world.game_map import GameMap
+
             if elapsed < GameMap.SCAN_GLOW_DURATION:
                 sg = engine.scan_glow
                 engine.game_map.apply_scan_glow(sg["cx"], sg["cy"], sg["radius"])
@@ -860,8 +870,10 @@ class TacticalState(State):
         if not engine.scan_glow:
             return
         import time as _time
+
         elapsed = _time.time() - engine.scan_glow["start_time"]
         from world.game_map import GameMap
+
         if elapsed >= GameMap.SCAN_GLOW_DURATION:
             engine.scan_glow = None
             engine.game_map.update_fov(engine.player.x, engine.player.y)
@@ -900,14 +912,24 @@ class TacticalState(State):
         self._update_scan_glow(engine)
 
         engine.game_map.render(
-            console, cam_x, cam_y,
-            vp_x=0, vp_y=0, vp_w=layout.viewport_w, vp_h=layout.viewport_h,
+            console,
+            cam_x,
+            cam_y,
+            vp_x=0,
+            vp_y=0,
+            vp_w=layout.viewport_w,
+            vp_h=layout.viewport_h,
             scan_glow=engine.scan_glow,
         )
 
         engine.game_map.animate_space(
-            console, cam_x, cam_y,
-            vp_x=0, vp_y=0, vp_w=layout.viewport_w, vp_h=layout.viewport_h,
+            console,
+            cam_x,
+            cam_y,
+            vp_x=0,
+            vp_y=0,
+            vp_w=layout.viewport_w,
+            vp_h=layout.viewport_h,
         )
 
         if self._ranged_cursor is not None:
@@ -935,6 +957,7 @@ class TacticalState(State):
             console.bg[:] = (console.bg * dim_factor).astype(console.bg.dtype)
             if alpha >= 1.0:
                 from ui.game_over_state import GameOverState
+
                 engine.switch_state(GameOverState(victory=False, cause=self._death_cause))
 
     def _render_stats(self, console: Any, engine: Engine, layout: SimpleNamespace) -> None:
@@ -949,9 +972,11 @@ class TacticalState(State):
             loc_label = "DREADNOUGHT"
         console.print(x=x, y=1, string=loc_label, fg=(180, 180, 255))
         from ui.colors import HEADER_SEP
+
         console.print(x=x, y=2, string="-" * (layout.stats_w - 2), fg=HEADER_SEP)
 
-        from ui.colors import HP_GREEN, HP_YELLOW, HP_RED
+        from ui.colors import HP_GREEN, HP_RED, HP_YELLOW
+
         hp_ratio = p.fighter.hp / max(1, p.fighter.max_hp)
         if hp_ratio > 0.5:
             hp_color = HP_GREEN
@@ -998,6 +1023,7 @@ class TacticalState(State):
 
         # Active hazards at player position
         from game.environment import GLOBAL_HAZARDS, NON_DAMAGING_HAZARDS
+
         engine.game_map.recalculate_hazards()
         active = engine.game_map.get_hazards_at(p.x, p.y)
         # Include global hazards from environment
@@ -1005,7 +1031,6 @@ class TacticalState(State):
             for h in engine.environment:
                 if h in GLOBAL_HAZARDS and engine.environment[h] > 0:
                     active.add(h)
-        damaging_active = {h for h in active if h not in NON_DAMAGING_HAZARDS}
         if active:
             console.print(x=x, y=row, string="HAZARDS:", fg=(255, 100, 100))
             row += 1
@@ -1018,16 +1043,12 @@ class TacticalState(State):
                 console.print(x=x, y=row, string=f"! {label}", fg=color)
                 row += 1
             row += 1
-        elif engine.environment and any(
-            v > 0 and k not in NON_DAMAGING_HAZARDS
-            for k, v in engine.environment.items()
-        ):
+        elif engine.environment and any(v > 0 and k not in NON_DAMAGING_HAZARDS for k, v in engine.environment.items()):
             console.print(x=x, y=row, string="NO HAZARDS", fg=(0, 200, 100))
             row += 2
 
         # LOADOUT display (2 slots)
         loadout_section_start = row + 1
-        ground_block_lines = 1 + GROUND_MAX_LINES_DEFAULT
         ground_header_y = loadout_section_start + 3  # 1 header + 2 slot lines
         ground_max_lines = min(GROUND_MAX_LINES_DEFAULT, max(1, ctrl_y - 1 - ground_header_y))
 
@@ -1060,19 +1081,21 @@ class TacticalState(State):
             header_color = (140, 140, 170)
         console.print(x=x, y=ground_header_y, string=header, fg=header_color)
         ground_width = max(1, layout.stats_w - 2)
-        wrapped: List[Tuple[str, Color]] = []
+        wrapped: list[tuple[str, Color]] = []
         for text, color in self._ground_lines:
             for line in textwrap.wrap(text, width=ground_width):
                 wrapped.append((line, color))
         for i, (text, color) in enumerate(wrapped[:ground_max_lines]):
             console.print(
-                x=x, y=ground_header_y + 1 + i,
+                x=x,
+                y=ground_header_y + 1 + i,
                 string=text,
                 fg=color,
             )
 
         # NEARBY section (below UNDERFOOT) — unified visible + scan data
         from game.scanner import build_nearby_entries
+
         nearby_y = ground_header_y + 1 + min(len(wrapped), ground_max_lines) + 1
         nearby_entries = build_nearby_entries(engine)
         if nearby_entries:
@@ -1087,15 +1110,17 @@ class TacticalState(State):
             console.print(x=x, y=nearby_y, string=header, fg=header_color)
             nearby_y += 1
             for entry in nearby_entries[:8]:
-                targeted = (self._ranged_cursor is not None
-                            and entry.x == self._ranged_cursor[0]
-                            and entry.y == self._ranged_cursor[1])
+                targeted = (
+                    self._ranged_cursor is not None
+                    and entry.x == self._ranged_cursor[0]
+                    and entry.y == self._ranged_cursor[1]
+                )
                 color = _cat_colors.get(entry.category, (180, 180, 200))
                 prefix = ">" if targeted else entry.display_char
                 line = f"{prefix} {entry.label} {entry.distance}"
                 if targeted:
                     color = (255, 255, 255)
-                console.print(x=x, y=nearby_y, string=line[:layout.stats_w - 2], fg=color)
+                console.print(x=x, y=nearby_y, string=line[: layout.stats_w - 2], fg=color)
                 nearby_y += 1
 
         # --- Controls ---
@@ -1105,6 +1130,7 @@ class TacticalState(State):
             dy = abs(p.y - cy)
             dist = max(dx, dy)
             from game.helpers import get_equipped_ranged_weapon
+
             wpn_ctrl = get_equipped_ranged_weapon(p)
             max_range = wpn_ctrl.item.get("range", 5) if wpn_ctrl else 0
             in_range = dist <= max_range

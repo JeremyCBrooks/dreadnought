@@ -1,27 +1,34 @@
 """Fractal noise utilities shared across terrain and starfield generation."""
-from __future__ import annotations
 
 import numpy as np
 
 
 def box_blur(arr: np.ndarray, radius: int) -> np.ndarray:
     """Fast box blur using cumulative sums. Works on 2D float arrays."""
-    padded = np.pad(arr, radius + 1, mode='edge')
+    padded = np.pad(arr, radius + 1, mode="edge")
     cs = np.cumsum(np.cumsum(padded, axis=0), axis=1)
     d = 2 * radius + 1
     rows, cols = arr.shape
-    result = (
-        cs[d:d + rows, d:d + cols]
-        - cs[:rows, d:d + cols]
-        - cs[d:d + rows, :cols]
-        + cs[:rows, :cols]
-    ) / (d * d)
+    result = (cs[d : d + rows, d : d + cols] - cs[:rows, d : d + cols] - cs[d : d + rows, :cols] + cs[:rows, :cols]) / (
+        d * d
+    )
     return result
 
 
+def _lattice_hash(gxi: np.ndarray, gyi: np.ndarray, octave_seed: np.int64) -> np.ndarray:
+    """Deterministic hash of integer grid coordinates to float in [0, 1]."""
+    h = gxi * np.int64(374761393) + gyi * np.int64(668265263) + octave_seed
+    h = (h ^ (h >> np.int64(13))) * np.int64(2654435761)
+    h = h ^ (h >> np.int64(16))
+    return (h & np.int64(0xFFFFFF)).astype(np.float64) / 0xFFFFFF
+
+
 def coord_fractal_noise(
-    seed: int, xs: np.ndarray, ys: np.ndarray,
-    octaves: int = 3, base_period: int = 16,
+    seed: int,
+    xs: np.ndarray,
+    ys: np.ndarray,
+    octaves: int = 3,
+    base_period: int = 16,
 ) -> np.ndarray:
     """Coordinate-based fractal value noise. Deterministic per (seed, x, y).
 
@@ -52,16 +59,10 @@ def coord_fractal_noise(
 
         octave_seed = np.int64(seed + i * 1000003)
 
-        def _hash(gxi: np.ndarray, gyi: np.ndarray) -> np.ndarray:
-            h = (gxi * np.int64(374761393) + gyi * np.int64(668265263) + octave_seed)
-            h = (h ^ (h >> np.int64(13))) * np.int64(2654435761)
-            h = h ^ (h >> np.int64(16))
-            return (h & np.int64(0xFFFFFF)).astype(np.float64) / 0xFFFFFF
-
-        n00 = _hash(x0, y0)
-        n10 = _hash(x0 + 1, y0)
-        n01 = _hash(x0, y0 + 1)
-        n11 = _hash(x0 + 1, y0 + 1)
+        n00 = _lattice_hash(x0, y0, octave_seed)
+        n10 = _lattice_hash(x0 + 1, y0, octave_seed)
+        n01 = _lattice_hash(x0, y0 + 1, octave_seed)
+        n11 = _lattice_hash(x0 + 1, y0 + 1, octave_seed)
 
         nx0 = n00 * (1 - fx) + n10 * fx
         nx1 = n01 * (1 - fx) + n11 * fx
@@ -70,16 +71,15 @@ def coord_fractal_noise(
         amplitude *= 0.5
 
     result /= total_amp
-    # Normalize to [0, 1]
-    rmin, rmax = result.min(), result.max()
-    if rmax > rmin:
-        result = (result - rmin) / (rmax - rmin)
     return result
 
 
 def fractal_noise(
-    np_rng: np.random.RandomState, w: int, h: int,
-    octaves: int = 3, base_radius: int = 8,
+    np_rng: np.random.RandomState,
+    w: int,
+    h: int,
+    octaves: int = 3,
+    base_radius: int = 8,
 ) -> np.ndarray:
     """Generate a smooth fractal noise field in [0, 1] using layered box blur."""
     result = np.zeros((w, h), dtype=np.float64)

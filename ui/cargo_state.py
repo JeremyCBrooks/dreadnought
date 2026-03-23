@@ -1,7 +1,8 @@
 """Cargo management overlay: transfer items between ship cargo and personal loadout."""
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 from engine.game_state import State
 from ui.colors import DARK_GRAY, GRAY, WARNING
@@ -27,26 +28,32 @@ class CargoState(State):
     # ------------------------------------------------------------------
 
     def _personal_list(self, engine: Engine) -> list:
-        """Return the personal inventory list (mission_loadout or saved_player inventory)."""
-        if hasattr(engine, 'mission_loadout') and engine.mission_loadout is not None:
-            ml = engine.mission_loadout
-            if ml or not getattr(engine, '_saved_player', None):
-                return ml
-        sp = getattr(engine, '_saved_player', None)
-        if sp and "inventory" in sp:
+        """Return the personal inventory list.
+
+        In strategic mode (between missions), items live in ``_saved_player["inventory"]``.
+        During briefing, items live in ``engine.mission_loadout``.  We distinguish
+        the two contexts by checking whether ``_saved_player`` has an inventory
+        *and* ``mission_loadout`` is empty (briefing resets it to ``[]``).
+        """
+        sp = getattr(engine, "_saved_player", None)
+        if sp and "inventory" in sp and not engine.mission_loadout:
             return sp["inventory"]
         return engine.mission_loadout
 
-    def _get_loadout(self, engine: Engine) -> Optional[Loadout]:
-        """Return the Loadout, lazily initializing _saved_player if needed."""
+    def _ensure_loadout(self, engine: Engine) -> Loadout:
+        """Return the Loadout, lazily initializing ``_saved_player`` if needed."""
         from game.loadout import Loadout
 
-        sp = getattr(engine, '_saved_player', None)
+        sp = getattr(engine, "_saved_player", None)
         if sp is None:
             engine._saved_player = {
-                "hp": 10, "max_hp": 10, "defense": 0,
-                "power": 1, "base_power": 1,
-                "inventory": [], "loadout": Loadout(),
+                "hp": 10,
+                "max_hp": 10,
+                "defense": 0,
+                "power": 1,
+                "base_power": 1,
+                "inventory": [],
+                "loadout": Loadout(),
             }
             sp = engine._saved_player
         lo = sp.get("loadout")
@@ -55,10 +62,11 @@ class CargoState(State):
             sp["loadout"] = lo
         return lo
 
-    def _combined_personal(self, engine: Engine) -> List[Tuple[Entity, bool]]:
+    def _combined_personal(self, engine: Engine) -> list[tuple[Entity, bool]]:
         """Return [(item, is_equipped), ...] in stable insertion order."""
         from game.loadout import combined_items
-        return combined_items(self._personal_list(engine), self._get_loadout(engine))
+
+        return combined_items(self._personal_list(engine), self._ensure_loadout(engine))
 
     def _personal_count(self, engine: Engine) -> int:
         """Total personal items (equipped items are kept in inventory)."""
@@ -82,8 +90,8 @@ class CargoState(State):
     # Input handling
     # ------------------------------------------------------------------
 
-    def ev_keydown(self, engine: Engine, event: Any) -> bool:
-        from ui.keys import move_keys, confirm_keys, cancel_keys
+    def ev_key(self, engine: Engine, event: Any) -> bool:
+        from ui.keys import cancel_keys, confirm_keys, move_keys
 
         key = event.sym
 
@@ -117,6 +125,7 @@ class CargoState(State):
 
         # 'e' key for equip/unequip
         import tcod.event
+
         if key == tcod.event.KeySym.e:
             self._equip_unequip(engine)
             return True
@@ -129,14 +138,10 @@ class CargoState(State):
 
     def _equip_unequip(self, engine: Engine) -> None:
         """Handle 'e' key: equip or unequip the selected personal item."""
+        from game.entity import Entity as EntityCls
         from game.loadout import toggle_equip
-        from game.entity import Entity as _Entity
 
         if self._section != _PERSONAL:
-            return
-
-        lo = self._get_loadout(engine)
-        if lo is None:
             return
 
         combined = self._combined_personal(engine)
@@ -145,9 +150,10 @@ class CargoState(State):
 
         item, _is_equipped = combined[self.selected]
 
+        lo = self._ensure_loadout(engine)
         # Build a proxy entity carrying the saved loadout + inventory
         # so toggle_equip sees the real item list (no fighter → skip melee recalc).
-        proxy = _Entity()
+        proxy = EntityCls()
         proxy.loadout = lo
         proxy.inventory = self._personal_list(engine)
         toggle_equip(engine, proxy, item)
@@ -168,13 +174,12 @@ class CargoState(State):
                 return
             item = cargo[self.selected]
             if item.item and item.item.get("type") == "dreadnought_core":
-                engine.message_log.add_message(
-                    "The Dreadnought core must stay in cargo.", WARNING)
+                engine.message_log.add_message("The Dreadnought core must stay in cargo.", WARNING)
                 return
             if self._personal_count(engine) >= PLAYER_MAX_INVENTORY:
                 engine.message_log.add_message("Personal inventory full.", WARNING)
                 return
-            cargo.pop(self.selected)
+            engine.ship.remove_cargo(item)
             personal.append(item)
         else:
             combined = self._combined_personal(engine)
@@ -182,9 +187,7 @@ class CargoState(State):
                 return
             item, is_equipped = combined[self.selected]
             if is_equipped:
-                lo = self._get_loadout(engine)
-                if lo:
-                    lo.unequip(item)
+                self._ensure_loadout(engine).unequip(item)
             personal.remove(item)
             engine.ship.add_cargo(item)
 
@@ -194,9 +197,41 @@ class CargoState(State):
     # Rendering
     # ------------------------------------------------------------------
 
+    def _render_column(
+        self,
+        console: Any,
+        items: list[tuple[Entity, bool]],
+        *,
+        is_active: bool,
+        x: int,
+        y: int,
+        max_visible: int,
+        label_width: int,
+    ) -> None:
+        """Render a scrollable item column. Each item is (entity, is_equipped)."""
+        if not items:
+            console.print(x=x, y=y, string="(empty)", fg=DARK_GRAY)
+            return
+        if is_active:
+            # Scroll so the cursor is always visible within the window.
+            start = max(0, min(self.selected - max_visible + 1, len(items) - max_visible))
+        else:
+            start = 0
+        for j in range(min(max_visible, len(items) - start)):
+            i = start + j
+            item, is_equipped = items[i]
+            selected = is_active and i == self.selected
+            prefix = ">" if selected else " "
+            color = (255, 255, 255) if selected else GRAY
+            eq_tag = "[E] " if is_equipped else ""
+            line = f"{prefix} {eq_tag}{item.name}"
+            if label_width > 3 and len(line) > label_width:
+                line = line[: label_width - 3] + "..."
+            console.print(x=x, y=y + j, string=line, fg=color)
+
     def on_render(self, console: Any, engine: Engine) -> None:
         from game.entity import PLAYER_MAX_INVENTORY
-        from ui.colors import DIALOG_BG, TAB_SELECTED, TAB_UNSELECTED, HEADER_TITLE
+        from ui.colors import DIALOG_BG, HEADER_TITLE, TAB_SELECTED, TAB_UNSELECTED
 
         cw, ch = engine.CONSOLE_WIDTH, engine.CONSOLE_HEIGHT
         bw = min(65, cw - 10)
@@ -212,8 +247,7 @@ class CargoState(State):
         p_color = TAB_SELECTED if self._section == _PERSONAL else TAB_UNSELECTED
         c_color = TAB_SELECTED if self._section == _CARGO else TAB_UNSELECTED
         cap = self._personal_count(engine)
-        console.print(x=bx + 2, y=by + 3,
-                       string=f"PERSONAL ({cap}/{PLAYER_MAX_INVENTORY})", fg=p_color)
+        console.print(x=bx + 2, y=by + 3, string=f"PERSONAL ({cap}/{PLAYER_MAX_INVENTORY})", fg=p_color)
         console.print(x=bx + bw // 2, y=by + 3, string="SHIP CARGO", fg=c_color)
 
         max_visible = max(0, bh - 8)
@@ -221,41 +255,31 @@ class CargoState(State):
         label_width = bw // 2 - 4
 
         # Personal column (combined: equipped + inventory)
-        combined = self._combined_personal(engine)
-        if not combined:
-            console.print(x=bx + 2, y=row, string="(empty)", fg=DARK_GRAY)
-        else:
-            p_start = max(0, min(self.selected - max_visible + 1, len(combined) - max_visible)) if self._section == _PERSONAL else 0
-            for j in range(min(max_visible, len(combined) - p_start)):
-                i = p_start + j
-                item, is_equipped = combined[i]
-                prefix = ">" if self._section == _PERSONAL and i == self.selected else " "
-                color = (255, 255, 255) if self._section == _PERSONAL and i == self.selected else GRAY
-                eq_tag = "[E] " if is_equipped else ""
-                line = f"{prefix} {eq_tag}{item.name}"
-                if label_width > 3 and len(line) > label_width:
-                    line = line[:label_width - 3] + "..."
-                console.print(x=bx + 2, y=row + j, string=line, fg=color)
+        self._render_column(
+            console,
+            self._combined_personal(engine),
+            is_active=self._section == _PERSONAL,
+            x=bx + 2,
+            y=row,
+            max_visible=max_visible,
+            label_width=label_width,
+        )
 
-        # Cargo column
-        cargo = engine.ship.cargo
-        col_x = bx + bw // 2
-        if not cargo:
-            console.print(x=col_x, y=row, string="(empty)", fg=DARK_GRAY)
-        else:
-            c_start = max(0, min(self.selected - max_visible + 1, len(cargo) - max_visible)) if self._section == _CARGO else 0
-            for j in range(min(max_visible, len(cargo) - c_start)):
-                i = c_start + j
-                item = cargo[i]
-                prefix = ">" if self._section == _CARGO and i == self.selected else " "
-                color = (255, 255, 255) if self._section == _CARGO and i == self.selected else GRAY
-                line = f"{prefix} {item.name}"
-                if label_width > 3 and len(line) > label_width:
-                    line = line[:label_width - 3] + "..."
-                console.print(x=col_x, y=row + j, string=line, fg=color)
+        # Cargo column (wrap as (item, False) tuples to match the column interface)
+        cargo_items = [(item, False) for item in engine.ship.cargo]
+        self._render_column(
+            console,
+            cargo_items,
+            is_active=self._section == _CARGO,
+            x=bx + bw // 2,
+            y=row,
+            max_visible=max_visible,
+            label_width=label_width,
+        )
 
         console.print(
-            x=bx + 2, y=by + bh - 2,
+            x=bx + 2,
+            y=by + bh - 2,
             string=self._footer_text(),
             fg=DARK_GRAY,
         )

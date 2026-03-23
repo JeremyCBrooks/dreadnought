@@ -1,11 +1,11 @@
 """Tests for pirate species — human, alien, and mech pirate entities."""
+
 import random
 
-from data.enemies import ENEMIES
+from data.enemies import ENEMIES, enemy_by_name
 from game.entity import Entity, Fighter
-from game.gore import place_death_gore, _BLOOD_CHARS, _DEBRIS_CHARS
+from game.gore import _BLOOD_CHARS, _DEBRIS_CHARS, place_death_gore
 from tests.conftest import make_arena
-from world import tile_types
 
 
 def _make_gore_map(w=20, h=20):
@@ -13,7 +13,7 @@ def _make_gore_map(w=20, h=20):
 
 
 def _pirate_by_name(name):
-    return next(e for e in ENEMIES if e.name == name)
+    return enemy_by_name(name)
 
 
 class TestPirateEntitiesExist:
@@ -56,10 +56,15 @@ class TestPirateGore:
         p = _pirate_by_name("Pirate")
         gm = _make_gore_map()
         enemy = Entity(
-            x=10, y=10, char=p.char, color=p.color, name=p.name,
+            x=10,
+            y=10,
+            char=p.char,
+            color=p.color,
+            name=p.name,
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=p.hp, defense=p.defense, power=p.power),
-            organic=p.organic, gore_color=p.gore_color,
+            organic=p.organic,
+            gore_color=p.gore_color,
         )
         place_death_gore(gm, enemy, random.Random(42))
         fg = gm.tiles["light"]["fg"][10, 10]
@@ -71,10 +76,15 @@ class TestPirateGore:
         p = _pirate_by_name("Xeno Pirate")
         gm = _make_gore_map()
         enemy = Entity(
-            x=10, y=10, char=p.char, color=p.color, name=p.name,
+            x=10,
+            y=10,
+            char=p.char,
+            color=p.color,
+            name=p.name,
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=p.hp, defense=p.defense, power=p.power),
-            organic=p.organic, gore_color=p.gore_color,
+            organic=p.organic,
+            gore_color=p.gore_color,
         )
         place_death_gore(gm, enemy, random.Random(42))
         fg = gm.tiles["light"]["fg"][10, 10]
@@ -86,10 +96,15 @@ class TestPirateGore:
         p = _pirate_by_name("Vek Pirate")
         gm = _make_gore_map()
         enemy = Entity(
-            x=10, y=10, char=p.char, color=p.color, name=p.name,
+            x=10,
+            y=10,
+            char=p.char,
+            color=p.color,
+            name=p.name,
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=p.hp, defense=p.defense, power=p.power),
-            organic=p.organic, gore_color=p.gore_color,
+            organic=p.organic,
+            gore_color=p.gore_color,
         )
         place_death_gore(gm, enemy, random.Random(42))
         fg = gm.tiles["light"]["fg"][10, 10]
@@ -101,10 +116,15 @@ class TestPirateGore:
         p = _pirate_by_name("Mech Pirate")
         gm = _make_gore_map()
         enemy = Entity(
-            x=10, y=10, char=p.char, color=p.color, name=p.name,
+            x=10,
+            y=10,
+            char=p.char,
+            color=p.color,
+            name=p.name,
             blocks_movement=True,
             fighter=Fighter(hp=0, max_hp=p.hp, defense=p.defense, power=p.power),
-            organic=p.organic, gore_color=p.gore_color,
+            organic=p.organic,
+            gore_color=p.gore_color,
         )
         place_death_gore(gm, enemy, random.Random(42))
         ch = int(gm.tiles["light"]["ch"][10, 10])

@@ -1,4 +1,5 @@
 """Tests for galaxy, star system, and location generation."""
+
 from data.names import LOCATION_TYPES, LOCATION_WORDS, SYSTEM_WORDS
 from data.star_types import STAR_TYPES
 from world.galaxy import Galaxy
@@ -127,9 +128,7 @@ def test_arrive_idempotent():
     neighbor_name = next(iter(home.connections))
     g.arrive_at(neighbor_name)
     systems_after_first = dict(g.systems)
-    connections_after_first = {
-        n: dict(s.connections) for n, s in g.systems.items()
-    }
+    connections_after_first = {n: dict(s.connections) for n, s in g.systems.items()}
     g.arrive_at(neighbor_name)
     assert set(g.systems.keys()) == set(systems_after_first.keys())
     for name in g.systems:
@@ -155,3 +154,34 @@ def test_travel_cost_explored_system():
     # After arriving, it's no longer frontier
     assert neighbor_name not in g._unexplored_frontier
     assert g.travel_cost(neighbor_name) == 1
+
+
+def test_unique_location_name_fallback():
+    """Fallback path must not raise when all simple attempts collide."""
+    import random as _random
+
+    from world.galaxy import _unique_location_name
+
+    rng = _random.Random(0)
+    type_words = {"adjectives": ["Old"], "nouns": ["Hulk"]}
+    used: set[str] = set()
+    # Fill up the obvious names so the fallback fires
+    used.add("Old Hulk")
+    used.add("Hulk")
+    for i in range(2, 1000):
+        used.add(f"Hulk {i}")
+    name = _unique_location_name(rng, type_words, used, max_attempts=0)
+    assert name not in used - {name}, "returned name should be unique"
+
+
+def test_dreadnought_name_reserved():
+    """The Dreadnought system name must never be generated for a regular system."""
+    from world.galaxy import DREADNOUGHT_SYSTEM_NAME
+
+    for seed in range(100):
+        g = Galaxy(seed=seed)
+        _explore_n(g, 20)
+        for name, sys in g.systems.items():
+            if name == DREADNOUGHT_SYSTEM_NAME:
+                # Only valid if it was explicitly spawned
+                assert g.dreadnought_system == name

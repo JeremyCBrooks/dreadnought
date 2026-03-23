@@ -1,16 +1,15 @@
 """Interactable definitions as Python dataclasses."""
-from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Literal
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class InteractableDef:
     char: str
-    color: Tuple[int, int, int]
+    color: tuple[int, int, int]
     name: str
-    placement: str
+    placement: Literal["floor", "wall"]
 
 
 INTERACTABLES: list[InteractableDef] = [
@@ -22,11 +21,13 @@ INTERACTABLES: list[InteractableDef] = [
 ]
 
 FLOOR_INTERACTABLES: list[InteractableDef] = [i for i in INTERACTABLES if i.placement == "floor"]
+WALL_INTERACTABLES: list[InteractableDef] = [i for i in INTERACTABLES if i.placement == "wall"]
+
+_INTERACTABLES_BY_NAME: dict[str, InteractableDef] = {i.name: i for i in INTERACTABLES}
+
+assert len(_INTERACTABLES_BY_NAME) == len(INTERACTABLES), "Duplicate interactable name detected"
 
 
 def interactable_by_name(name: str) -> InteractableDef:
-    """Look up a single interactable definition by name."""
-    for i in INTERACTABLES:
-        if i.name == name:
-            return i
-    raise KeyError(f"No interactable named {name!r}")
+    """Look up a single interactable definition by name. Raises KeyError if not found."""
+    return _INTERACTABLES_BY_NAME[name]

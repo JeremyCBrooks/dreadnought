@@ -1,10 +1,8 @@
 """Tests for apply_environment_tick_entity and related edge cases."""
-import pytest
 
-from tests.conftest import make_arena, make_creature, MockEngine
 from game.entity import Entity, Fighter
 from game.environment import apply_environment_tick_entity
-from game.suit import Suit
+from tests.conftest import MockEngine, make_arena, make_creature
 
 
 def _env_engine(env, creature_organic=True):
@@ -22,6 +20,7 @@ class TestEnvironmentEntityDamage:
         engine, creature = _env_engine({"vacuum": 1})
         # Set up vacuum overlay on creature's tile
         import numpy as np
+
         overlay = np.full((10, 10), fill_value=True, order="F")
         engine.game_map.hazard_overlays["vacuum"] = overlay
         engine.game_map._hazards_dirty = False
@@ -32,6 +31,7 @@ class TestEnvironmentEntityDamage:
     def test_vacuum_does_not_damage_non_organic(self):
         engine, creature = _env_engine({"vacuum": 1}, creature_organic=False)
         import numpy as np
+
         overlay = np.full((10, 10), fill_value=True, order="F")
         engine.game_map.hazard_overlays["vacuum"] = overlay
         engine.game_map._hazards_dirty = False
@@ -43,6 +43,7 @@ class TestEnvironmentEntityDamage:
         engine, creature = _env_engine({"vacuum": 1})
         creature.fighter.hp = 1
         import numpy as np
+
         overlay = np.full((10, 10), fill_value=True, order="F")
         engine.game_map.hazard_overlays["vacuum"] = overlay
         engine.game_map._hazards_dirty = False
@@ -52,6 +53,7 @@ class TestEnvironmentEntityDamage:
     def test_entity_not_on_hazard_tile_unaffected(self):
         engine, creature = _env_engine({"vacuum": 1})
         import numpy as np
+
         overlay = np.full((10, 10), fill_value=False, order="F")
         engine.game_map.hazard_overlays["vacuum"] = overlay
         engine.game_map._hazards_dirty = False
@@ -92,3 +94,17 @@ class TestEnvironmentEntityDamage:
         apply_environment_tick_entity(engine, creature)
         # Should return without doing anything
         assert creature.fighter.hp == 0
+
+    def test_multi_hazard_stops_after_death(self):
+        """Entity with 1 HP hit by two hazards only takes 1 total damage."""
+        engine, creature = _env_engine({"vacuum": 1, "radiation": 1})
+        creature.fighter.hp = 1
+        import numpy as np
+
+        overlay = np.full((10, 10), fill_value=True, order="F")
+        engine.game_map.hazard_overlays["vacuum"] = overlay
+        engine.game_map._hazards_dirty = False
+        apply_environment_tick_entity(engine, creature)
+        # Should die and be removed, hp clamped at 0
+        assert creature.fighter.hp == 0
+        assert creature not in engine.game_map.entities

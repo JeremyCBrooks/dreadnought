@@ -1,16 +1,29 @@
 """Tests for dungeon generation."""
+
+import random
+
+import numpy as np
+
+from world import tile_types
 from world.dungeon_gen import (
-    generate_dungeon, RectRoom, _room_wall_positions,
-    _ROOM_DRESSING, _pick_building_room_count,
-    _subdivide_building, _carve_external_door, _bfs_path, _meander,
-    _place_ship_dock, _in_dock_octagon, _on_dock_perimeter,
-    _load_hull_profile, _rasterize_hull, _carve_spine,
-    _place_rooms_in_hull, _connect_room_to_spine,
+    _ROOM_DRESSING,
+    RectRoom,
+    _bfs_path,
+    _carve_external_door,
+    _carve_spine,
+    _connect_room_to_spine,
+    _in_dock_octagon,
+    _load_hull_profile,
+    _meander,
+    _on_dock_perimeter,
+    _place_rooms_in_hull,
+    _place_ship_dock,
+    _rasterize_hull,
+    _room_wall_positions,
+    _subdivide_building,
+    generate_dungeon,
 )
 from world.game_map import GameMap
-from world import tile_types
-import numpy as np
-import random
 
 
 def test_generates_multiple_rooms():
@@ -66,25 +79,24 @@ def test_rect_room_label_assigned():
 def test_wall_interactables_placed_on_walls():
     """Wall interactables (seams, lockers, cabinets) must be on wall tiles."""
     from world.loc_profiles import PROFILES
+
     wall_kinds = {"mineral seam", "locker", "storage cabinet"}
     for loc_type, profile in PROFILES.items():
         for seed in range(50):
             game_map, rooms, _ = generate_dungeon(seed=seed, loc_type=loc_type)
             wall_ents = [
-                e for e in game_map.entities
-                if getattr(e, "interactable", None)
-                and e.interactable.get("kind") in wall_kinds
+                e
+                for e in game_map.entities
+                if getattr(e, "interactable", None) and e.interactable.get("kind") in wall_kinds
             ]
             for ent in wall_ents:
                 assert not game_map.tiles["walkable"][ent.x, ent.y], (
-                    f"{ent.name} at ({ent.x},{ent.y}) should be on a wall tile "
-                    f"(loc_type={loc_type}, seed={seed})"
+                    f"{ent.name} at ({ent.x},{ent.y}) should be on a wall tile (loc_type={loc_type}, seed={seed})"
                 )
 
 
 def test_wall_interactable_matches_loc_type():
     """Each loc_type spawns the correct wall interactable from its profile."""
-    from world.loc_profiles import PROFILES
     expected = {
         "derelict": "locker",
         "asteroid": "mineral seam",
@@ -96,9 +108,7 @@ def test_wall_interactable_matches_loc_type():
         for seed in range(100):
             game_map, _, _ = generate_dungeon(seed=seed, loc_type=loc_type)
             wall_ents = [
-                e for e in game_map.entities
-                if getattr(e, "interactable", None)
-                and e.interactable.get("kind") == kind
+                e for e in game_map.entities if getattr(e, "interactable", None) and e.interactable.get("kind") == kind
             ]
             if wall_ents:
                 found = True
@@ -117,6 +127,7 @@ def test_room_wall_positions():
 
 
 # ---- Per-loc_type generation tests ----
+
 
 def test_derelict_uses_metal_tiles():
     game_map, rooms, _ = generate_dungeon(seed=42, loc_type="derelict")
@@ -233,9 +244,7 @@ def test_derelict_has_all_room_types():
     for seed in range(20):
         _, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
         labels = {r.label for r in rooms}
-        assert required_labels.issubset(labels), (
-            f"seed={seed}: missing {required_labels - labels}, got {labels}"
-        )
+        assert required_labels.issubset(labels), f"seed={seed}: missing {required_labels - labels}, got {labels}"
 
 
 def test_derelict_bridge_in_bow():
@@ -246,9 +255,7 @@ def test_derelict_bridge_in_bow():
         assert bridges, f"seed={seed}: no bridge room"
         # Bridge should be in the left half of the map
         for b in bridges:
-            assert b.x2 < gm.width // 2, (
-                f"seed={seed}: bridge x2={b.x2} not in bow section"
-            )
+            assert b.x2 < gm.width // 2, f"seed={seed}: bridge x2={b.x2} not in bow section"
 
 
 def test_derelict_engine_in_stern():
@@ -258,16 +265,13 @@ def test_derelict_engine_in_stern():
         engines = [r for r in rooms if r.label == "engine_room"]
         assert engines, f"seed={seed}: no engine_room"
         for e in engines:
-            assert e.x1 > gm.width // 2, (
-                f"seed={seed}: engine x1={e.x1} not in stern section"
-            )
+            assert e.x1 > gm.width // 2, f"seed={seed}: engine x1={e.x1} not in stern section"
 
 
 def test_derelict_bridge_engine_inline_with_spine():
     """Bridge and engine rooms should be centered on the spine (inline)."""
     for seed in range(20):
         gm, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
-        spine_y = gm.spine_y
         center_y = gm.height // 2
         for r in rooms:
             if r.label not in ("bridge", "engine_room"):
@@ -275,8 +279,7 @@ def test_derelict_bridge_engine_inline_with_spine():
             room_cy = (r.y1 + r.y2) // 2
             # Room center should be within 1 tile of center_y
             assert abs(room_cy - center_y) <= 1, (
-                f"seed={seed}: {r.label} center y={room_cy} not inline "
-                f"with center_y={center_y}"
+                f"seed={seed}: {r.label} center y={room_cy} not inline with center_y={center_y}"
             )
 
 
@@ -291,8 +294,7 @@ def test_derelict_rooms_symmetric():
         # Should have rooms on both sides (with enough rooms)
         if len(mid_rooms) >= 2:
             assert len(above) >= 1 and len(below) >= 1, (
-                f"seed={seed}: rooms not distributed above ({len(above)}) "
-                f"and below ({len(below)}) spine"
+                f"seed={seed}: rooms not distributed above ({len(above)}) and below ({len(below)}) spine"
             )
 
 
@@ -322,13 +324,11 @@ def test_no_hull_stubs_at_spine_ends():
                     if int(gm.tiles["tile_id"][nx, ny]) == space_tid:
                         space_count += 1
                 if space_count >= 3:
-                    assert False, (
-                        f"seed={seed}: hull stub at ({x},{y}) with {space_count} "
-                        f"space neighbors"
-                    )
+                    assert False, f"seed={seed}: hull stub at ({x},{y}) with {space_count} space neighbors"
 
 
 # ---- Hull profile ship tests ----
+
 
 def test_hull_profile_symmetric_rasterization():
     """Rasterizing a hull profile should produce symmetric wall fill around center_y."""
@@ -344,9 +344,7 @@ def test_hull_profile_symmetric_rasterization():
         for dy in range(1, half_w + 1):
             top_is_wall = int(game_map.tiles["tile_id"][x, center_y - dy]) == wall_tid
             bot_is_wall = int(game_map.tiles["tile_id"][x, center_y + dy]) == wall_tid
-            assert top_is_wall == bot_is_wall, (
-                f"Asymmetric at x={x}, dy={dy}: top={top_is_wall}, bot={bot_is_wall}"
-            )
+            assert top_is_wall == bot_is_wall, f"Asymmetric at x={x}, dy={dy}: top={top_is_wall}, bot={bot_is_wall}"
 
 
 def test_spine_is_walkable_end_to_end():
@@ -359,11 +357,15 @@ def test_spine_is_walkable_end_to_end():
     center_y = 45 // 2
     _rasterize_hull(game_map, profile, margin_x, center_y, wall_tile)
     spine_x1, spine_x2, spine_y = _carve_spine(
-        game_map, profile, margin_x, center_y, floor_tile,
+        game_map,
+        profile,
+        margin_x,
+        center_y,
+        floor_tile,
     )
     for x in range(spine_x1, spine_x2 + 1):
         for dy in range(3):
-            assert game_map.is_walkable(x, spine_y + dy), f"spine not walkable at ({x}, {spine_y+dy})"
+            assert game_map.is_walkable(x, spine_y + dy), f"spine not walkable at ({x}, {spine_y + dy})"
 
 
 def test_spine_does_not_span_full_width():
@@ -374,7 +376,11 @@ def test_spine_does_not_span_full_width():
     center_y = 45 // 2
     _rasterize_hull(game_map, profile, margin_x, center_y, tile_types.wall)
     spine_x1, spine_x2, _ = _carve_spine(
-        game_map, profile, margin_x, center_y, tile_types.floor,
+        game_map,
+        profile,
+        margin_x,
+        center_y,
+        tile_types.floor,
     )
     assert spine_x1 > 1, "spine starts too close to left edge"
     assert spine_x2 < 78, "spine ends too close to right edge"
@@ -383,6 +389,7 @@ def test_spine_does_not_span_full_width():
 def test_rooms_fit_inside_hull():
     """All rooms placed by _place_rooms_in_hull must be within hull bounds."""
     from world.loc_profiles import get_profile
+
     rng = random.Random(42)
     wall_tile = tile_types.wall
     floor_tile = tile_types.floor
@@ -391,12 +398,23 @@ def test_rooms_fit_inside_hull():
     game_map = GameMap(80, 45, fill_tile=wall_tile)
     _rasterize_hull(game_map, profile_data, margin_x, center_y, wall_tile)
     spine_x1, spine_x2, spine_y = _carve_spine(
-        game_map, profile_data, margin_x, center_y, floor_tile,
+        game_map,
+        profile_data,
+        margin_x,
+        center_y,
+        floor_tile,
     )
     loc_profile = get_profile("derelict")
     rooms = _place_rooms_in_hull(
-        game_map, rng, loc_profile, profile_data, section_bounds,
-        margin_x, center_y, spine_y, floor_tile,
+        game_map,
+        rng,
+        loc_profile,
+        profile_data,
+        section_bounds,
+        margin_x,
+        center_y,
+        spine_y,
+        floor_tile,
     )
     # Every room tile must be inside hull with margin
     for room in rooms:
@@ -404,17 +422,14 @@ def test_rooms_fit_inside_hull():
             xi = x - margin_x
             if 0 <= xi < len(profile_data):
                 half_w = profile_data[xi]
-                assert room.y1 >= center_y - half_w + 1, (
-                    f"Room {room.label} top y1={room.y1} outside hull at x={x}"
-                )
-                assert room.y2 <= center_y + half_w - 1, (
-                    f"Room {room.label} bottom y2={room.y2} outside hull at x={x}"
-                )
+                assert room.y1 >= center_y - half_w + 1, f"Room {room.label} top y1={room.y1} outside hull at x={x}"
+                assert room.y2 <= center_y + half_w - 1, f"Room {room.label} bottom y2={room.y2} outside hull at x={x}"
 
 
 def test_branch_corridors_connect_rooms_to_spine():
     """Each room should be connected to the spine via walkable path."""
     from world.loc_profiles import get_profile
+
     rng = random.Random(42)
     wall_tile = tile_types.wall
     floor_tile = tile_types.floor
@@ -423,26 +438,40 @@ def test_branch_corridors_connect_rooms_to_spine():
     center_y = 45 // 2
     _rasterize_hull(game_map, profile_data, margin_x, center_y, wall_tile)
     spine_x1, spine_x2, spine_y = _carve_spine(
-        game_map, profile_data, margin_x, center_y, floor_tile,
+        game_map,
+        profile_data,
+        margin_x,
+        center_y,
+        floor_tile,
     )
     loc_profile = get_profile("derelict")
     rooms = _place_rooms_in_hull(
-        game_map, rng, loc_profile, profile_data, section_bounds,
-        margin_x, center_y, spine_y, floor_tile,
+        game_map,
+        rng,
+        loc_profile,
+        profile_data,
+        section_bounds,
+        margin_x,
+        center_y,
+        spine_y,
+        floor_tile,
     )
     branches = []
     for room in rooms:
         branch = _connect_room_to_spine(
-            game_map, room, spine_x1, spine_x2, spine_y, floor_tile,
+            game_map,
+            room,
+            spine_x1,
+            spine_x2,
+            spine_y,
+            floor_tile,
         )
         if branch:
             branches.append(branch)
     # Every room center should be reachable from spine via walkable tiles
     for room in rooms:
         cx, cy = room.center
-        assert game_map.is_walkable(cx, cy), (
-            f"Room {room.label} center ({cx},{cy}) not walkable"
-        )
+        assert game_map.is_walkable(cx, cy), f"Room {room.label} center ({cx},{cy}) not walkable"
 
 
 def test_full_derelict_generates_valid_map():
@@ -461,10 +490,7 @@ def test_full_derelict_generates_valid_map():
 
 def _entities_in_room(game_map, room):
     """Return entities whose position is inside the room's interior."""
-    return [
-        e for e in game_map.entities
-        if room.x1 < e.x < room.x2 and room.y1 < e.y < room.y2
-    ]
+    return [e for e in game_map.entities if room.x1 < e.x < room.x2 and room.y1 < e.y < room.y2]
 
 
 def test_bridge_contains_terminal_entities():
@@ -476,10 +502,7 @@ def test_bridge_contains_terminal_entities():
         bridges = [r for r in rooms if r.label == "bridge"]
         for br in bridges:
             ents = _entities_in_room(game_map, br)
-            interactables = [
-                e for e in ents
-                if e.interactable and e.interactable["kind"] in terminal_names
-            ]
+            interactables = [e for e in ents if e.interactable and e.interactable["kind"] in terminal_names]
             if interactables:
                 found = True
                 break
@@ -497,10 +520,7 @@ def test_engine_room_contains_reactor_or_machinery():
         engines = [r for r in rooms if r.label == "engine_room"]
         for er in engines:
             ents = _entities_in_room(game_map, er)
-            interactables = [
-                e for e in ents
-                if e.interactable and e.interactable["kind"] in engine_names
-            ]
+            interactables = [e for e in ents if e.interactable and e.interactable["kind"] in engine_names]
             if interactables:
                 found = True
                 break
@@ -518,10 +538,7 @@ def test_cargo_has_multiple_crate_entities():
         cargos = [r for r in rooms if r.label == "cargo"]
         for cr in cargos:
             ents = _entities_in_room(game_map, cr)
-            interactables = [
-                e for e in ents
-                if e.interactable and e.interactable["kind"] in crate_names
-            ]
+            interactables = [e for e in ents if e.interactable and e.interactable["kind"] in crate_names]
             if len(interactables) >= 2:
                 found = True
                 break
@@ -541,12 +558,8 @@ def test_decorations_are_non_interactable():
         game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
         decor_ents = [e for e in game_map.entities if e.name in decoration_names]
         for e in decor_ents:
-            assert e.interactable is None, (
-                f"Decoration {e.name!r} at ({e.x},{e.y}) should not be interactable"
-            )
-            assert not e.blocks_movement, (
-                f"Decoration {e.name!r} should not block movement"
-            )
+            assert e.interactable is None, f"Decoration {e.name!r} at ({e.x},{e.y}) should not be interactable"
+            assert not e.blocks_movement, f"Decoration {e.name!r} should not block movement"
 
 
 def test_furnishings_have_interactable_dicts():
@@ -562,12 +575,8 @@ def test_furnishings_have_interactable_dicts():
         furn_ents = [e for e in game_map.entities if e.name in furnishing_names]
         for e in furn_ents:
             found_any = True
-            assert e.interactable is not None, (
-                f"Furnishing {e.name!r} at ({e.x},{e.y}) should be interactable"
-            )
-            assert "kind" in e.interactable, (
-                f"Furnishing {e.name!r} interactable missing 'kind'"
-            )
+            assert e.interactable is not None, f"Furnishing {e.name!r} at ({e.x},{e.y}) should be interactable"
+            assert "kind" in e.interactable, f"Furnishing {e.name!r} interactable missing 'kind'"
     assert found_any, "No furnishing entities found across 20 seeds"
 
 
@@ -588,26 +597,20 @@ def test_ship_rooms_get_dressing_not_generic_interactables():
             ents = _entities_in_room(game_map, room)
             themed = [e for e in ents if e.name in dressing_names]
             if room.label in _ROOM_DRESSING:
-                assert len(themed) > 0, (
-                    f"seed={seed}: {room.label} room has no themed dressing"
-                )
+                assert len(themed) > 0, f"seed={seed}: {room.label} room has no themed dressing"
 
 
 def test_ship_gen_no_crash_80x45():
     """Ship generator must not crash across 200 seeds at standard size."""
     for seed in range(200):
-        game_map, rooms, exit_pos = generate_dungeon(
-            width=80, height=45, seed=seed, loc_type="derelict"
-        )
+        game_map, rooms, exit_pos = generate_dungeon(width=80, height=45, seed=seed, loc_type="derelict")
         assert rooms  # at least some rooms placed
 
 
 def test_ship_gen_no_crash_small_map():
     """Ship generator must not crash at small map sizes (30x25)."""
     for seed in range(50):
-        game_map, rooms, exit_pos = generate_dungeon(
-            width=30, height=25, seed=seed, loc_type="derelict"
-        )
+        game_map, rooms, exit_pos = generate_dungeon(width=30, height=25, seed=seed, loc_type="derelict")
         # Small maps may produce fewer rooms, but must not crash
         assert game_map is not None
 
@@ -615,39 +618,40 @@ def test_ship_gen_no_crash_small_map():
 def test_items_only_on_walkable_tiles():
     """All item entities must be placed on walkable tiles."""
     from world.loc_profiles import PROFILES
+
     for loc_type in PROFILES:
         for seed in range(50):
             game_map, rooms, _ = generate_dungeon(seed=seed, loc_type=loc_type)
             item_ents = [e for e in game_map.entities if getattr(e, "item", None)]
             for ent in item_ents:
                 assert game_map.tiles["walkable"][ent.x, ent.y], (
-                    f"Item {ent.name!r} at ({ent.x},{ent.y}) on non-walkable tile "
-                    f"(loc_type={loc_type}, seed={seed})"
+                    f"Item {ent.name!r} at ({ent.x},{ent.y}) on non-walkable tile (loc_type={loc_type}, seed={seed})"
                 )
 
 
 def test_floor_interactables_on_walkable_tiles():
     """Floor interactables (crates, consoles) must be on walkable tiles."""
     from world.loc_profiles import PROFILES
+
     wall_kinds = {"mineral seam", "locker", "storage cabinet"}
     for loc_type in PROFILES:
         for seed in range(50):
             game_map, rooms, _ = generate_dungeon(seed=seed, loc_type=loc_type)
             floor_ents = [
-                e for e in game_map.entities
-                if getattr(e, "interactable", None)
-                and e.interactable.get("kind") not in wall_kinds
+                e
+                for e in game_map.entities
+                if getattr(e, "interactable", None) and e.interactable.get("kind") not in wall_kinds
             ]
             for ent in floor_ents:
                 assert game_map.tiles["walkable"][ent.x, ent.y], (
-                    f"{ent.name!r} at ({ent.x},{ent.y}) on non-walkable tile "
-                    f"(loc_type={loc_type}, seed={seed})"
+                    f"{ent.name!r} at ({ent.x},{ent.y}) on non-walkable tile (loc_type={loc_type}, seed={seed})"
                 )
 
 
 def test_no_entities_near_exit_hatch():
     """No item, interactable, or enemy should be within 1 tile of the exit hatch."""
     from world.loc_profiles import PROFILES
+
     for loc_type in PROFILES:
         for seed in range(50):
             game_map, rooms, exit_pos = generate_dungeon(seed=seed, loc_type=loc_type)
@@ -656,9 +660,7 @@ def test_no_entities_near_exit_hatch():
             ex, ey = exit_pos
             for ent in game_map.entities:
                 has_gameplay = (
-                    getattr(ent, "item", None)
-                    or getattr(ent, "interactable", None)
-                    or getattr(ent, "fighter", None)
+                    getattr(ent, "item", None) or getattr(ent, "interactable", None) or getattr(ent, "fighter", None)
                 )
                 if not has_gameplay:
                     continue
@@ -741,17 +743,13 @@ def test_colony_internal_rooms_connected():
         for room in rooms[1:]:
             cx, cy = room.center
             assert (cx, cy) in reachable, (
-                f"seed={seed}: room center ({cx},{cy}) not reachable from "
-                f"first room ({first_cx},{first_cy})"
+                f"seed={seed}: room center ({cx},{cy}) not reachable from first room ({first_cx},{first_cy})"
             )
 
 
 def test_colony_hallways_within_footprint():
     """No dirt_floor tiles should appear outside building footprints or the map border."""
-    from world.dungeon_gen import _pick_building_room_count
     dirt_tid = int(tile_types.dirt_floor["tile_id"])
-    ground_tid = int(tile_types.ground["tile_id"])
-    structure_wall_tid = int(tile_types.structure_wall["tile_id"])
 
     for seed in range(50):
         game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
@@ -760,21 +758,14 @@ def test_colony_hallways_within_footprint():
                 tid = int(game_map.tiles["tile_id"][x, y])
                 if tid == dirt_tid:
                     # This tile must be inside some room's footprint
-                    inside = any(
-                        r.x1 <= x <= r.x2 and r.y1 <= y <= r.y2
-                        for r in rooms
-                    )
-                    assert inside, (
-                        f"seed={seed}: dirt_floor at ({x},{y}) outside all building footprints"
-                    )
+                    inside = any(r.x1 <= x <= r.x2 and r.y1 <= y <= r.y2 for r in rooms)
+                    assert inside, f"seed={seed}: dirt_floor at ({x},{y}) outside all building footprints"
 
 
 def test_colony_no_crash_200_seeds():
     """Colony generator must not crash across 200 seeds."""
     for seed in range(200):
-        game_map, rooms, exit_pos = generate_dungeon(
-            width=80, height=45, seed=seed, loc_type="colony"
-        )
+        game_map, rooms, exit_pos = generate_dungeon(width=80, height=45, seed=seed, loc_type="colony")
         assert rooms
 
 
@@ -785,12 +776,8 @@ def test_colony_sub_rooms_minimum_size():
         for room in rooms:
             inner_w = room.x2 - room.x1 - 1
             inner_h = room.y2 - room.y1 - 1
-            assert inner_w >= 3, (
-                f"seed={seed}: room {room.label} inner width {inner_w} < 3"
-            )
-            assert inner_h >= 3, (
-                f"seed={seed}: room {room.label} inner height {inner_h} < 3"
-            )
+            assert inner_w >= 3, f"seed={seed}: room {room.label} inner width {inner_w} < 3"
+            assert inner_h >= 3, f"seed={seed}: room {room.label} inner height {inner_h} < 3"
 
 
 def test_colony_buildings_have_irregular_footprints():
@@ -804,6 +791,7 @@ def test_colony_buildings_have_irregular_footprints():
         _, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
         # Group rooms by label to identify buildings with multiple wings
         from collections import defaultdict
+
         by_label: dict[str, list] = defaultdict(list)
         for r in rooms:
             by_label[r.label].append(r)
@@ -827,6 +815,7 @@ def test_colony_buildings_have_irregular_footprints():
 
 # ---- Colony window tests ----
 
+
 def test_colony_windows_are_transparent_not_walkable():
     """All structure_window tiles must be transparent=True, walkable=False."""
     window_tid = int(tile_types.structure_window["tile_id"])
@@ -835,12 +824,8 @@ def test_colony_windows_are_transparent_not_walkable():
         mask = game_map.tiles["tile_id"] == window_tid
         if not mask.any():
             continue
-        assert not game_map.tiles["walkable"][mask].any(), (
-            f"seed={seed}: window tile is walkable"
-        )
-        assert game_map.tiles["transparent"][mask].all(), (
-            f"seed={seed}: window tile is not transparent"
-        )
+        assert not game_map.tiles["walkable"][mask].any(), f"seed={seed}: window tile is walkable"
+        assert game_map.tiles["transparent"][mask].all(), f"seed={seed}: window tile is not transparent"
 
 
 def test_colony_windows_on_exterior_walls():
@@ -865,13 +850,10 @@ def test_colony_windows_on_exterior_walls():
                 has_exterior = False
                 for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                     nx, ny = x + dx, y + dy
-                    if (game_map.in_bounds(nx, ny)
-                            and int(game_map.tiles["tile_id"][nx, ny]) in exterior_tids):
+                    if game_map.in_bounds(nx, ny) and int(game_map.tiles["tile_id"][nx, ny]) in exterior_tids:
                         has_exterior = True
                         break
-                assert has_exterior, (
-                    f"seed={seed}: window at ({x},{y}) has no ground/path neighbor"
-                )
+                assert has_exterior, f"seed={seed}: window at ({x},{y}) has no ground/path neighbor"
 
 
 def test_colony_windows_not_adjacent_to_doors():
@@ -895,12 +877,8 @@ def test_colony_windows_not_adjacent_to_doors():
                     if ntid == dirt_tid and game_map.tiles["walkable"][nx, ny]:
                         for dx2, dy2 in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                             gx, gy = nx + dx2, ny + dy2
-                            if (game_map.in_bounds(gx, gy)
-                                    and int(game_map.tiles["tile_id"][gx, gy]) == ground_tid):
-                                assert False, (
-                                    f"seed={seed}: window at ({x},{y}) adjacent "
-                                    f"to door at ({nx},{ny})"
-                                )
+                            if game_map.in_bounds(gx, gy) and int(game_map.tiles["tile_id"][gx, gy]) == ground_tid:
+                                assert False, f"seed={seed}: window at ({x},{y}) adjacent to door at ({nx},{ny})"
 
 
 def test_colony_has_windows():
@@ -947,12 +925,8 @@ def test_ship_windows_are_transparent_not_walkable():
         mask = game_map.tiles["tile_id"] == window_tid
         if not mask.any():
             continue
-        assert not game_map.tiles["walkable"][mask].any(), (
-            f"seed={seed}: derelict window tile is walkable"
-        )
-        assert game_map.tiles["transparent"][mask].all(), (
-            f"seed={seed}: derelict window tile is not transparent"
-        )
+        assert not game_map.tiles["walkable"][mask].any(), f"seed={seed}: derelict window tile is walkable"
+        assert game_map.tiles["transparent"][mask].all(), f"seed={seed}: derelict window tile is not transparent"
 
 
 def test_ship_windows_adjacent_to_corridor():
@@ -969,30 +943,23 @@ def test_ship_windows_adjacent_to_corridor():
                     nx, ny = x + dx, y + dy
                     if not game_map.in_bounds(nx, ny):
                         continue
-                    if (game_map.tiles["walkable"][nx, ny]
-                            or int(game_map.tiles["tile_id"][nx, ny]) == window_tid):
+                    if game_map.tiles["walkable"][nx, ny] or int(game_map.tiles["tile_id"][nx, ny]) == window_tid:
                         has_neighbor = True
                         break
-                assert has_neighbor, (
-                    f"seed={seed}: window at ({x},{y}) has no walkable or window neighbor"
-                )
+                assert has_neighbor, f"seed={seed}: window at ({x},{y}) has no walkable or window neighbor"
 
 
 def test_colony_no_crash_with_windows():
     """Colony generator with windows must not crash across 200 seeds."""
     for seed in range(200):
-        game_map, rooms, exit_pos = generate_dungeon(
-            width=80, height=45, seed=seed, loc_type="colony"
-        )
+        game_map, rooms, exit_pos = generate_dungeon(width=80, height=45, seed=seed, loc_type="colony")
         assert rooms
 
 
 def test_derelict_no_crash_with_windows():
     """Derelict generator with windows must not crash across 200 seeds."""
     for seed in range(200):
-        game_map, rooms, exit_pos = generate_dungeon(
-            width=80, height=45, seed=seed, loc_type="derelict"
-        )
+        game_map, rooms, exit_pos = generate_dungeon(width=80, height=45, seed=seed, loc_type="derelict")
         assert rooms
 
 
@@ -1009,8 +976,7 @@ def test_derelict_has_hull_facing_windows():
                     continue
                 for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                     nx, ny = x + dx, y + dy
-                    if (game_map.in_bounds(nx, ny)
-                            and int(game_map.tiles["tile_id"][nx, ny]) == wall_tid):
+                    if game_map.in_bounds(nx, ny) and int(game_map.tiles["tile_id"][nx, ny]) == wall_tid:
                         found = True
                         break
                 if found:
@@ -1058,17 +1024,12 @@ def test_derelict_hull_windows_properties():
                 has_hull = False
                 for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                     nx, ny = x + dx, y + dy
-                    if (game_map.in_bounds(nx, ny)
-                            and int(game_map.tiles["tile_id"][nx, ny]) == wall_tid):
+                    if game_map.in_bounds(nx, ny) and int(game_map.tiles["tile_id"][nx, ny]) == wall_tid:
                         has_hull = True
                         break
                 if has_hull:
-                    assert game_map.tiles["transparent"][x, y], (
-                        f"seed={seed}: hull window at ({x},{y}) not transparent"
-                    )
-                    assert not game_map.tiles["walkable"][x, y], (
-                        f"seed={seed}: hull window at ({x},{y}) is walkable"
-                    )
+                    assert game_map.tiles["transparent"][x, y], f"seed={seed}: hull window at ({x},{y}) not transparent"
+                    assert not game_map.tiles["walkable"][x, y], f"seed={seed}: hull window at ({x},{y}) is walkable"
 
 
 def test_starbase_has_hull_facing_windows():
@@ -1084,8 +1045,7 @@ def test_starbase_has_hull_facing_windows():
                     continue
                 for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                     nx, ny = x + dx, y + dy
-                    if (game_map.in_bounds(nx, ny)
-                            and int(game_map.tiles["tile_id"][nx, ny]) == wall_tid):
+                    if game_map.in_bounds(nx, ny) and int(game_map.tiles["tile_id"][nx, ny]) == wall_tid:
                         found = True
                         break
                 if found:
@@ -1105,20 +1065,14 @@ def test_starbase_hull_windows_properties():
         mask = game_map.tiles["tile_id"] == window_tid
         if not mask.any():
             continue
-        assert not game_map.tiles["walkable"][mask].any(), (
-            f"seed={seed}: starbase window tile is walkable"
-        )
-        assert game_map.tiles["transparent"][mask].all(), (
-            f"seed={seed}: starbase window tile is not transparent"
-        )
+        assert not game_map.tiles["walkable"][mask].any(), f"seed={seed}: starbase window tile is walkable"
+        assert game_map.tiles["transparent"][mask].all(), f"seed={seed}: starbase window tile is not transparent"
 
 
 def test_starbase_no_crash_with_windows():
     """Starbase generator with windows must not crash across 200 seeds."""
     for seed in range(200):
-        game_map, rooms, exit_pos = generate_dungeon(
-            width=80, height=45, seed=seed, loc_type="starbase"
-        )
+        game_map, rooms, exit_pos = generate_dungeon(width=80, height=45, seed=seed, loc_type="starbase")
         assert rooms
 
 
@@ -1128,7 +1082,6 @@ def test_no_window_corner_ears():
     hull 'ears'."""
     wall_tid = int(tile_types.wall["tile_id"])
     window_tid = int(tile_types.structure_window["tile_id"])
-    space_tid = int(tile_types.space["tile_id"])
     for seed in range(20):
         gm, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
         # Airlock corridor walls are intentionally preserved even if they
@@ -1169,10 +1122,7 @@ def test_no_window_corner_ears():
                         diag_window = True
                         break
                 if diag_window:
-                    assert False, (
-                        f"seed={seed}: wall 'ear' at ({x},{y}) only diag-adjacent "
-                        f"to window, should be space"
-                    )
+                    assert False, f"seed={seed}: wall 'ear' at ({x},{y}) only diag-adjacent to window, should be space"
 
 
 # ---- Space tile tests ----
@@ -1219,9 +1169,7 @@ def test_asteroid_space_tiles_only_at_breaches():
         adj_breach[:, 1:] |= is_breach[:, :-1]
         adj_breach[:, :-1] |= is_breach[:, 1:]
         bad = is_space & ~adj_breach
-        assert not bad.any(), (
-            f"seed={seed}: space tile not adjacent to hull breach"
-        )
+        assert not bad.any(), f"seed={seed}: space tile not adjacent to hull breach"
 
 
 def test_colony_has_no_space_tiles():
@@ -1252,9 +1200,7 @@ def test_space_tiles_not_adjacent_to_walkable():
         adj_walkable[:, 1:] |= is_walkable[:, :-1]
         adj_walkable[:, :-1] |= is_walkable[:, 1:]
         bad = is_space & adj_walkable
-        assert not bad.any(), (
-            f"seed={seed}: space tile adjacent to walkable tile (non-breach)"
-        )
+        assert not bad.any(), f"seed={seed}: space tile adjacent to walkable tile (non-breach)"
 
 
 def test_space_tiles_are_transparent():
@@ -1264,9 +1210,7 @@ def test_space_tiles_are_transparent():
         game_map, _, _ = generate_dungeon(seed=seed, loc_type="derelict")
         mask = game_map.tiles["tile_id"] == space_tid
         if mask.any():
-            assert game_map.tiles["transparent"][mask].all(), (
-                f"seed={seed}: space tile is not transparent"
-            )
+            assert game_map.tiles["transparent"][mask].all(), f"seed={seed}: space tile is not transparent"
 
 
 def test_space_conversion_preserves_hull_walls():
@@ -1293,9 +1237,7 @@ def test_space_conversion_preserves_hull_walls():
                         tid = int(game_map.tiles["tile_id"][x, y])
                         if tid in structural_tids:
                             perimeter_structural += 1
-            assert perimeter_structural > 0, (
-                f"seed={seed}: room at {room.center} lost all hull structure"
-            )
+            assert perimeter_structural > 0, f"seed={seed}: room at {room.center} lost all hull structure"
 
 
 def test_derelict_has_space_flag():
@@ -1349,9 +1291,7 @@ def test_no_overlapping_items():
             if e.blocks_movement:
                 continue
             pos = (e.x, e.y)
-            assert pos not in occupied, (
-                f"seed={seed}: overlapping entities at {pos}"
-            )
+            assert pos not in occupied, f"seed={seed}: overlapping entities at {pos}"
             occupied.add(pos)
 
 
@@ -1368,12 +1308,9 @@ def test_doors_not_clustered():
         door_positions = list(zip(*np.where(game_map.tiles["tile_id"] == door_closed_id)))
         non_airlock_doors = [(x, y) for x, y in door_positions if (x, y) not in airlock_doors]
         for i, (x1, y1) in enumerate(non_airlock_doors):
-            for x2, y2 in non_airlock_doors[i + 1:]:
+            for x2, y2 in non_airlock_doors[i + 1 :]:
                 dist = abs(x1 - x2) + abs(y1 - y2)
-                assert dist >= 3, (
-                    f"seed={seed}: doors at ({x1},{y1}) and ({x2},{y2}) "
-                    f"are only {dist} apart"
-                )
+                assert dist >= 3, f"seed={seed}: doors at ({x1},{y1}) and ({x2},{y2}) are only {dist} apart"
 
 
 def test_subdivide_door_does_not_breach_outer_hull():
@@ -1403,7 +1340,12 @@ def test_subdivide_door_does_not_breach_outer_hull():
                     gm.tiles[x, y] = tile_types.wall
 
         _subdivide_building(
-            gm, rng, x1, y1, x2, y2,
+            gm,
+            rng,
+            x1,
+            y1,
+            x2,
+            y2,
             num_rooms=2,
             floor_tile=tile_types.floor,
             wall_tile=tile_types.wall,
@@ -1411,19 +1353,11 @@ def test_subdivide_door_does_not_breach_outer_hull():
 
         # Every tile on the outer boundary must remain non-walkable
         for x in range(x1, x2 + 1):
-            assert not gm.tiles["walkable"][x, y1], (
-                f"seed={seed}: hull breach at ({x},{y1}) top edge"
-            )
-            assert not gm.tiles["walkable"][x, y2], (
-                f"seed={seed}: hull breach at ({x},{y2}) bottom edge"
-            )
+            assert not gm.tiles["walkable"][x, y1], f"seed={seed}: hull breach at ({x},{y1}) top edge"
+            assert not gm.tiles["walkable"][x, y2], f"seed={seed}: hull breach at ({x},{y2}) bottom edge"
         for y in range(y1, y2 + 1):
-            assert not gm.tiles["walkable"][x1, y], (
-                f"seed={seed}: hull breach at ({x1},{y}) left edge"
-            )
-            assert not gm.tiles["walkable"][x2, y], (
-                f"seed={seed}: hull breach at ({x2},{y}) right edge"
-            )
+            assert not gm.tiles["walkable"][x1, y], f"seed={seed}: hull breach at ({x1},{y}) left edge"
+            assert not gm.tiles["walkable"][x2, y], f"seed={seed}: hull breach at ({x2},{y}) right edge"
 
 
 # ---- Colony color variation tests ----
@@ -1467,7 +1401,6 @@ def test_colony_ground_has_noise():
 
 def test_colony_tile_ids_preserved():
     """All ground and wall cells must retain the correct tile_id."""
-    ground_tid = int(tile_types.ground["tile_id"])
     wall_tid = int(tile_types.structure_wall["tile_id"])
     for seed in range(10):
         game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
@@ -1476,14 +1409,13 @@ def test_colony_tile_ids_preserved():
         # Every structure wall should still have wall_tid
         wall_mask = ids == wall_tid
         if wall_mask.any():
-            assert not game_map.tiles["walkable"][wall_mask].any(), (
-                f"seed={seed}: structure wall tile is walkable"
-            )
+            assert not game_map.tiles["walkable"][wall_mask].any(), f"seed={seed}: structure wall tile is walkable"
 
 
 # -------------------------------------------------------------------
 # Village path tests
 # -------------------------------------------------------------------
+
 
 def test_village_has_path_tiles():
     """Generated colony village should contain path tiles."""
@@ -1508,8 +1440,7 @@ def test_paths_reach_map_edge():
         if not mask.any():
             continue
         # Check border proximity: x<=2, x>=w-3, y<=2, y>=h-3
-        if (mask[:3, :].any() or mask[w - 3:, :].any()
-                or mask[:, :3].any() or mask[:, h - 3:].any()):
+        if mask[:3, :].any() or mask[w - 3 :, :].any() or mask[:, :3].any() or mask[:, h - 3 :].any():
             found = True
             break
     assert found, "no path tiles near map edge in any of 10 colony seeds"
@@ -1518,25 +1449,20 @@ def test_paths_reach_map_edge():
 def test_paths_only_overwrite_ground():
     """Path tiles must never appear on top of wall or building positions."""
     path_tid = int(tile_types.path["tile_id"])
-    wall_tid = int(tile_types.structure_wall["tile_id"])
-    floor_tid = int(tile_types.floor["tile_id"])
     for seed in range(10):
         game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
         path_mask = game_map.tiles["tile_id"] == path_tid
         if not path_mask.any():
             continue
         # Path tiles must be walkable and transparent
-        assert game_map.tiles["walkable"][path_mask].all(), (
-            f"seed={seed}: non-walkable path tile found"
-        )
-        assert game_map.tiles["transparent"][path_mask].all(), (
-            f"seed={seed}: non-transparent path tile found"
-        )
+        assert game_map.tiles["walkable"][path_mask].all(), f"seed={seed}: non-walkable path tile found"
+        assert game_map.tiles["transparent"][path_mask].all(), f"seed={seed}: non-transparent path tile found"
 
 
 def test_bfs_path_routes_around_obstacle():
     """_bfs_path should find a path around walls, not through them."""
-    from world.palettes import pick_biome, make_ground_tile
+    from world.palettes import make_ground_tile, pick_biome
+
     rng = random.Random(42)
     palette = pick_biome(rng)
     ground_tile = make_ground_tile(palette)
@@ -1550,14 +1476,13 @@ def test_bfs_path_routes_around_obstacle():
     assert len(path) > 0, "BFS should find a path around the wall"
     wall_tid = int(tile_types.structure_wall["tile_id"])
     for x, y in path:
-        assert int(gm.tiles["tile_id"][x, y]) != wall_tid, (
-            f"path crosses wall at ({x}, {y})"
-        )
+        assert int(gm.tiles["tile_id"][x, y]) != wall_tid, f"path crosses wall at ({x}, {y})"
 
 
 def test_bfs_path_returns_empty_when_blocked():
     """_bfs_path returns empty list when no ground path exists."""
-    from world.palettes import pick_biome, make_ground_tile
+    from world.palettes import make_ground_tile, pick_biome
+
     rng = random.Random(42)
     palette = pick_biome(rng)
     ground_tile = make_ground_tile(palette)
@@ -1589,10 +1514,7 @@ def test_paths_do_not_cross_walls():
         if not path_coords:
             continue
         # Flood fill from all edge path tiles through path+ground tiles
-        edge_paths = {
-            (x, y) for x, y in path_coords
-            if x <= 1 or x >= w - 2 or y <= 1 or y >= h - 2
-        }
+        edge_paths = {(x, y) for x, y in path_coords if x <= 1 or x >= w - 2 or y <= 1 or y >= h - 2}
         if not edge_paths:
             continue
         # BFS through walkable (non-wall) tiles from edge paths
@@ -1624,7 +1546,8 @@ def test_paths_do_not_cross_walls():
 
 def test_carve_external_door_returns_position():
     """_carve_external_door should return valid coords when a door is carved."""
-    from world.palettes import pick_biome, make_ground_tile, make_wall_tile
+    from world.palettes import make_ground_tile, make_wall_tile, pick_biome
+
     rng = random.Random(42)
     palette = pick_biome(rng)
     ground_tile = make_ground_tile(palette)
@@ -1648,7 +1571,8 @@ def test_carve_external_door_returns_position():
 
 def test_paths_prefer_wall_gap():
     """Most path tiles from Dijkstra BFS should not be wall-adjacent."""
-    from world.palettes import pick_biome, make_ground_tile
+    from world.palettes import make_ground_tile, pick_biome
+
     rng = random.Random(42)
     palette = pick_biome(rng)
     ground_tile = make_ground_tile(palette)
@@ -1681,12 +1605,11 @@ def test_paths_prefer_wall_gap():
 
 def test_spine_not_always_centered():
     """Spine road y-coordinates should vary across different seeds."""
-    from world.palettes import pick_biome, make_ground_tile
     path_tid = int(tile_types.path["tile_id"])
     spine_ys = set()
     for seed in range(20):
         game_map, _, _ = generate_dungeon(seed=seed, loc_type="colony")
-        w, h = game_map.width, game_map.height
+        _w, h = game_map.width, game_map.height
         # Check path tiles on left edge (x<=2) to find spine entry y
         for y in range(h):
             for x in range(3):
@@ -1698,7 +1621,8 @@ def test_spine_not_always_centered():
 
 def test_meander_preserves_connectivity():
     """Meandered path should still form a connected sequence of adjacent tiles."""
-    from world.palettes import pick_biome, make_ground_tile
+    from world.palettes import make_ground_tile, pick_biome
+
     rng = random.Random(42)
     palette = pick_biome(rng)
     ground_tile = make_ground_tile(palette)
@@ -1713,7 +1637,7 @@ def test_meander_preserves_connectivity():
         x1, y1 = meandered[i]
         x2, y2 = meandered[i + 1]
         assert abs(x1 - x2) + abs(y1 - y2) == 1, (
-            f"gap in meandered path at index {i}: {meandered[i]} -> {meandered[i+1]}"
+            f"gap in meandered path at index {i}: {meandered[i]} -> {meandered[i + 1]}"
         )
 
 
@@ -1723,7 +1647,8 @@ def test_meander_avoids_walls():
     When a wall is one tile away from the path, the lateral offset would land
     on a wall-adjacent ground tile.  Meander should skip that offset.
     """
-    from world.palettes import pick_biome, make_ground_tile
+    from world.palettes import make_ground_tile, pick_biome
+
     rng = random.Random(0)
     palette = pick_biome(rng)
     ground_tile = make_ground_tile(palette)
@@ -1741,28 +1666,25 @@ def test_meander_avoids_walls():
         meandered = _meander(test_rng, straight, gm, ground_tid)
         for x, y in meandered:
             tid = int(gm.tiles["tile_id"][x, y])
-            assert tid != wall_tid, (
-                f"seed={seed}: meander placed path on wall at ({x}, {y})"
-            )
+            assert tid != wall_tid, f"seed={seed}: meander placed path on wall at ({x}, {y})"
             # Inserted (non-original) tiles must not be wall-adjacent
             if (x, y) not in original_set:
                 for ddx, ddy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                     nx, ny = x + ddx, y + ddy
                     if 0 <= nx < 40 and 0 <= ny < 20:
                         assert int(gm.tiles["tile_id"][nx, ny]) != wall_tid, (
-                            f"seed={seed}: meander inserted wall-adjacent "
-                            f"tile ({x}, {y}) not in original path"
+                            f"seed={seed}: meander inserted wall-adjacent tile ({x}, {y}) not in original path"
                         )
 
 
 def test_meander_never_crosses_walls():
     """Meander must never place path tiles on non-ground tiles."""
-    from world.palettes import pick_biome, make_ground_tile
+    from world.palettes import make_ground_tile, pick_biome
+
     rng = random.Random(7)
     palette = pick_biome(rng)
     ground_tile = make_ground_tile(palette)
     ground_tid = int(ground_tile["tile_id"])
-    wall_tid = int(tile_types.structure_wall["tile_id"])
     gm = GameMap(40, 20, fill_tile=ground_tile)
     # Walls on both sides of the path (narrow corridor at y=10)
     for x in range(0, 40):
@@ -1776,24 +1698,20 @@ def test_meander_never_crosses_walls():
         # (no room to offset)
         for x, y in meandered:
             tid = int(gm.tiles["tile_id"][x, y])
-            assert tid == ground_tid, (
-                f"seed={seed}: meander tile ({x}, {y}) has tid={tid}, "
-                f"expected ground"
-            )
+            assert tid == ground_tid, f"seed={seed}: meander tile ({x}, {y}) has tid={tid}, expected ground"
 
 
 # -------------------------------------------------------------------
 # Ship dock tests
 # -------------------------------------------------------------------
 
+
 def test_colony_has_ship_dock():
     """Colony villages should have a ship_dock as rooms[0]."""
     for seed in range(10):
         _, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
         assert len(rooms) >= 1, f"seed={seed}: no rooms"
-        assert rooms[0].label == "ship_dock", (
-            f"seed={seed}: rooms[0].label={rooms[0].label!r}, expected 'ship_dock'"
-        )
+        assert rooms[0].label == "ship_dock", f"seed={seed}: rooms[0].label={rooms[0].label!r}, expected 'ship_dock'"
 
 
 def test_colony_exit_on_dock_not_building():
@@ -1806,9 +1724,7 @@ def test_colony_exit_on_dock_not_building():
         # The exit should be at dock center (rooms[0])
         dock = rooms[0]
         assert dock.label == "ship_dock"
-        assert (ex, ey) == dock.center, (
-            f"seed={seed}: exit at {exit_pos} != dock center {dock.center}"
-        )
+        assert (ex, ey) == dock.center, f"seed={seed}: exit at {exit_pos} != dock center {dock.center}"
         # Exit should NOT be on dirt_floor (building interior)
         # (the exit tile itself replaces whatever was there, so check neighbors)
         # At least one neighbor should be ground/path, not dirt_floor
@@ -1841,9 +1757,7 @@ def test_dock_has_no_flora():
                 if not _in_dock_octagon(dx, dy):
                     continue
                 tid = int(game_map.tiles["tile_id"][x, y])
-                assert tid not in flora_tids, (
-                    f"seed={seed}: flora at ({x},{y}) inside dock octagon"
-                )
+                assert tid not in flora_tids, f"seed={seed}: flora at ({x},{y}) inside dock octagon"
 
 
 def test_dock_does_not_overlap_buildings():
@@ -1857,8 +1771,7 @@ def test_dock_does_not_overlap_buildings():
         for room in rooms[1:]:
             # Dock rect (with 1-tile gap) should not intersect building rects
             assert not dock.intersects(room), (
-                f"seed={seed}: dock overlaps room {room.label} at "
-                f"({room.x1},{room.y1})-({room.x2},{room.y2})"
+                f"seed={seed}: dock overlaps room {room.label} at ({room.x1},{room.y1})-({room.x2},{room.y2})"
             )
 
 
@@ -1881,8 +1794,7 @@ def test_dock_has_path_outline():
         assert perimeter_total > 0, f"seed={seed}: no perimeter tiles found"
         # All octagonal perimeter tiles must be path (hard repaint after generation)
         assert perimeter_path_count == perimeter_total, (
-            f"seed={seed}: only {perimeter_path_count}/{perimeter_total} "
-            f"octagon perimeter tiles are path"
+            f"seed={seed}: only {perimeter_path_count}/{perimeter_total} octagon perimeter tiles are path"
         )
 
 
@@ -1906,8 +1818,7 @@ def test_dock_connected_to_road():
                 nx, ny = x + dx, y + dy
                 if (nx, ny) not in dock_set and 0 <= nx < w and 0 <= ny < h:
                     dock_adj.add((nx, ny))
-        start_tiles = {(x, y) for x, y in dock_adj
-                       if int(game_map.tiles["tile_id"][x, y]) == path_tid}
+        start_tiles = {(x, y) for x, y in dock_adj if int(game_map.tiles["tile_id"][x, y]) == path_tid}
         if not start_tiles:
             continue
         visited = set(start_tiles)
@@ -1925,14 +1836,13 @@ def test_dock_connected_to_road():
                         visited.add((nx, ny))
                         nxt.append((nx, ny))
             frontier = nxt
-        assert len(visited) > 3, (
-            f"seed={seed}: dock path only reaches {len(visited)} tiles outside dock"
-        )
+        assert len(visited) > 3, f"seed={seed}: dock path only reaches {len(visited)} tiles outside dock"
 
 
 def test_place_ship_dock_basic():
     """_place_ship_dock returns a valid dock room on open ground."""
-    from world.palettes import pick_biome, make_ground_tile, make_path_tile
+    from world.palettes import make_ground_tile, make_path_tile, pick_biome
+
     rng = random.Random(42)
     palette = pick_biome(rng)
     ground_tile = make_ground_tile(palette)
@@ -1974,8 +1884,6 @@ def test_dock_no_walls():
 
 def test_dock_is_octagonal():
     """The dock shape should be octagonal — corner tiles outside the bounding box are untouched."""
-    path_tid = int(tile_types.path["tile_id"])
-    ground_tid = int(tile_types.ground["tile_id"])
     for seed in range(5):
         game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
         dock = rooms[0]
@@ -2005,12 +1913,8 @@ def test_dock_center_is_exact():
         right = dock.x2 - cx
         top = cy - dock.y1
         bottom = dock.y2 - cy
-        assert left == right, (
-            f"seed={seed}: center not horizontally centered: left={left}, right={right}"
-        )
-        assert top == bottom, (
-            f"seed={seed}: center not vertically centered: top={top}, bottom={bottom}"
-        )
+        assert left == right, f"seed={seed}: center not horizontally centered: left={left}, right={right}"
+        assert top == bottom, f"seed={seed}: center not vertically centered: top={top}, bottom={bottom}"
         assert exit_pos == (cx, cy)
 
 
@@ -2018,15 +1922,15 @@ def test_per_room_enemy_cap():
     """No room should ever have more than 3 enemies even with high max_enemies."""
     for seed in range(20):
         game_map, rooms, _ = generate_dungeon(
-            seed=seed, max_rooms=8, max_enemies=10, max_total_enemies=999,
+            seed=seed,
+            max_rooms=8,
+            max_enemies=10,
+            max_total_enemies=999,
         )
         for room in rooms[1:]:
             x1, y1 = room.x1 + 1, room.y1 + 1
             x2, y2 = room.x2, room.y2
-            count = sum(
-                1 for e in game_map.entities
-                if e.ai and x1 <= e.x <= x2 and y1 <= e.y <= y2
-            )
+            count = sum(1 for e in game_map.entities if e.ai and x1 <= e.x <= x2 and y1 <= e.y <= y2)
             assert count <= 3, f"seed={seed}: room has {count} enemies (max 3)"
 
 
@@ -2034,7 +1938,10 @@ def test_total_enemy_cap():
     """Total enemies across the level should not exceed max_total_enemies."""
     for seed in range(20):
         game_map, rooms, _ = generate_dungeon(
-            seed=seed, max_rooms=12, max_enemies=3, max_total_enemies=12,
+            seed=seed,
+            max_rooms=12,
+            max_enemies=3,
+            max_total_enemies=12,
         )
         total = sum(1 for e in game_map.entities if e.ai)
         assert total <= 12, f"seed={seed}: {total} enemies exceeds cap of 12"
@@ -2044,7 +1951,10 @@ def test_total_enemy_cap_low():
     """A very low total cap should limit enemies accordingly."""
     for seed in range(20):
         game_map, rooms, _ = generate_dungeon(
-            seed=seed, max_rooms=8, max_enemies=3, max_total_enemies=3,
+            seed=seed,
+            max_rooms=8,
+            max_enemies=3,
+            max_total_enemies=3,
         )
         total = sum(1 for e in game_map.entities if e.ai)
         assert total <= 3, f"seed={seed}: {total} enemies exceeds cap of 3"
@@ -2053,6 +1963,7 @@ def test_total_enemy_cap_low():
 def test_respawn_creatures_respects_total_cap():
     """respawn_creatures should also respect the total enemy cap."""
     from world.dungeon_gen import respawn_creatures
+
     game_map, rooms, _ = generate_dungeon(seed=42, max_rooms=8, max_enemies=3, max_total_enemies=5)
     respawn_creatures(game_map, rooms, max_enemies=3, max_total_enemies=5, seed=99)
     total = sum(1 for e in game_map.entities if e.ai)
@@ -2062,6 +1973,7 @@ def test_respawn_creatures_respects_total_cap():
 def test_respawn_creatures_preserves_non_ai():
     """respawn_creatures should not remove non-AI entities (items, interactables)."""
     from world.dungeon_gen import respawn_creatures
+
     game_map, rooms, _ = generate_dungeon(seed=42, loc_type="derelict", max_enemies=2)
     non_ai_before = [e for e in game_map.entities if not e.ai]
     respawn_creatures(game_map, rooms, max_enemies=2, seed=99)
@@ -2071,9 +1983,7 @@ def test_respawn_creatures_preserves_non_ai():
 
 def test_ship_dungeon_small_map_no_crash():
     # This would crash before the fix
-    game_map, rooms, exit_pos = generate_dungeon(
-        width=20, height=20, seed=42, loc_type="derelict"
-    )
+    game_map, rooms, exit_pos = generate_dungeon(width=20, height=20, seed=42, loc_type="derelict")
     # Should not crash; rooms may be few but generation completes
     assert game_map is not None
 
@@ -2081,17 +1991,13 @@ def test_ship_dungeon_small_map_no_crash():
 def test_village_dungeon_small_map_no_crash():
     # Test with small colony maps that previously could IndexError
     for seed in range(20):
-        game_map, rooms, exit_pos = generate_dungeon(
-            width=15, height=15, seed=seed, loc_type="colony"
-        )
+        game_map, rooms, exit_pos = generate_dungeon(width=15, height=15, seed=seed, loc_type="colony")
         assert game_map is not None
 
 
 def test_generate_dungeon_no_crash_on_tiny_map():
     # Very small map — rooms may be empty
-    game_map, rooms, exit_pos = generate_dungeon(
-        width=5, height=5, seed=99, loc_type="derelict"
-    )
+    game_map, rooms, exit_pos = generate_dungeon(width=5, height=5, seed=99, loc_type="derelict")
     assert game_map is not None
 
 

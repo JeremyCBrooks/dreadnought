@@ -1,15 +1,12 @@
 """Tests for explosive decompression system."""
-from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from game.entity import Entity, Fighter
 from game.environment import (
     _bfs_toward_breach,
-    trigger_decompression,
     process_decompression_step,
-    DECOMPRESSION_TILES_PER_STEP,
+    trigger_decompression,
 )
 from game.suit import Suit
 from tests.conftest import MockEngine
@@ -59,6 +56,7 @@ def _make_engine(gm: GameMap, px: int, py: int, env=None, suit=None):
 # BFS toward breach
 # -------------------------------------------------------------------
 
+
 class TestBfsTowardBreach:
     def test_straight_corridor(self):
         """Tiles in a straight corridor all pull toward the breach."""
@@ -97,9 +95,6 @@ class TestBfsTowardBreach:
 
     def test_beyond_max_distance(self):
         """Tiles beyond max_distance are not included."""
-        layout = [
-            "#" + "." * 15 + "X ",
-        ]
         gm = GameMap(18, 1)
         for x in range(18):
             gm.tiles[x, 0] = tile_types.floor
@@ -118,9 +113,6 @@ class TestBfsTowardBreach:
 
     def test_multiple_sources_uses_nearest(self):
         """With two sources, each tile pulls toward the nearest one."""
-        layout = [
-            "X.....X",
-        ]
         gm = GameMap(7, 1)
         for x in range(7):
             gm.tiles[x, 0] = tile_types.floor
@@ -141,6 +133,7 @@ class TestBfsTowardBreach:
 # -------------------------------------------------------------------
 # trigger_decompression
 # -------------------------------------------------------------------
+
 
 class TestTriggerDecompression:
     def test_entities_in_newly_exposed_area_get_tagged(self):
@@ -171,8 +164,7 @@ class TestTriggerDecompression:
             "#####",
         ]
         gm = _make_map(layout)
-        console = Entity(x=1, y=1, name="Console", blocks_movement=False,
-                         interactable={"kind": "console"})
+        console = Entity(x=1, y=1, name="Console", blocks_movement=False, interactable={"kind": "console"})
         gm.entities.append(console)
         engine = _make_engine(gm, 2, 1, env={"vacuum": 1}, suit=Suit("EVA", {"vacuum": 50}))
 
@@ -190,8 +182,7 @@ class TestTriggerDecompression:
             "#####",
         ]
         gm = _make_map(layout)
-        item = Entity(x=1, y=1, name="Medkit", blocks_movement=False,
-                      item={"type": "heal", "value": 5})
+        item = Entity(x=1, y=1, name="Medkit", blocks_movement=False, item={"type": "heal", "value": 5})
         gm.entities.append(item)
         engine = _make_engine(gm, 2, 1, env={"vacuum": 1}, suit=Suit("EVA", {"vacuum": 50}))
 
@@ -269,6 +260,7 @@ class TestTriggerDecompression:
 # -------------------------------------------------------------------
 # process_decompression_step
 # -------------------------------------------------------------------
+
 
 class TestProcessDecompressionStep:
     def test_moves_toward_breach(self):
@@ -388,8 +380,7 @@ class TestProcessDecompressionStep:
             "#######",
         ]
         gm = _make_map(layout)
-        blocker = Entity(x=3, y=1, name="Wall-bot", fighter=Fighter(20, 20, 0, 1),
-                         blocks_movement=True)
+        blocker = Entity(x=3, y=1, name="Wall-bot", fighter=Fighter(20, 20, 0, 1), blocks_movement=True)
         gm.entities.append(blocker)
         entity = Entity(x=1, y=1, name="Drone", fighter=Fighter(10, 10, 0, 1))
         gm.entities.append(entity)
@@ -424,6 +415,7 @@ class TestProcessDecompressionStep:
 # -------------------------------------------------------------------
 # Integration: recalculate_hazards sets pending decompression
 # -------------------------------------------------------------------
+
 
 class TestPendingDecompression:
     def test_opening_airlock_sets_pending(self):
@@ -597,6 +589,7 @@ class TestPendingDecompression:
 # Integration: door opens to vacuum room with hull breach
 # -------------------------------------------------------------------
 
+
 class TestDoorToVacuumRoom:
     """Model the full scenario: pressurized corridor, door opens to a vacuum
     room that has a hull breach to space.  Entity in the corridor should be
@@ -641,15 +634,15 @@ class TestDoorToVacuumRoom:
 
         player = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
         gm.entities.append(player)
-        engine = MockEngine(gm, player, suit=Suit("EVA", {"vacuum": 50}),
-                            environment={"vacuum": 1})
+        engine = MockEngine(gm, player, suit=Suit("EVA", {"vacuum": 50}), environment={"vacuum": 1})
 
         return engine, entity, door_x, breach_x, space_x
 
     def test_small_room_entity_reaches_space(self):
         """With a small vacuum room, entity is blown all the way to space."""
         engine, entity, door_x, breach_x, space_x = self._setup(
-            corridor_len=3, room_len=3,
+            corridor_len=3,
+            room_len=3,
         )
         gm = engine.game_map
 
@@ -662,7 +655,9 @@ class TestDoorToVacuumRoom:
         assert pending is not None, "Door opening should trigger decompression"
 
         pull_dirs = trigger_decompression(
-            engine, pending["breach_sources"], pending["newly_exposed"],
+            engine,
+            pending["breach_sources"],
+            pending["newly_exposed"],
         )
 
         # Entity should be tagged
@@ -682,7 +677,8 @@ class TestDoorToVacuumRoom:
         """With a large vacuum room, entity near the door IS tagged (range is
         from door) but stops after DECOMPRESSION_RANGE tiles, not at space."""
         engine, entity, door_x, breach_x, space_x = self._setup(
-            corridor_len=2, room_len=12,
+            corridor_len=2,
+            room_len=12,
         )
         gm = engine.game_map
 
@@ -695,15 +691,16 @@ class TestDoorToVacuumRoom:
         assert pending is not None
 
         pull_dirs = trigger_decompression(
-            engine, pending["breach_sources"], pending["newly_exposed"],
+            engine,
+            pending["breach_sources"],
+            pending["newly_exposed"],
         )
 
         # Entity at x=1, breach at x=15.  Distance = 14.
         # Old code would miss this entirely (range measured from breach).
-        assert entity.decompression_moves > 0, (
-            "Entity near door should be tagged even when breach is far"
-        )
+        assert entity.decompression_moves > 0, "Entity near door should be tagged even when breach is far"
         from game.environment import DECOMPRESSION_RANGE
+
         assert entity.decompression_moves == DECOMPRESSION_RANGE
 
         start_x = entity.x
@@ -719,7 +716,8 @@ class TestDoorToVacuumRoom:
         """Entity far from the door (beyond DECOMPRESSION_RANGE) is not tagged."""
         # Build a very long corridor
         engine, entity, door_x, breach_x, space_x = self._setup(
-            corridor_len=15, room_len=3,
+            corridor_len=15,
+            room_len=3,
         )
         gm = engine.game_map
         # Move entity to far end of corridor (15 tiles from door)
@@ -733,13 +731,13 @@ class TestDoorToVacuumRoom:
         assert pending is not None
 
         trigger_decompression(
-            engine, pending["breach_sources"], pending["newly_exposed"],
+            engine,
+            pending["breach_sources"],
+            pending["newly_exposed"],
         )
 
         # Entity at x=1, door at x=16, distance=15 > DECOMPRESSION_RANGE=10
-        assert entity.decompression_moves == 0, (
-            "Entity too far from door should not be tagged"
-        )
+        assert entity.decompression_moves == 0, "Entity too far from door should not be tagged"
 
 
 class TestDecompressionCleanup:
@@ -759,7 +757,11 @@ class TestDecompressionCleanup:
 
         # Enemy with low HP between walls — will hit wall and take lethal impact
         enemy = Entity(
-            x=3, y=1, name="Grunt", fighter=Fighter(1, 1, 0, 1), organic=True,
+            x=3,
+            y=1,
+            name="Grunt",
+            fighter=Fighter(1, 1, 0, 1),
+            organic=True,
         )
         gm.entities.append(enemy)
 
@@ -777,6 +779,7 @@ class TestDecompressionCleanup:
 
         # Now simulate the _after_player_turn cleanup
         from ui.tactical_state import TacticalState
+
         state = TacticalState.__new__(TacticalState)
         state._after_player_turn(engine)
 
@@ -794,7 +797,11 @@ class TestDecompressionCleanup:
         gm.recalculate_hazards()
 
         bot = Entity(
-            x=3, y=1, name="Bot", fighter=Fighter(1, 1, 0, 1), organic=False,
+            x=3,
+            y=1,
+            name="Bot",
+            fighter=Fighter(1, 1, 0, 1),
+            organic=False,
         )
         gm.entities.append(bot)
 
@@ -808,6 +815,7 @@ class TestDecompressionCleanup:
         assert bot.fighter.hp <= 0
 
         from ui.tactical_state import TacticalState
+
         state = TacticalState.__new__(TacticalState)
         state._after_player_turn(engine)
 

@@ -1,8 +1,10 @@
 """Runtime death gore — place blood, oil, or debris when enemies die."""
+
 from __future__ import annotations
 
+import functools
 import random as _random
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from game.entity import Entity
@@ -16,14 +18,34 @@ _DEFAULT_OIL = (50, 50, 60)
 _BLOOD_CHARS = [ord("."), ord(","), ord("'"), ord("`")]
 _DEBRIS_CHARS = [ord(","), ord("'"), ord(";"), ord("~")]
 
-# The 9 offsets: death tile + 8 neighbours
-_OFFSETS = [(dx, dy) for dx in range(-1, 2) for dy in range(-1, 2)]
+# 8 neighbour offsets (excludes center)
+_NEIGHBOUR_OFFSETS = [(dx, dy) for dx in range(-1, 2) for dy in range(-1, 2) if dx or dy]
+
+# Per-layer brightness multipliers
+_LAYER_BRIGHTNESS = {"dark": 0.4, "light": 1.0, "lit": 0.7}
+
+
+@functools.cache
+def _floor_defaults() -> dict[int, int]:
+    """Map tile_id → default light char for all gore-eligible floor types."""
+    from world import tile_types
+
+    return {
+        int(t["tile_id"]): int(t["light"]["ch"])
+        for t in (
+            tile_types.floor,
+            tile_types.rock_floor,
+            tile_types.dirt_floor,
+            tile_types.ground,
+            tile_types.airlock_floor,
+        )
+    }
 
 
 def place_death_gore(
-    game_map: "GameMap",
-    entity: "Entity",
-    rng: Optional[_random.Random] = None,
+    game_map: GameMap,
+    entity: Entity,
+    rng: _random.Random | None = None,
 ) -> None:
     """Place gore on floor tiles at *entity*'s position and adjacent tiles.
 
@@ -32,8 +54,6 @@ def place_death_gore(
     Gore type is determined by ``entity.organic`` and ``entity.gore_color``.
     Amount scales with ``entity.fighter.max_hp``.
     """
-    from world import tile_types
-
     if rng is None:
         rng = _random.Random()
 
@@ -46,48 +66,33 @@ def place_death_gore(
         gore_color = _DEFAULT_BLOOD if entity.organic else _DEFAULT_OIL
 
     chars = _BLOOD_CHARS if entity.organic else _DEBRIS_CHARS
-
-    # All walkable floor tile types eligible for gore
-    _floor_defaults = {
-        int(t["tile_id"]): int(t["light"]["ch"])
-        for t in (
-            tile_types.floor,
-            tile_types.rock_floor,
-            tile_types.dirt_floor,
-            tile_types.ground,
-            tile_types.airlock_floor,
-        )
-    }
+    defaults = _floor_defaults()
 
     def _is_eligible(x: int, y: int) -> bool:
         if not game_map.in_bounds(x, y):
             return False
         tid = int(game_map.tiles["tile_id"][x, y])
-        if tid not in _floor_defaults:
+        if tid not in defaults:
             return False
-        if int(game_map.tiles["light"]["ch"][x, y]) != _floor_defaults[tid]:
-            return False  # already decorated
-        return True
+        return int(game_map.tiles["light"]["ch"][x, y]) == defaults[tid]
 
     # Death tile is always included if eligible
     death_tile = (entity.x, entity.y)
     death_eligible = _is_eligible(*death_tile)
 
     # Collect eligible neighbour tiles (8 surrounding)
-    neighbours = []
-    for dx, dy in _OFFSETS:
-        if dx == 0 and dy == 0:
-            continue
-        nx, ny = entity.x + dx, entity.y + dy
-        if _is_eligible(nx, ny):
-            neighbours.append((nx, ny))
+    neighbours = [
+        (entity.x + dx, entity.y + dy) for dx, dy in _NEIGHBOUR_OFFSETS if _is_eligible(entity.x + dx, entity.y + dy)
+    ]
 
     if not death_eligible and not neighbours:
         return
 
-    # Scale extra count by max_hp (capped by available neighbours)
+    # Scale extra splatter count by max_hp (capped by available neighbours)
     base = max(1, fighter.max_hp)
-    extra = min(len(neighbours), rng.randint(max(0, base - 1), base + max(1, base // 2) - 1))
+    lo = max(0, base - 1)
+    hi = base + max(1, base // 2) - 1
+    extra = min(len(neighbours), rng.randint(lo, hi))
     chosen = ([death_tile] if death_eligible else []) + rng.sample(neighbours, extra)
 
     r, g, b = gore_color
@@ -95,8 +100,7 @@ def place_death_gore(
         cur_ch = int(game_map.tiles["light"]["ch"][nx, ny])
         alt = [c for c in chars if c != cur_ch]
         ch = rng.choice(alt) if alt else rng.choice(chars)
-        for layer in ("dark", "light", "lit"):
-            brightness = 0.4 if layer == "dark" else (1.0 if layer == "light" else 0.7)
+        for layer, brightness in _LAYER_BRIGHTNESS.items():
             game_map.tiles[layer]["ch"][nx, ny] = ch
             fg = game_map.tiles[layer]["fg"][nx, ny]
             fg[0] = min(255, int(r * brightness) + rng.randint(0, 20))

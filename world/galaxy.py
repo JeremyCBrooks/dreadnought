@@ -1,12 +1,9 @@
 """Procedural on-demand galaxy with star systems and locations."""
-from __future__ import annotations
 
 import random
-from typing import Dict, List, Optional
 
-from data.names import SYSTEM_WORDS, LOCATION_TYPES, LOCATION_WORDS
+from data.names import LOCATION_TYPES, LOCATION_WORDS, SYSTEM_WORDS
 from data.star_types import pick_star_type
-
 
 _LOW_GRAVITY_TYPES = frozenset({"asteroid", "derelict"})
 
@@ -15,17 +12,22 @@ DREADNOUGHT_LOCATION_NAME = "The Dreadnought"
 
 # 8 cardinal/diagonal direction vectors
 _DIRECTIONS = [
-    (0, -1), (0, 1), (-1, 0), (1, 0),
-    (-1, -1), (1, -1), (-1, 1), (1, 1),
+    (0, -1),
+    (0, 1),
+    (-1, 0),
+    (1, 0),
+    (-1, -1),
+    (1, -1),
+    (-1, 1),
+    (1, 1),
 ]
 
-# Weighted distribution for total desired connections: index=count, value=weight
+# Weighted distribution for total desired connections: (count, weight)
 _CONNECTION_WEIGHTS = [(1, 5), (2, 30), (3, 40), (4, 20), (5, 5)]
 
 
 class Location:
-    def __init__(self, name: str, loc_type: str, environment: Optional[dict] = None,
-                 system_name: str = "") -> None:
+    def __init__(self, name: str, loc_type: str, environment: dict | None = None, system_name: str = "") -> None:
         self.name = name
         self.loc_type = loc_type
         env = environment or {}
@@ -40,15 +42,22 @@ class Location:
 
 
 class StarSystem:
-    def __init__(self, name: str, locations: Optional[List[Location]] = None, depth: int = 0,
-                 star_type: str = "yellow_dwarf", gx: int = 0, gy: int = 0) -> None:
+    def __init__(
+        self,
+        name: str,
+        locations: list[Location] | None = None,
+        depth: int = 0,
+        star_type: str = "yellow_dwarf",
+        gx: int = 0,
+        gy: int = 0,
+    ) -> None:
         self.name = name
-        self.locations: List[Location] = locations or []
+        self.locations: list[Location] = locations or []
         self.depth = depth
         self.star_type = star_type
         self.gx = gx
         self.gy = gy
-        self.connections: Dict[str, int] = {}
+        self.connections: dict[str, int] = {}
 
 
 def _direction(ax: int, ay: int, bx: int, by: int) -> tuple[int, int]:
@@ -58,8 +67,7 @@ def _direction(ax: int, ay: int, bx: int, by: int) -> tuple[int, int]:
     return ((dx > 0) - (dx < 0), (dy > 0) - (dy < 0))
 
 
-def _unique_location_name(rng: random.Random, type_words: dict,
-                          used: set[str], max_attempts: int = 50) -> str:
+def _unique_location_name(rng: random.Random, type_words: dict, used: set[str], max_attempts: int = 50) -> str:
     """Generate a location name that isn't already in *used*, then register it."""
     for _ in range(max_attempts):
         adj = rng.choice(type_words["adjectives"])
@@ -75,7 +83,7 @@ def _unique_location_name(rng: random.Random, type_words: dict,
             used.add(name)
             return name
     # Fallback: append a number to guarantee uniqueness
-    base = f"{adj} {noun}"
+    base = f"{rng.choice(type_words['adjectives'])} {rng.choice(type_words['nouns'])}"
     n = 2
     while f"{base} {n}" in used:
         n += 1
@@ -85,21 +93,21 @@ def _unique_location_name(rng: random.Random, type_words: dict,
 
 
 class Galaxy:
-    def __init__(self, seed: Optional[int] = None) -> None:
+    def __init__(self, seed: int | None = None) -> None:
         self.seed = seed if seed is not None else random.randint(0, 2**32 - 1)
-        self.systems: Dict[str, StarSystem] = {}
-        self._used_names: set[str] = set()
-        self._occupied_positions: Dict[tuple[int, int], str] = {}
+        self.systems: dict[str, StarSystem] = {}
+        self._used_names: set[str] = {DREADNOUGHT_SYSTEM_NAME, DREADNOUGHT_LOCATION_NAME}
+        self._occupied_positions: dict[tuple[int, int], str] = {}
         self._generated_frontiers: set[str] = set()
         self._unexplored_frontier: set[str] = set()
-        self._nav_unit_rings: Dict[int, str] = {}
+        self._nav_unit_rings: dict[int, str] = {}
 
         # Cache data tables
         self._sw = SYSTEM_WORDS
         self._loc_types = LOCATION_TYPES
         self._loc_words = LOCATION_WORDS
 
-        self.dreadnought_system: Optional[str] = None
+        self.dreadnought_system: str | None = None
 
         # Generate home system at (0, 0)
         home = self._generate_system(0, 0)
@@ -124,7 +132,7 @@ class Galaxy:
         name = self._generate_system_name(rng)
 
         # Generate locations
-        locations: List[Location] = []
+        locations: list[Location] = []
         for _ in range(rng.randint(2, 4)):
             lt = rng.choice(self._loc_types)
             type_words = self._loc_words[lt]
@@ -132,11 +140,9 @@ class Galaxy:
             env = {"vacuum": 1} if lt in ("derelict", "asteroid") else {}
             if lt in ("asteroid", "derelict") and rng.random() < 0.7:
                 env["low_gravity"] = 1
-            locations.append(Location(loc_name, lt, environment=env or None,
-                                      system_name=name))
+            locations.append(Location(loc_name, lt, environment=env or None, system_name=name))
 
-        system = StarSystem(name, locations, depth=0,
-                           star_type=pick_star_type(rng), gx=gx, gy=gy)
+        system = StarSystem(name, locations, depth=0, star_type=pick_star_type(rng), gx=gx, gy=gy)
         self.systems[name] = system
         self._occupied_positions[(gx, gy)] = name
 
@@ -214,7 +220,6 @@ class Galaxy:
         rng.shuffle(available_dirs)
 
         base_fuel = 30
-        fuel_per_dist = 15
 
         for d in available_dirs:
             if new_exits <= 0:
@@ -258,15 +263,16 @@ class Galaxy:
         if not self._unexplored_frontier:
             # Graph would close — force at least one new exit from this system
             self._generated_frontiers.discard(system_name)
-            changed = self._expand_frontier(
-                system_name, min_exits=len(self.systems[system_name].connections) + 1
-            ) or changed
+            changed = (
+                self._expand_frontier(system_name, min_exits=len(self.systems[system_name].connections) + 1) or changed
+            )
         if changed:
             self._assign_depths()
 
     def _assign_depths(self) -> None:
         from collections import deque
-        distances: Dict[str, int] = {self.home_system: 0}
+
+        distances: dict[str, int] = {self.home_system: 0}
         queue = deque([self.home_system])
         while queue:
             name = queue.popleft()
@@ -317,14 +323,19 @@ class Galaxy:
         self._used_names.add(name)
 
         loc = Location(
-            DREADNOUGHT_LOCATION_NAME, "derelict",
+            DREADNOUGHT_LOCATION_NAME,
+            "derelict",
             environment={"vacuum": 1, "low_gravity": 1},
             system_name=name,
         )
         loc.is_dreadnought = True
         system = StarSystem(
-            name, [loc], depth=0,
-            star_type="red_supergiant", gx=gx, gy=gy,
+            name,
+            [loc],
+            depth=0,
+            star_type="red_supergiant",
+            gx=gx,
+            gy=gy,
         )
         self.systems[name] = system
         self._occupied_positions[(gx, gy)] = name

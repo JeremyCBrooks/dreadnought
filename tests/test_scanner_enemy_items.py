@@ -1,6 +1,7 @@
 """Tests for scanner display of enemy equipment (Phase 6)."""
+
 from game.scanner import _format_creature
-from tests.conftest import make_creature, make_melee_weapon, make_heal_item, make_weapon
+from tests.conftest import make_creature, make_heal_item, make_melee_weapon, make_weapon
 
 
 def _creature_with_items(items=None, ai_state="wandering"):
