@@ -9,3 +9,5 @@ build/
 data/fonts/
 .mypy_cache/
 .env
+.ruff_cache
+docs
