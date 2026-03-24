@@ -55,7 +55,7 @@ class Suit:
         self._drain_ticks.clear()
 
 
-# Predefined suits for the vertical slice
+# Predefined suits
 EVA_SUIT = Suit(
     name="EVA Suit",
     resistances={"vacuum": 50, "cold": 10},

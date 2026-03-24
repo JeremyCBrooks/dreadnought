@@ -1,4 +1,4 @@
-## Dreadnought Roguelike (Vertical Slice)
+## Dreadnought Roguelike
 
 Python + `python-tcod` sci-fi roguelike. ASCII visuals, FOV shadowcast, procedural dungeons, turn-based combat, environmental hazards, and a strategic galaxy layer.
 
