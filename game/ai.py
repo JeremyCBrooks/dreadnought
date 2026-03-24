@@ -577,6 +577,3 @@ class CreatureAI:
                     self._attack(owner, engine)
                 break
 
-
-# Backward compatibility alias
-HostileAI = CreatureAI

@@ -112,13 +112,13 @@ def test_melee_hp_cannot_go_negative():
 
 def test_melee_suit_defense_reduces_damage():
     from game.actions import MeleeAction
-    from game.ai import HostileAI
+    from game.ai import CreatureAI
     from tests.conftest import MockEngine, make_arena
 
     gm = make_arena()
     suit = Suit("Armor", {}, defense_bonus=2)
     player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
-    enemy = Entity(x=6, y=5, name="Rat", fighter=Fighter(3, 3, 0, 3), ai=HostileAI())
+    enemy = Entity(x=6, y=5, name="Rat", fighter=Fighter(3, 3, 0, 3), ai=CreatureAI())
     gm.entities.extend([player, enemy])
     eng = MockEngine(gm, player, suit=suit)
     # Enemy power=3, player defense=0 + suit bonus=2, so damage = max(1, 3-2) = 1

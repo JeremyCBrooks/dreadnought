@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import tcod.event
 
-from game.ai import HostileAI
+from game.ai import CreatureAI
 from game.entity import Entity, Fighter
 from game.loadout import Loadout
 from tests.conftest import make_engine
@@ -32,7 +32,7 @@ def _add_enemy(engine, x, y, name="Bot", hp=5):
         name=name,
         fighter=Fighter(hp, hp, 0, 0),
         blocks_movement=True,
-        ai=HostileAI(),
+        ai=CreatureAI(),
         char="B",
         color=(255, 0, 0),
     )

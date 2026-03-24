@@ -1,7 +1,7 @@
 """Tests for ranged combat: RangedAction, AI ranged attacks, and AI wander."""
 
 from game.actions import RangedAction
-from game.ai import HostileAI
+from game.ai import CreatureAI
 from game.entity import Entity, Fighter
 from game.helpers import get_equipped_ranged_weapon
 from game.loadout import Loadout
@@ -87,7 +87,7 @@ def test_unequipped_ranged_weapon_cannot_fire():
 def test_ai_uses_inventory_ranged_weapon():
     """AI enemies (no loadout) should still fire from inventory."""
     make_engine()
-    enemy = Entity(x=8, y=5, name="Drone", fighter=Fighter(4, 4, 0, 3), blocks_movement=True, ai=HostileAI())
+    enemy = Entity(x=8, y=5, name="Drone", fighter=Fighter(4, 4, 0, 3), blocks_movement=True, ai=CreatureAI())
     weapon = _ranged_weapon(ammo=5, range_=5, value=3)
     enemy.inventory = [weapon]
     assert get_equipped_ranged_weapon(enemy) is weapon  # AI can use inventory
@@ -312,7 +312,7 @@ def test_ranged_not_visible():
 
 def test_ai_ranged_attack():
     engine = make_engine()
-    enemy = Entity(x=8, y=5, name="Drone", fighter=Fighter(4, 4, 0, 3), blocks_movement=True, ai=HostileAI())
+    enemy = Entity(x=8, y=5, name="Drone", fighter=Fighter(4, 4, 0, 3), blocks_movement=True, ai=CreatureAI())
     enemy.inventory = [_ranged_weapon(ammo=5, range_=5, value=3)]
     engine.game_map.entities.append(enemy)
     # Make both enemy and player positions visible (FOV is player-centric)
@@ -327,7 +327,7 @@ def test_ai_ranged_attack():
 
 def test_ai_wander_when_not_visible():
     engine = make_engine()
-    enemy = Entity(x=3, y=3, name="Rat", fighter=Fighter(1, 1, 0, 1), blocks_movement=True, ai=HostileAI())
+    enemy = Entity(x=3, y=3, name="Rat", fighter=Fighter(1, 1, 0, 1), blocks_movement=True, ai=CreatureAI())
     engine.game_map.entities.append(enemy)
     engine.game_map.visible[3, 3] = False
     old_x, old_y = enemy.x, enemy.y
@@ -342,7 +342,7 @@ def test_ai_boxed_in_no_crash():
     engine = make_engine()
     # Place enemy at (1, 1) — surrounded by walls on all sides in the 10x10 arena
     # Actually (1,1) is floor, but let's put it in a corner where 3 sides are walls
-    enemy = Entity(x=1, y=1, name="Rat", fighter=Fighter(1, 1, 0, 1), blocks_movement=True, ai=HostileAI())
+    enemy = Entity(x=1, y=1, name="Rat", fighter=Fighter(1, 1, 0, 1), blocks_movement=True, ai=CreatureAI())
     engine.game_map.entities.append(enemy)
     engine.game_map.visible[1, 1] = False
     # Fill surrounding tiles with blocking entities to box in

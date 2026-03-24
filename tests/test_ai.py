@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from game.ai import CreatureAI, HostileAI
+from game.ai import CreatureAI
 from game.entity import Entity, Fighter
 from tests.conftest import MockEngine, make_arena
 from world import tile_types
@@ -49,16 +49,6 @@ def _setup(w=20, h=20, player_pos=(1, 1), fov=True):
         gm.visible[:] = True
     engine = MockEngine(gm, player)
     return gm, player, engine
-
-
-# ---------------------------------------------------------------------------
-# Backward compat
-# ---------------------------------------------------------------------------
-
-
-def test_hostile_ai_alias():
-    """HostileAI should still exist as an alias for CreatureAI."""
-    assert HostileAI is CreatureAI
 
 
 # ---------------------------------------------------------------------------
@@ -1581,7 +1571,7 @@ def test_ai_does_not_walk_through_interactable():
     player = Entity(x=1, y=1, fighter=Fighter(10, 10, 0, 1))
     # Place interactable between enemy and player
     console = Entity(x=3, y=3, name="Console", blocks_movement=False, interactable={"kind": "console"})
-    enemy = Entity(x=4, y=4, fighter=Fighter(3, 3, 0, 1), ai=HostileAI())
+    enemy = Entity(x=4, y=4, fighter=Fighter(3, 3, 0, 1), ai=CreatureAI())
     gm.entities.extend([player, console, enemy])
     gm.visible[:] = True
     eng = MockEngine(gm, player)
