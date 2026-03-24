@@ -34,7 +34,7 @@ Collect 6 navigation units from derelicts across the galaxy to reveal the Dreadn
 
 ### Controls
 
-#### Tactical mode (dungeon exploration)
+#### Dungeon exploration
 
 | Key | Action |
 |---|---|
@@ -50,7 +50,7 @@ Collect 6 navigation units from derelicts across the galaxy to reveal the Dreadn
 | `Shift+Q` | Quit to title |
 | `PgUp` / `PgDn` | Scroll message log |
 
-#### Strategic mode (star system navigation)
+#### Star system navigation
 
 | Key | Action |
 |---|---|
