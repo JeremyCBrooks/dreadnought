@@ -28,6 +28,10 @@ uv pip install -e ".[dev]"
 
 Collect 6 navigation units from derelicts across the galaxy to reveal the Dreadnought's location. Board the Dreadnought, extract its reactor core, and return it to your home system to win.
 
+![In your shoip.](docs/image.png)
+![Exploring an abandoned starbase.](docs/image-1.png)
+![Visiting a colony.](docs/image-2.png)
+
 ### Controls
 
 #### Tactical mode (dungeon exploration)

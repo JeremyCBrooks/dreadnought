@@ -196,7 +196,17 @@ class StrategicState(State):
         if engine.ship.cargo:
             item = random.choice(engine.ship.cargo)
             engine.ship.remove_cargo(item)
-            engine.message_log.add_message(f"A crate tumbles into the void — {item.name} lost.", (255, 80, 80))
+            cargo_lost_msgs = [
+                f"A crate tumbles into the void. {item.name} is lost.",
+                f"The ship lurches and {item.name} slides out of the cargo bay.",
+                f"An impact shakes {item.name} loose. It spins away into the dark.",
+                f"Emergency venting ejects {item.name} to stabilize the ship.",
+                f"The cargo hold buckles. {item.name} is pushed into space.",
+                f"A hull breach tears {item.name} from its moorings.",
+                f"Gravity shifts and {item.name} tumbles out through a gap in the hull.",
+                f"You watch helplessly as {item.name} drifts away into the void.",
+            ]
+            engine.message_log.add_message(random.choice(cargo_lost_msgs), (255, 80, 80))
             if item.item and item.item.get("type") == "dreadnought_core":
                 from ui.game_over_state import GameOverState
 
@@ -209,7 +219,17 @@ class StrategicState(State):
                 return
         else:
             engine.ship.damage_hull(1)
-            engine.message_log.add_message("Hull groans under the stress of unshielded drift!", (255, 120, 50))
+            drift_damage_msgs = [
+                "The hull groans under the stress of unshielded drift!",
+                "Unable to maneuver, your ship strikes something.",
+                "Metal screams as the hull scrapes against debris.",
+                "A shudder runs through the ship.",
+                "Without power, the ship drifts helplessly into an asteroid. The hull dents inward.",
+                "Micro-debris peppers the hull.",
+                "The ship tumbles, slamming broadside into a rock.",
+                "An alarm blares as the hull deforms under impact.",
+            ]
+            engine.message_log.add_message(random.choice(drift_damage_msgs), (255, 120, 50))
             if engine.ship.hull <= 0:
                 from ui.game_over_state import GameOverState
 
