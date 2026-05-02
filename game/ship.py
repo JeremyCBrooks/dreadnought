@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from game.entity import Entity
+    from world.game_map import GameMap
 
 
 class Ship:
@@ -36,6 +37,9 @@ class Ship:
         self.nav_units: int = 0
         self.hull = hull
         self.max_hull = max_hull
+        self.game_map: GameMap | None = None
+        self.rooms: list | None = None
+        self.exit_pos: tuple[int, int] | None = None
 
     def add_cargo(self, item: Entity) -> None:
         """Add an item to the cargo hold."""
@@ -78,3 +82,52 @@ class Ship:
             return False
         self.nav_units += 1
         return True
+
+    def materialize_cargo(self, game_map: GameMap, rooms: list | None) -> None:
+        """Place items from cargo onto the ship floor, then clear cargo.
+
+        Items are dropped near the cargo-hold room centre.  Falls back to
+        ``rooms[0]`` when no room is labelled ``"cargo"``.  Returns early
+        without placing anything when *rooms* is empty or None.
+        """
+        if not rooms:
+            return
+
+        from game.helpers import find_drop_tile
+
+        # Pick the cargo-hold room, falling back to the first room.
+        room = next((r for r in rooms if r.label == "cargo"), rooms[0])
+        cx, cy = room.center
+
+        placed = 0
+        for item in self.cargo:
+            tile = find_drop_tile(game_map, cx, cy)
+            if tile is None:
+                # 3x3 neighbourhood is full — scan the entire map for space.
+                tile = next(
+                    (
+                        (x, y)
+                        for x in range(game_map.width)
+                        for y in range(game_map.height)
+                        if game_map.is_walkable(x, y) and not game_map.get_items_at(x, y)
+                    ),
+                    None,
+                )
+            if tile is None:
+                # No space at all — leave remaining items in cargo.
+                break
+            item.x, item.y = tile
+            game_map.entities.append(item)
+            placed += 1
+
+        del self.cargo[:placed]
+        game_map.invalidate_entity_index()
+
+    def collect_floor_items(self, game_map: GameMap) -> None:
+        """Sweep floor items from *game_map* into cargo and remove them from the map."""
+        floor_items = [e for e in game_map.entities if e.item is not None]
+        for item in floor_items:
+            self.cargo.append(item)
+            game_map.entities.remove(item)
+        if floor_items:
+            game_map.invalidate_entity_index()

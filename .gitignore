@@ -10,3 +10,7 @@ data/fonts/
 .mypy_cache/
 .env
 .ruff_cache
+dreadnought.db
+.superpowers/
+.claude/settings.local.json
+.worktrees/

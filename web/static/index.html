@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dreadnought — Login</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a0f; color: #ccc; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+    h1 { color: #6af; font-size: 2rem; letter-spacing: 4px; margin-bottom: 2rem; text-transform: uppercase; }
+    .tabs { display: flex; gap: 0; margin-bottom: 1.5rem; }
+    .tab { padding: 0.5rem 1.5rem; cursor: pointer; border: 1px solid #333; background: #111; color: #888; font-family: monospace; font-size: 0.9rem; }
+    .tab.active { background: #1a1a2e; color: #6af; border-color: #6af; }
+    form { display: flex; flex-direction: column; gap: 0.75rem; width: 300px; }
+    input { background: #111; border: 1px solid #333; color: #ccc; font-family: monospace; font-size: 0.9rem; padding: 0.5rem 0.75rem; outline: none; }
+    input:focus { border-color: #6af; }
+    button { background: #1a3a6a; border: 1px solid #6af; color: #6af; font-family: monospace; font-size: 0.9rem; padding: 0.5rem; cursor: pointer; text-transform: uppercase; letter-spacing: 2px; }
+    button:hover { background: #2a4a8a; }
+    .error { color: #f66; font-size: 0.85rem; min-height: 1.2rem; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+  </style>
+</head>
+<body>
+  <h1>Dreadnought</h1>
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('login')">Login</button>
+    <button class="tab" onclick="showTab('register')">Register</button>
+  </div>
+
+  <div id="panel-login" class="panel active">
+    <form onsubmit="doLogin(event)">
+      <input id="login-user" type="text" placeholder="Username" autocomplete="username" required>
+      <input id="login-pass" type="password" placeholder="Password" autocomplete="current-password" required>
+      <button type="submit">Login</button>
+      <div class="error" id="login-error"></div>
+    </form>
+  </div>
+
+  <div id="panel-register" class="panel">
+    <form onsubmit="doRegister(event)">
+      <input id="reg-user" type="text" placeholder="Username (1–30 chars, a-z 0-9 _)" autocomplete="username" required>
+      <input id="reg-pass" type="password" placeholder="Password (10+ chars)" autocomplete="new-password" required>
+      <input id="reg-confirm" type="password" placeholder="Confirm password" autocomplete="new-password" required>
+      <button type="submit">Create Account</button>
+      <div class="error" id="reg-error"></div>
+    </form>
+  </div>
+
+  <script>
+    function showTab(name) {
+      document.querySelectorAll(".tab").forEach((t, i) => t.classList.toggle("active", ["login","register"][i] === name));
+      document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + name));
+    }
+
+    async function doLogin(e) {
+      e.preventDefault();
+      const err = document.getElementById("login-error");
+      err.textContent = "";
+      const r = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: document.getElementById("login-user").value, password: document.getElementById("login-pass").value }),
+      });
+      if (r.ok) {
+        location.href = "/portal.html";
+      } else {
+        const d = await r.json();
+        err.textContent = d.detail || "Login failed";
+      }
+    }
+
+    async function doRegister(e) {
+      e.preventDefault();
+      const err = document.getElementById("reg-error");
+      err.textContent = "";
+      const r = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: document.getElementById("reg-user").value,
+          password: document.getElementById("reg-pass").value,
+          confirm: document.getElementById("reg-confirm").value,
+        }),
+      });
+      if (r.ok) {
+        showTab("login");
+        document.getElementById("login-user").value = document.getElementById("reg-user").value;
+      } else {
+        const d = await r.json();
+        err.textContent = d.detail || "Registration failed";
+      }
+    }
+  </script>
+</body>
+</html>

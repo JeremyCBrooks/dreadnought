@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import random
 from typing import TYPE_CHECKING
 
 from game.loadout import has_usable_durability
@@ -38,7 +37,8 @@ def apply_hp_damage(fighter: Fighter, amount: int) -> None:
 
 def _apply_equipment_damage(engine: Engine, player: Entity) -> None:
     """50% chance to damage a random loadout/inventory item with durability."""
-    if random.random() >= 0.5:
+    rng = engine.rng(f"hazard_eqdmg:{player.x},{player.y}")
+    if rng.random() >= 0.5:
         return
     if getattr(player, "loadout", None):
         candidates = player.loadout.items_with_durability()
@@ -46,7 +46,7 @@ def _apply_equipment_damage(engine: Engine, player: Entity) -> None:
         candidates = [e for e in player.inventory if has_usable_durability(e)]
     if not candidates:
         return
-    victim = random.choice(candidates)
+    victim = rng.choice(candidates)
     victim.item["durability"] = max(0, victim.item.get("durability", 1) - 1)
     if victim.item["durability"] <= 0:
         victim.item["damaged"] = True

@@ -1,11 +1,10 @@
 """Tests for enemy pickpocketing / item stealing (Emergent Interaction #2)."""
 
-from unittest.mock import patch
-
 from game.actions import MeleeAction
 from game.loadout import Loadout
 from tests.conftest import (
     DEFAULT_AI_CONFIG,
+    force_rng,
     make_creature,
     make_engine,
     make_heal_item,
@@ -33,9 +32,16 @@ def _engine_with_pirate(pirate=None):
     return engine, player, pirate
 
 
-def _force_steal(enabled=True):
-    """Patch random.random to force steal (0.0) or prevent it (1.0)."""
-    return patch("random.random", return_value=0.0 if enabled else 1.0)
+def _force_steal(engine, enabled=True):
+    """Pin engine.rng so steal succeeds (enabled=True) or fails (False).
+
+    Returns a nullcontext so callers can keep the historical
+    ``with _force_steal(engine):`` syntax.
+    """
+    from contextlib import nullcontext
+
+    force_rng(engine, 0.0 if enabled else 1.0)
+    return nullcontext()
 
 
 # ---- Basic steal mechanics ----
@@ -47,7 +53,7 @@ class TestStealOnMeleeHit:
         medkit = make_heal_item()
         player.inventory.append(medkit)
 
-        with _force_steal():
+        with _force_steal(engine):
             MeleeAction(player).perform(engine, pirate)
 
         assert medkit in pirate.inventory
@@ -58,7 +64,7 @@ class TestStealOnMeleeHit:
         medkit = make_heal_item()
         player.inventory.append(medkit)
 
-        with _force_steal(enabled=False):
+        with _force_steal(engine, enabled=False):
             MeleeAction(player).perform(engine, pirate)
 
         assert medkit in player.inventory
@@ -69,7 +75,7 @@ class TestStealOnMeleeHit:
         medkit = make_heal_item()
         player.inventory.append(medkit)
 
-        with _force_steal():
+        with _force_steal(engine):
             MeleeAction(player).perform(engine, pirate)
 
         msgs = [text for text, color in engine.message_log.messages]
@@ -83,7 +89,7 @@ class TestStealOnMeleeHit:
         medkit = make_heal_item()
         player.inventory.append(medkit)
 
-        with _force_steal():
+        with _force_steal(engine):
             MeleeAction(player).perform(engine, bot)
 
         assert medkit in player.inventory
@@ -96,7 +102,7 @@ class TestStealOnMeleeHit:
         player.inventory.append(weapon)
         player.loadout.equip(weapon)
 
-        with _force_steal():
+        with _force_steal(engine):
             MeleeAction(player).perform(engine, pirate)
 
         assert weapon in player.inventory
@@ -110,7 +116,7 @@ class TestStealOnMeleeHit:
         player.inventory.extend([weapon, medkit])
         player.loadout.equip(weapon)
 
-        with _force_steal():
+        with _force_steal(engine):
             MeleeAction(player).perform(engine, pirate)
 
         assert medkit in pirate.inventory
@@ -121,7 +127,7 @@ class TestStealOnMeleeHit:
         """Stealing from a player with no stealable items is a no-op."""
         engine, player, pirate = _engine_with_pirate()
 
-        with _force_steal():
+        with _force_steal(engine):
             MeleeAction(player).perform(engine, pirate)
 
         assert len(pirate.inventory) == 0
@@ -135,7 +141,7 @@ class TestStealOnMeleeHit:
         player.loadout.equip(w1)
         player.loadout.equip(w2)
 
-        with _force_steal():
+        with _force_steal(engine):
             MeleeAction(player).perform(engine, pirate)
 
         assert w1 in player.inventory
@@ -150,7 +156,7 @@ class TestStealOnMeleeHit:
         medkit = make_heal_item()
         player.inventory.append(medkit)
 
-        with _force_steal():
+        with _force_steal(engine):
             MeleeAction(player).perform(engine, pirate)
 
         assert medkit in player.inventory
@@ -162,7 +168,7 @@ class TestStealOnMeleeHit:
         medkit = make_heal_item()
         player.inventory.append(medkit)
 
-        with _force_steal():
+        with _force_steal(engine):
             MeleeAction(player).perform(engine, pirate)
 
         assert medkit not in pirate.inventory
@@ -173,7 +179,7 @@ class TestStealOnMeleeHit:
         medkit = make_heal_item()
         pirate.inventory.append(medkit)
 
-        with _force_steal():
+        with _force_steal(engine):
             MeleeAction(pirate).perform(engine, player)
 
         assert medkit in pirate.inventory
@@ -189,7 +195,7 @@ class TestStolenLootTracking:
         medkit = make_heal_item()
         player.inventory.append(medkit)
 
-        with _force_steal():
+        with _force_steal(engine):
             MeleeAction(player).perform(engine, pirate)
 
         assert medkit in pirate.stolen_loot
@@ -216,8 +222,8 @@ class TestStolenLootTracking:
         pirate.fighter.hp = 3  # below 50%, will try to heal
 
         # Force the 40% heal RNG to succeed
-        with patch("game.ai.random.random", return_value=0.1):
-            pirate.ai._try_use_item(pirate, engine)
+        force_rng(engine, 0.1)
+        pirate.ai._try_use_item(pirate, engine)
 
         assert medkit not in pirate.inventory
         assert medkit not in pirate.stolen_loot
@@ -234,7 +240,7 @@ class TestMeleePowerRecalcAfterSteal:
         weapon = make_melee_weapon(name="Combat Knife", value=3)
         player.inventory.append(weapon)
 
-        with _force_steal():
+        with _force_steal(engine):
             MeleeAction(player).perform(engine, pirate)
 
         assert weapon in pirate.inventory

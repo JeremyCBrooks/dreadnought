@@ -16,6 +16,7 @@ from ui.keys import move_keys as _move_keys
 if TYPE_CHECKING:
     from engine.game_state import Engine
     from game.actions import Action
+    from game.entity import Entity
     from world.galaxy import Location
 
 # Minimum map size so dungeons stay playable when console is small
@@ -76,9 +77,10 @@ DEATH_FADE_DURATION = 1.0  # seconds to fade out tactical on player death
 
 
 class TacticalState(State):
-    def __init__(self, location: Location | None = None, depth: int = 0) -> None:
+    def __init__(self, location: Location | None = None, depth: int = 0, explore_ship: bool = False) -> None:
         self.location = location
         self.depth = depth
+        self.explore_ship = explore_ship
         self.exit_pos: tuple[int, int] | None = None
         self._look_cursor: tuple[int, int] | None = None
         self._ranged_cursor: tuple[int, int] | None = None
@@ -101,6 +103,10 @@ class TacticalState(State):
     # ------------------------------------------------------------------
 
     def on_enter(self, engine: Engine) -> None:
+        if self.explore_ship:
+            self._enter_ship(engine)
+            return
+
         from game.entity import Entity, Fighter
         from game.suit import EVA_SUIT
         from world.dungeon_gen import generate_dungeon, respawn_creatures
@@ -163,15 +169,7 @@ class TacticalState(State):
             blocks_movement=True,
             fighter=Fighter(hp=10, max_hp=10, defense=0, power=1),
         )
-        if engine._saved_player:
-            sp = engine._saved_player
-            player.fighter.hp = sp["hp"]
-            player.fighter.max_hp = sp["max_hp"]
-            player.fighter.defense = sp["defense"]
-            player.fighter.power = sp["power"]
-            player.fighter.base_power = sp["base_power"]
-            player.inventory = sp.get("inventory", [])
-            player.loadout = sp.get("loadout")
+        self._restore_player_from_saved(player, engine)
         game_map.entities.append(player)
 
         # Seed for space starfield — matches strategic viewport when available
@@ -230,75 +228,147 @@ class TacticalState(State):
         if engine.game_map and engine.player:
             p = engine.player
 
-            saved_inventory = list(p.inventory)
-            saved_loadout = p.loadout
+            if getattr(self, "explore_ship", False):
+                # Collect floor items back into ship cargo; skip all item conversions.
+                if engine.ship is not None:
+                    engine.ship.collect_floor_items(engine.game_map)
+                engine._saved_player = {
+                    "hp": p.fighter.hp,
+                    "max_hp": p.fighter.max_hp,
+                    "defense": p.fighter.defense,
+                    "power": p.fighter.base_power,
+                    "base_power": p.fighter.base_power,
+                    "inventory": list(p.inventory),
+                    "loadout": p.loadout,
+                }
+                if p in engine.game_map.entities:
+                    engine.game_map.entities.remove(p)
+            else:
+                saved_inventory = list(p.inventory)
+                saved_loadout = p.loadout
 
-            engine._saved_player = {
-                "hp": p.fighter.hp,
-                "max_hp": p.fighter.max_hp,
-                "defense": p.fighter.defense,
-                "power": p.fighter.base_power,  # reset to base on exit
-                "base_power": p.fighter.base_power,
-                "inventory": saved_inventory,
-                "loadout": saved_loadout,
-            }
-            # Convert reactor cores to fuel
-            if engine.ship is not None:
-                cores = [i for i in saved_inventory if i.item and i.item.get("type") == "reactor_core"]
-                for core in cores:
-                    added = engine.ship.add_fuel(core.item["value"])
-                    if added > 0:
+                engine._saved_player = {
+                    "hp": p.fighter.hp,
+                    "max_hp": p.fighter.max_hp,
+                    "defense": p.fighter.defense,
+                    "power": p.fighter.base_power,  # reset to base on exit
+                    "base_power": p.fighter.base_power,
+                    "inventory": saved_inventory,
+                    "loadout": saved_loadout,
+                }
+                # Convert reactor cores to fuel
+                if engine.ship is not None:
+                    cores = [i for i in saved_inventory if i.item and i.item.get("type") == "reactor_core"]
+                    for core in cores:
+                        added = engine.ship.add_fuel(core.item["value"])
+                        if added > 0:
+                            engine.message_log.add_message(
+                                f"Reactor core converted to fuel. (+{added} fuel)",
+                                EQUIP_MSG,
+                            )
+                        saved_inventory.remove(core)
+                    # Convert nav units to ship counter
+                    nav_items = [i for i in saved_inventory if i.item and i.item.get("type") == "nav_unit"]
+                    for nav in nav_items:
+                        engine.ship.add_nav_unit()
+                        engine.message_log.add_message("Navigation unit installed.", (0, 255, 200))
+                        saved_inventory.remove(nav)
+                    # Reveal Dreadnought on 6th nav unit
+                    if (
+                        engine.ship.nav_units >= engine.ship.max_nav_units
+                        and engine.galaxy
+                        and not engine.galaxy.dreadnought_system
+                    ):
+                        engine.galaxy.spawn_dreadnought()
                         engine.message_log.add_message(
-                            f"Reactor core converted to fuel. (+{added} fuel)",
-                            EQUIP_MSG,
+                            "All navigation units installed. The Dreadnought's coordinates are locked in!",
+                            (255, 200, 0),
                         )
-                    saved_inventory.remove(core)
-                # Convert nav units to ship counter
-                nav_items = [i for i in saved_inventory if i.item and i.item.get("type") == "nav_unit"]
-                for nav in nav_items:
-                    engine.ship.add_nav_unit()
-                    engine.message_log.add_message("Navigation unit installed.", (0, 255, 200))
-                    saved_inventory.remove(nav)
-                # Reveal Dreadnought on 6th nav unit
-                if (
-                    engine.ship.nav_units >= engine.ship.max_nav_units
-                    and engine.galaxy
-                    and not engine.galaxy.dreadnought_system
-                ):
-                    engine.galaxy.spawn_dreadnought()
-                    engine.message_log.add_message(
-                        "All navigation units installed. The Dreadnought's coordinates are locked in!",
-                        (255, 200, 0),
-                    )
-                # Convert hull repair kits to hull
-                hull_kits = [i for i in saved_inventory if i.item and i.item.get("type") == "hull_repair"]
-                for kit in hull_kits:
-                    repaired = engine.ship.repair_hull(kit.item["value"])
-                    if repaired > 0:
+                    # Convert hull repair kits to hull
+                    hull_kits = [i for i in saved_inventory if i.item and i.item.get("type") == "hull_repair"]
+                    for kit in hull_kits:
+                        repaired = engine.ship.repair_hull(kit.item["value"])
+                        if repaired > 0:
+                            engine.message_log.add_message(
+                                f"Hull patched. (+{repaired} hull integrity)",
+                                EQUIP_MSG,
+                            )
+                        saved_inventory.remove(kit)
+                    # Transfer dreadnought cores to ship cargo
+                    d_cores = [i for i in saved_inventory if i.item and i.item.get("type") == "dreadnought_core"]
+                    for dc in d_cores:
+                        engine.ship.add_cargo(dc)
+                        saved_inventory.remove(dc)
                         engine.message_log.add_message(
-                            f"Hull patched. (+{repaired} hull integrity)",
-                            EQUIP_MSG,
+                            "Dreadnought core secured in cargo hold.",
+                            (255, 50, 50),
                         )
-                    saved_inventory.remove(kit)
-                # Transfer dreadnought cores to ship cargo
-                d_cores = [i for i in saved_inventory if i.item and i.item.get("type") == "dreadnought_core"]
-                for dc in d_cores:
-                    engine.ship.add_cargo(dc)
-                    saved_inventory.remove(dc)
-                    engine.message_log.add_message(
-                        "Dreadnought core secured in cargo hold.",
-                        (255, 50, 50),
-                    )
-            key = _area_key(self.location, self.depth)
-            if engine.player in engine.game_map.entities:
-                engine.game_map.entities.remove(engine.player)
-            if key in engine.area_cache:
-                engine.area_cache[key]["game_map"] = engine.game_map
-                engine.area_cache[key]["exit_pos"] = self.exit_pos
+                key = _area_key(self.location, self.depth)
+                if engine.player in engine.game_map.entities:
+                    engine.game_map.entities.remove(engine.player)
+                if key in engine.area_cache:
+                    engine.area_cache[key]["game_map"] = engine.game_map
+                    engine.area_cache[key]["exit_pos"] = self.exit_pos
         engine.game_map = None
         engine.player = None
         engine.scan_results = None
         engine.scan_glow = None
+
+    # ------------------------------------------------------------------
+    # explore_ship helper
+    # ------------------------------------------------------------------
+
+    def _restore_player_from_saved(self, player: Entity, engine: Engine) -> None:
+        """Apply saved player stats and inventory to a freshly created player entity."""
+        from game.loadout import recalc_melee_power
+
+        if not engine._saved_player:
+            return
+        sp = engine._saved_player
+        player.fighter.hp = sp["hp"]
+        player.fighter.max_hp = sp["max_hp"]
+        player.fighter.defense = sp["defense"]
+        player.fighter.power = sp["power"]
+        player.fighter.base_power = sp["base_power"]
+        player.inventory = sp.get("inventory", [])
+        player.loadout = sp.get("loadout")
+        recalc_melee_power(player)
+
+    def _enter_ship(self, engine: Engine) -> None:
+        """Set up the engine to explore the player's own ship interior."""
+        from game.entity import PLAYER_MAX_INVENTORY, Entity, Fighter
+        from game.loadout import Loadout
+
+        engine.active_effects.clear()
+        self._layout = _layout(engine)
+        engine.environment = {}  # pressurized ship interior
+
+        game_map = engine.ship.game_map
+        self.exit_pos = engine.ship.exit_pos
+        engine.ship.materialize_cargo(game_map, engine.ship.rooms)
+
+        # Place / restore player at exit (docking hatch)
+        px, py = self.exit_pos
+        player = Entity(
+            x=px,
+            y=py,
+            char="@",
+            color=(255, 255, 255),
+            name="Player",
+            blocks_movement=True,
+            fighter=Fighter(hp=10, max_hp=10, defense=0, power=1),
+        )
+        self._restore_player_from_saved(player, engine)
+        if player.loadout is None:
+            player.loadout = Loadout()
+        player.max_inventory = PLAYER_MAX_INVENTORY
+
+        game_map.entities.append(player)
+        engine.game_map = game_map
+        engine.player = player
+        game_map.update_fov(player.x, player.y)
+        engine.message_log.add_message("You step inside your ship.", (200, 200, 255))
+        self._update_ground_underfoot(engine)
 
     # ------------------------------------------------------------------
     # Player death
@@ -409,7 +479,8 @@ class TacticalState(State):
             return True
 
         if self.exit_pos and (engine.player.x, engine.player.y) == self.exit_pos:
-            engine.message_log.add_message("You return to your ship.", EQUIP_MSG)
+            msg = "You step out of your ship." if self.explore_ship else "You return to your ship."
+            engine.message_log.add_message(msg, EQUIP_MSG)
             engine.pop_state()
             return True
 
@@ -759,7 +830,8 @@ class TacticalState(State):
 
             if consumed:
                 if self.exit_pos and (engine.player.x, engine.player.y) == self.exit_pos:
-                    engine.message_log.add_message("You return to your ship.", EQUIP_MSG)
+                    msg = "You step out of your ship." if self.explore_ship else "You return to your ship."
+                    engine.message_log.add_message(msg, EQUIP_MSG)
                     engine.pop_state()
                     return True
                 for _ in range(consumed):

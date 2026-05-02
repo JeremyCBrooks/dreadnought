@@ -86,9 +86,9 @@ _STEAL_CHANCE = 0.2
 
 def _try_steal(engine: Engine, thief: Entity, target: Entity) -> None:
     """Attempt to steal a random non-equipped item from target."""
-    import random
+    rng = engine.rng(f"steal:{thief.x},{thief.y}")
 
-    if random.random() >= _STEAL_CHANCE:
+    if rng.random() >= _STEAL_CHANCE:
         return
 
     # Collect stealable items (not in loadout)
@@ -97,7 +97,7 @@ def _try_steal(engine: Engine, thief: Entity, target: Entity) -> None:
     if not stealable:
         return
 
-    stolen = random.choice(stealable)
+    stolen = rng.choice(stealable)
     target.inventory.remove(stolen)
     thief.inventory.append(stolen)
     thief.stolen_loot.append(stolen)
@@ -499,6 +499,13 @@ class TakeReactorCoreAction(Action):
 
         tile_id = int(engine.game_map.tiles["tile_id"][tx, ty])
         if tile_id != int(tile_types.reactor_core["tile_id"]):
+            return 0
+
+        if getattr(engine.current_state, "explore_ship", False):
+            engine.message_log.add_message(
+                "This is your ship's power core. You cannot remove it.",
+                (200, 150, 100),
+            )
             return 0
 
         if not entity.can_carry():

@@ -3371,6 +3371,7 @@ def generate_dungeon(
     loc_type: str = "derelict",
     max_total_enemies: int = MAX_ENEMIES_PER_LEVEL,
     has_nav_unit: bool = False,
+    player_ship: bool = False,
 ) -> tuple[GameMap, list[RectRoom], tuple[int, int] | None]:
     """Returns (game_map, rooms, exit_pos)."""
     rng = random.Random(seed)
@@ -3408,19 +3409,20 @@ def generate_dungeon(
         if game_map.in_bounds(exit_pos[0], exit_pos[1]):
             game_map.tiles[exit_pos[0], exit_pos[1]] = tile_types.exit_tile
 
-    total_spawned = 0
-    for room in rooms[1:]:
-        remaining = max_total_enemies - total_spawned
-        if remaining > 0:
-            total_spawned += _spawn_enemies(
-                room,
-                game_map,
-                rng,
-                max_enemies,
-                exit_pos=exit_pos,
-                remaining=remaining,
-            )
-        _spawn_items(room, game_map, rng, max_items, exit_pos=exit_pos)
+    if not player_ship:
+        total_spawned = 0
+        for room in rooms[1:]:
+            remaining = max_total_enemies - total_spawned
+            if remaining > 0:
+                total_spawned += _spawn_enemies(
+                    room,
+                    game_map,
+                    rng,
+                    max_enemies,
+                    exit_pos=exit_pos,
+                    remaining=remaining,
+                )
+            _spawn_items(room, game_map, rng, max_items, exit_pos=exit_pos)
 
     # 1–3 interactables in random rooms (ship rooms get themed dressing instead,
     # but still place wall interactables for them)
@@ -3471,8 +3473,8 @@ def generate_dungeon(
         # Re-enforce walls around airlock corridors (hull cleanup may
         # have converted them to space, creating diagonal gaps).
         _enforce_airlock_walls(game_map, wall_tile)
-        # Hull breaches — starbases only have a 20% chance
-        if profile.loc_type != "starbase" or rng.random() < 0.2:
+        # Hull breaches — starbases only have a 20% chance; player ship never has breaches
+        if not player_ship and (profile.loc_type != "starbase" or rng.random() < 0.2):
             _place_hull_breaches(game_map, rng, wall_tile)
 
     # Hull breaches for asteroid/organic maps
@@ -3483,8 +3485,36 @@ def generate_dungeon(
     if profile.generator in ("ship", "standard"):
         _apply_ship_cosmetics(game_map, rng, wall_tile, floor_tile)
 
+    if player_ship:
+        # Strip any loot items placed by room dressing (loot_chance dressing paths)
+        game_map.entities = [e for e in game_map.entities if e.item is None]
+
     game_map.invalidate_hazards()
     return game_map, rooms, exit_pos
+
+
+def generate_player_ship(
+    seed: int,
+    width: int = 80,
+    height: int = 45,
+) -> tuple[GameMap, list[RectRoom], tuple[int, int] | None]:
+    """Generate the player's ship interior once at world creation.
+
+    No enemies, no free-standing item pickups, no hull breaches. Interactable
+    furnishings (lockers, consoles) are preserved. The reactor core tile is
+    present in the engine_room — it is the ship's own power core and
+    TacticalState blocks extracting it in explore_ship mode.
+    """
+    return generate_dungeon(
+        width=width,
+        height=height,
+        max_enemies=0,
+        max_items=0,
+        seed=seed,
+        # derelict profile uses the "ship" generator — correct layout for a vessel
+        loc_type="derelict",
+        player_ship=True,
+    )
 
 
 def _generate_fallback(

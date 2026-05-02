@@ -119,6 +119,12 @@ class StrategicState(State):
             engine.push_state(GalaxyMapState(self.galaxy))
             return True
 
+        if key == tcod.event.KeySym.s or key == tcod.event.KeySym.S:
+            from ui.tactical_state import TacticalState
+
+            engine.push_state(TacticalState(explore_ship=True))
+            return True
+
         direction = move_keys().get(key)
 
         if self.focus == "locations":
@@ -305,9 +311,9 @@ class StrategicState(State):
 
         # Controls
         if self.focus == "locations":
-            ctrl = "[ESC] Quit [C] Cargo [M] Galaxy [TAB] Star Map [UP/DOWN] Select [ENTER] Dock"
+            ctrl = "[ESC] Quit [C] Cargo [S] Explore Ship [M] Galaxy [TAB] Star Map [UP/DOWN] Select [ENTER] Dock"
         else:
-            ctrl = "[ESC] Quit [C] Cargo [M] Galaxy [TAB] Locations [ARROWS] Navigate"
+            ctrl = "[ESC] Quit [C] Cargo [S] Explore Ship [M] Galaxy [TAB] Locations [ARROWS] Navigate"
         console.print(x=2, y=ctrl_y, string=ctrl, fg=(80, 80, 80))
 
         # Viewport: star + starfield

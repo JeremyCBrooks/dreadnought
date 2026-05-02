@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from engine.message_log import MessageLog
 
 if TYPE_CHECKING:
+    import random
+
     import tcod.console
     import tcod.context
     import tcod.event
@@ -77,6 +81,22 @@ class Engine:
         self.scan_glow: dict | None = None
         self.mission_loadout: list[Entity] = []
         self.galaxy: Galaxy | None = None
+        # Monotonic counter for deterministic RNG: bumped per game-time tick.
+        self.turn_counter: int = 0
+
+    def rng(self, salt: str) -> random.Random:
+        """Return a Random seeded from (galaxy.seed, turn_counter, salt).
+
+        Per-call salting prevents two independent rolls in the same turn from
+        sharing draws. Same engine state + same salt always reproduces the
+        same stream — that's what makes save/load resistant to RNG savescum.
+        """
+        import hashlib
+        import random as _random
+
+        seed = self.galaxy.seed if self.galaxy is not None else 0
+        h = hashlib.sha256(f"{seed}:{self.turn_counter}:{salt}".encode()).digest()
+        return _random.Random(int.from_bytes(h[:8], "little"))
 
     @property
     def current_state(self) -> State | None:
@@ -107,6 +127,62 @@ class Engine:
             self._state_stack.pop().on_exit(self)
         self._state_stack.append(state)
         state.on_enter(self)
+
+    async def run_async(
+        self,
+        send_frame: Callable[[dict], Awaitable[None]],
+        input_queue: asyncio.Queue,
+    ) -> None:
+        """WebSocket game loop. Renders to an in-memory console and streams frames."""
+        import tcod.console
+
+        from web.console_serializer import serialize_delta
+
+        console = tcod.console.Console(self.CONSOLE_WIDTH, self.CONSOLE_HEIGHT, order="F")
+        prev_tiles = None
+
+        while True:
+            console.clear()
+            state_before = self.current_state
+            if self.current_state:
+                self.current_state.on_render(console, self)
+
+            is_first = prev_tiles is None
+            tiles, prev_tiles = serialize_delta(console, prev_tiles)
+            msg_type = "full" if is_first else "frame"
+            msg: dict = {"type": msg_type, "w": self.CONSOLE_WIDTH, "h": self.CONSOLE_HEIGHT, "tiles": tiles}
+            if is_first and self.galaxy is not None:
+                msg["seed"] = self.galaxy.seed
+            await send_frame(msg)
+
+            # Re-render immediately when state changed during render (e.g. drift death).
+            # Reset prev_tiles so next frame is sent as a full frame.
+            if self.current_state is not state_before:
+                prev_tiles = None
+                continue
+
+            gm = self.game_map
+            needs_anim = (
+                (gm and (getattr(gm, "has_space", False) or getattr(gm, "has_flickering_lights", False)))
+                or self.scan_glow
+                or getattr(self.current_state, "needs_animation", False)
+            )
+            timeout = _ANIM_TIMEOUT if needs_anim else None
+
+            try:
+                event = await asyncio.wait_for(input_queue.get(), timeout=timeout)
+                if event is None:  # sentinel: client disconnected
+                    return
+                # Mirror run() routing: move keys fire on keydown, all others on keyup.
+                from ui.keys import is_move_key as _is_move
+
+                is_move = _is_move(event.sym)
+                is_down = event.type == "keydown"
+                if (is_move and is_down) or (not is_move and not is_down):
+                    if self.current_state:
+                        self.current_state.ev_key(self, event)
+            except TimeoutError:
+                pass  # animation tick — loop and re-render
 
     def run(self) -> None:
         """Main loop: open window, run state machine until quit."""

@@ -66,8 +66,10 @@ def test_melee_returns_false_without_target_fighter():
 # --- Electric hazard with equipment damage ---
 
 
-def test_electric_equipment_damage(monkeypatch):
+def test_electric_equipment_damage():
     """Electric hazard can damage equipment in loadout."""
+    from tests.conftest import force_rng
+
     engine = make_engine()
     weapon = Entity(name="Baton", item={"type": "weapon", "value": 2, "durability": 1, "max_durability": 5})
     engine.player.loadout = Loadout(slot1=weapon)
@@ -75,10 +77,7 @@ def test_electric_equipment_damage(monkeypatch):
     hazard = {"type": "electric", "damage": 1, "equipment_damage": True, "dot": 0, "duration": 0}
 
     # Force random to always trigger damage
-    import random
-
-    monkeypatch.setattr(random, "random", lambda: 0.1)
-    monkeypatch.setattr(random, "choice", lambda lst: lst[0])
+    force_rng(engine, 0.1)
 
     trigger_hazard(engine, hazard, "Console")
     # Weapon had durability 1, reaches 0 — tagged as damaged, NOT removed
@@ -89,17 +88,17 @@ def test_electric_equipment_damage(monkeypatch):
     assert any("damaged" in m.lower() for m in msgs)
 
 
-def test_electric_equipment_no_damage_when_random_high(monkeypatch):
+def test_electric_equipment_no_damage_when_random_high():
     """Electric hazard doesn't damage equipment when random > 0.5."""
+    from tests.conftest import force_rng
+
     engine = make_engine()
     weapon = Entity(name="Baton", item={"type": "weapon", "value": 2, "durability": 3, "max_durability": 5})
     engine.player.loadout = Loadout(slot1=weapon)
 
     hazard = {"type": "electric", "damage": 1, "equipment_damage": True, "dot": 0, "duration": 0}
 
-    import random
-
-    monkeypatch.setattr(random, "random", lambda: 0.9)
+    force_rng(engine, 0.9)
 
     trigger_hazard(engine, hazard, "Console")
     assert weapon.item["durability"] == 3  # Unchanged

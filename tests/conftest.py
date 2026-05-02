@@ -11,6 +11,16 @@ from world.game_map import GameMap
 
 
 @pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Reset in-memory rate-limit storage so limits don't bleed between tests."""
+    from web.auth import limiter
+
+    limiter.reset()
+    yield
+    limiter.reset()
+
+
+@pytest.fixture(autouse=True)
 def _reset_debug_flags():
     """Reset all debug flags before each test so dev toggles don't break the suite."""
     import debug
@@ -73,9 +83,45 @@ class MockEngine:
         self.galaxy = None
         self._switched_state = None
         self.current_state = None
+        self.turn_counter = 0
+
+    def rng(self, salt: str):
+        """Mirror Engine.rng for parity in tests."""
+        import hashlib
+        import random as _random
+
+        seed = self.galaxy.seed if self.galaxy is not None else 0
+        h = hashlib.sha256(f"{seed}:{self.turn_counter}:{salt}".encode()).digest()
+        return _random.Random(int.from_bytes(h[:8], "little"))
 
     def switch_state(self, state):
         self._switched_state = state
+
+
+class _ForcedRng:
+    """Test helper: a Random-like object whose draws are pinned."""
+
+    def __init__(self, value: float = 0.0) -> None:
+        self.value = value
+
+    def random(self) -> float:
+        return self.value
+
+    def choice(self, seq):
+        return seq[0]
+
+    def randint(self, a: int, b: int) -> int:
+        return a
+
+
+def force_rng(engine, value: float = 0.0) -> None:
+    """Pin engine.rng() so .random() returns *value* and .choice() picks index 0.
+
+    Useful when tests previously relied on patching module-level random.* —
+    after the deterministic-RNG refactor, RNG flows through engine.rng(salt).
+    """
+    forced = _ForcedRng(value)
+    engine.rng = lambda _salt: forced
 
 
 # ---- Shared helpers for common entity creation ----

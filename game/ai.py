@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import random
 from typing import TYPE_CHECKING
 
 from ui.colors import NEUTRAL, PROMPT, WARNING
@@ -242,7 +241,7 @@ class CreatureAI:
                     best_tiles.append((x, y))
 
         if best_tiles:
-            return random.choice(best_tiles)
+            return engine.rng(f"flee:{owner.x},{owner.y}").choice(best_tiles)
         return None
 
     def _flee_pathfind(self, owner: Entity, engine: Engine) -> bool:
@@ -291,7 +290,8 @@ class CreatureAI:
             candidates = np.argwhere(reachable)
         if len(candidates) == 0:
             return None
-        chosen = candidates[random.randint(0, len(candidates) - 1)]
+        rng = engine.rng(f"wander:{owner.x},{owner.y}")
+        chosen = candidates[rng.randint(0, len(candidates) - 1)]
         return (int(chosen[0]), int(chosen[1]))
 
     def _wander(self, owner: Entity, engine: Engine) -> None:
@@ -324,7 +324,7 @@ class CreatureAI:
         if owner.organic and owner.fighter.hp < owner.fighter.max_hp * 0.5:
             for item in owner.inventory:
                 if item.item and item.item.get("type") == "heal":
-                    if random.random() < 0.4:
+                    if engine.rng(f"heal:{owner.x},{owner.y}").random() < 0.4:
                         heal = item.item.get("value", 0)
                         owner.fighter.hp = min(owner.fighter.max_hp, owner.fighter.hp + heal)
                         owner.inventory.remove(item)
@@ -343,7 +343,7 @@ class CreatureAI:
             if damaged_weapon:
                 for item in owner.inventory:
                     if item.item and item.item.get("type") == "repair":
-                        if random.random() < 0.4:
+                        if engine.rng(f"repair:{owner.x},{owner.y}").random() < 0.4:
                             damaged_weapon.item["damaged"] = False
                             max_dur = damaged_weapon.item.get("max_durability", 5)
                             damaged_weapon.item["durability"] = max_dur

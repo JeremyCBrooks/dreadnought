@@ -185,44 +185,41 @@ def test_all_hazard_types_produce_messages():
         assert "TestSource" in msgs[0], f"Source name missing for '{hdef.type}'"
 
 
-def test_equipment_damage_inventory_fallback(monkeypatch):
+def test_equipment_damage_inventory_fallback():
     """When player has no loadout, equipment damage falls back to inventory items."""
-    import random
-
     from game.hazards import _apply_equipment_damage
+    from tests.conftest import force_rng
 
     engine = _make_engine()
     engine.player.loadout = None
     weapon = Entity(name="Pistol", item={"type": "weapon", "durability": 2, "max_durability": 5})
     engine.player.inventory.append(weapon)
 
-    monkeypatch.setattr(random, "random", lambda: 0.1)
-    monkeypatch.setattr(random, "choice", lambda lst: lst[0])
+    force_rng(engine, 0.1)
 
     _apply_equipment_damage(engine, engine.player)
     assert weapon.item["durability"] == 1
 
 
-def test_equipment_damage_inventory_fallback_skips_zero_durability(monkeypatch):
+def test_equipment_damage_inventory_fallback_skips_zero_durability():
     """Inventory fallback skips items with durability <= 0."""
-    import random
-
     from game.hazards import _apply_equipment_damage
+    from tests.conftest import force_rng
 
     engine = _make_engine()
     engine.player.loadout = None
     broken = Entity(name="Broken", item={"type": "weapon", "durability": 0, "max_durability": 5})
     engine.player.inventory.append(broken)
 
-    monkeypatch.setattr(random, "random", lambda: 0.1)
+    force_rng(engine, 0.1)
 
     _apply_equipment_damage(engine, engine.player)
     assert broken.item["durability"] == 0  # unchanged — no candidates
 
 
-def test_equipment_damage_is_data_driven(monkeypatch):
+def test_equipment_damage_is_data_driven():
     """Any hazard type with equipment_damage=True should trigger equipment damage, not just electric."""
-    import random
+    from tests.conftest import force_rng
 
     engine = _make_engine()
     weapon = Entity(name="Rifle", item={"type": "weapon", "durability": 3, "max_durability": 5})
@@ -231,8 +228,7 @@ def test_equipment_damage_is_data_driven(monkeypatch):
 
     engine.player.loadout = Loadout(slot1=weapon)
 
-    monkeypatch.setattr(random, "random", lambda: 0.1)
-    monkeypatch.setattr(random, "choice", lambda lst: lst[0])
+    force_rng(engine, 0.1)
 
     # A non-electric hazard with equipment_damage=True should still damage equipment
     hazard = {"type": "explosive", "damage": 2, "equipment_damage": True, "dot": 0, "duration": 0}

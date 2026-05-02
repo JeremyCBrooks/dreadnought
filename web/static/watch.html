@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dreadnought — Watch</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+    #top-bar { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 1rem; background: #0a0a0f; color: #666; font-family: monospace; font-size: 0.8rem; }
+    #top-bar a { color: #6af; text-decoration: none; }
+    #watch-label { color: #8af; }
+    #game { display: block; image-rendering: pixelated; cursor: default; }
+    #status { color: #555; font-family: monospace; font-size: 12px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div id="top-bar">
+    <span>Dreadnought — <span id="watch-label">Spectating</span></span>
+    <a href="/portal.html">← Portal</a>
+  </div>
+  <canvas id="game"></canvas>
+  <div id="status">Connecting…</div>
+  <script>
+    function getCookie(name) {
+      const m = document.cookie.match(new RegExp("(?:^|; )" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "=([^;]*)"));
+      return m ? decodeURIComponent(m[1]) : "";
+    }
+    const params = new URLSearchParams(location.search);
+    const watchUser = params.get("u") || "";
+    document.getElementById("watch-label").textContent = watchUser ? `Watching ${watchUser}` : "Spectating";
+    window.GAME_TOKEN = getCookie("session_token_pub");
+    window.WATCH_MODE = true;
+    window.WATCH_USERNAME = watchUser;
+  </script>
+  <script src="game.js"></script>
+</body>
+</html>

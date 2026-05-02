@@ -1,11 +1,10 @@
 """Tests for AI consumable usage (Phase 5)."""
 
-from unittest.mock import patch
-
 from game.entity import Entity, Fighter
 from tests.conftest import (
     DEFAULT_AI_CONFIG,
     MockEngine,
+    force_rng,
     make_arena,
     make_creature,
     make_heal_item,
@@ -42,8 +41,8 @@ class TestTryUseItem:
 
         ai = enemy.ai
         # Force RNG to allow healing (< 0.4)
-        with patch("game.ai.random.random", return_value=0.1):
-            used = ai._try_use_item(enemy, engine)
+        force_rng(engine, 0.1)
+        used = ai._try_use_item(enemy, engine)
         assert used is True
         assert enemy.fighter.hp == 8  # 3 + 5
         assert medkit not in enemy.inventory
@@ -54,8 +53,8 @@ class TestTryUseItem:
         enemy.inventory.append(medkit)
 
         ai = enemy.ai
-        with patch("game.ai.random.random", return_value=0.1):
-            used = ai._try_use_item(enemy, engine)
+        force_rng(engine, 0.1)
+        used = ai._try_use_item(enemy, engine)
         assert used is False
         assert medkit in enemy.inventory
 
@@ -65,8 +64,8 @@ class TestTryUseItem:
         enemy.inventory.append(medkit)
 
         ai = enemy.ai
-        with patch("game.ai.random.random", return_value=0.1):
-            used = ai._try_use_item(enemy, engine)
+        force_rng(engine, 0.1)
+        used = ai._try_use_item(enemy, engine)
         assert used is False
         assert enemy.fighter.hp == 3
 
@@ -86,8 +85,8 @@ class TestTryUseItem:
         enemy.inventory.extend([weapon, repair_kit])
 
         ai = enemy.ai
-        with patch("game.ai.random.random", return_value=0.1):
-            used = ai._try_use_item(enemy, engine)
+        force_rng(engine, 0.1)
+        used = ai._try_use_item(enemy, engine)
         assert used is True
         assert not weapon.item.get("damaged")
         assert weapon.item["durability"] == weapon.item["max_durability"]
@@ -99,8 +98,8 @@ class TestTryUseItem:
         enemy.inventory.append(medkit)
 
         ai = enemy.ai
-        with patch("game.ai.random.random", return_value=0.1):
-            ai._try_use_item(enemy, engine)
+        force_rng(engine, 0.1)
+        ai._try_use_item(enemy, engine)
         assert medkit not in enemy.inventory
 
     def test_rng_gate_prevents_use(self):
@@ -110,8 +109,8 @@ class TestTryUseItem:
 
         ai = enemy.ai
         # RNG returns 0.9 > 0.4, so should not use
-        with patch("game.ai.random.random", return_value=0.9):
-            used = ai._try_use_item(enemy, engine)
+        force_rng(engine, 0.9)
+        used = ai._try_use_item(enemy, engine)
         assert used is False
         assert medkit in enemy.inventory
         assert enemy.fighter.hp == 3
@@ -122,8 +121,8 @@ class TestTryUseItem:
         enemy.inventory.append(medkit)
 
         ai = enemy.ai
-        with patch("game.ai.random.random", return_value=0.1):
-            ai._try_use_item(enemy, engine)
+        force_rng(engine, 0.1)
+        ai._try_use_item(enemy, engine)
         messages = [text for text, _ in engine.message_log._messages]
         assert any("heals" in m.lower() or "uses" in m.lower() for m in messages)
 
@@ -133,8 +132,8 @@ class TestTryUseItem:
         enemy.inventory.append(medkit)
 
         ai = enemy.ai
-        with patch("game.ai.random.random", return_value=0.1):
-            ai._try_use_item(enemy, engine)
+        force_rng(engine, 0.1)
+        ai._try_use_item(enemy, engine)
         assert enemy.fighter.hp == 10  # capped at max
 
 
@@ -150,8 +149,8 @@ class TestAIItemUsageInStates:
         enemy.inventory.append(medkit)
         old_x, old_y = enemy.x, enemy.y
 
-        with patch("game.ai.random.random", return_value=0.1):
-            enemy.ai.perform(enemy, engine)
+        force_rng(engine, 0.1)
+        enemy.ai.perform(enemy, engine)
         # Enemy healed instead of moving
         assert enemy.fighter.hp == 8
         assert enemy.x == old_x and enemy.y == old_y
@@ -165,8 +164,8 @@ class TestAIItemUsageInStates:
         medkit = make_heal_item(value=5)
         enemy.inventory.append(medkit)
 
-        with patch("game.ai.random.random", return_value=0.1):
-            enemy.ai.perform(enemy, engine)
+        force_rng(engine, 0.1)
+        enemy.ai.perform(enemy, engine)
         assert enemy.fighter.hp == 8
 
     def test_fleeing_uses_item(self):
@@ -178,6 +177,6 @@ class TestAIItemUsageInStates:
         medkit = make_heal_item(value=5)
         enemy.inventory.append(medkit)
 
-        with patch("game.ai.random.random", return_value=0.1):
-            enemy.ai.perform(enemy, engine)
+        force_rng(engine, 0.1)
+        enemy.ai.perform(enemy, engine)
         assert enemy.fighter.hp == 8

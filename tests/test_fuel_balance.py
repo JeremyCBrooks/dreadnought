@@ -109,7 +109,10 @@ def test_adrift_jettisons_cargo():
     state.ev_key(engine, FakeEvent(_sym("TAB")))
     state.ev_key(engine, FakeEvent(_sym("RIGHT")))
     assert len(engine.ship.cargo) == 1  # one item jettisoned
-    assert any("tumbles into the void" in m[0] for m in engine.message_log.messages)
+    # All cargo-loss messages include the jettisoned item's name regardless of which
+    # random message was chosen, so this assertion is deterministic.
+    jettisoned = next(e for e in [item1, item2] if e not in engine.ship.cargo)
+    assert any(jettisoned.name in m[0] for m in engine.message_log.messages)
 
 
 def test_adrift_no_jettison_empty_cargo():
@@ -122,7 +125,6 @@ def test_adrift_no_jettison_empty_cargo():
     state.ev_key(engine, FakeEvent(_sym("TAB")))
     state.ev_key(engine, FakeEvent(_sym("RIGHT")))
     assert galaxy.current_system == "OtherSystem"
-    assert not any("tumbles" in m[0] for m in engine.message_log.messages)
     assert engine.ship.hull == 9  # hull damaged when drifting with no cargo
 
 
