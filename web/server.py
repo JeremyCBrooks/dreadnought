@@ -12,10 +12,10 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from engine.game_state import QuitToPortal
 from web import db, game_manager
 from web.auth import limiter
 from web.auth import router as auth_router
-from engine.game_state import QuitToPortal
 from web.key_map import BROWSER_TO_KEYSYM, WebKeyEvent, mod_flags
 
 _IDLE_TTL_SECONDS = 12 * 60 * 60  # 12 hours
@@ -159,6 +159,8 @@ async def game_session(ws: WebSocket, token: str = "") -> None:
         pass
     except QuitToPortal:
         await db.delete_game(user_id)
+        for q in list(session.watcher_queues):
+            await q.put(game_manager.PORTAL_REDIRECT)
         try:
             await ws.send_json({"type": "portal_redirect"})
         except Exception:
@@ -166,7 +168,8 @@ async def game_session(ws: WebSocket, token: str = "") -> None:
         session.force_end = True  # skip auto-save in finally
     finally:
         if session.force_end:
-            # auth.py already wrote the save; just clean up the registry.
+            # Two cases: auth.py force-ended the session (save already handled),
+            # or QuitToPortal (save deleted above). Either way: skip auto-save.
             game_manager.unregister(username)
         else:
             from datetime import UTC, datetime

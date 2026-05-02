@@ -176,8 +176,6 @@ async def test_receive_loop_notifies_queue_when_iter_json_exits_normally():
 
 def test_server_wires_on_quit_to_raise_quit_to_portal(client):
     """After connecting, engine.on_quit is set and raises QuitToPortal when called."""
-    import time
-
     from engine.game_state import QuitToPortal
 
     token = _create_game(client, "alice")
@@ -193,8 +191,6 @@ def test_server_wires_on_quit_to_raise_quit_to_portal(client):
 
 def test_server_wires_on_quit_on_reconnect(client):
     """engine.on_quit is wired on reconnect (reused in-memory engine) too."""
-    import time
-
     from engine.game_state import QuitToPortal
 
     token = _create_game(client, "alice")
