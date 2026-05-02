@@ -30,6 +30,9 @@ class ConfirmQuitState(State):
 
                 engine.switch_state(GameOverState(victory=False, title="MISSION ABANDONED"))
                 return True
+            if engine.on_quit:
+                engine.on_quit()
+                return True
             raise SystemExit
         if key == K.n or key == K.ESCAPE:
             engine.pop_state()
