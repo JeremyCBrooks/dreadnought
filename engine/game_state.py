@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from world.galaxy import Galaxy
     from world.game_map import GameMap
 
+
 class QuitToPortal(Exception):
     """Raised by engine.on_quit to signal a server session should end and redirect."""
 
