@@ -67,7 +67,7 @@ async def serve_tileset() -> FileResponse:
 
 
 @app.get("/health")
-async def health() -> dict:
+async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
