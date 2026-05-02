@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import secrets
 import time
 from contextlib import asynccontextmanager
@@ -10,7 +11,7 @@ from pathlib import Path
 
 import aiosqlite
 
-DB_PATH = Path("dreadnought.db")
+DB_PATH = Path(os.environ.get("DATABASE_PATH", "dreadnought.db"))
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (

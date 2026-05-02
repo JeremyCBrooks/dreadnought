@@ -1,8 +1,8 @@
 """Tests for web/db.py — async SQLite helpers."""
 
-import asyncio
+from pathlib import Path
+
 import pytest
-import pytest_asyncio
 
 # Run all tests in this module with asyncio
 pytestmark = pytest.mark.asyncio
@@ -11,7 +11,6 @@ pytestmark = pytest.mark.asyncio
 @pytest.fixture
 def db_module(tmp_path, monkeypatch):
     """Return the db module pointing at a temp database file."""
-    import importlib
     import web.db as db
 
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "test.db")
@@ -120,3 +119,26 @@ async def test_has_game(db_module):
     assert not await db_module.has_game(uid)
     await db_module.save_game(uid, "{}")
     assert await db_module.has_game(uid)
+
+
+def test_db_path_default_is_dreadnought_db():
+    import importlib
+    import sys
+
+    sys.modules.pop("web.db", None)
+    fresh = importlib.import_module("web.db")
+    assert fresh.DB_PATH == Path("dreadnought.db")
+    sys.modules.pop("web.db", None)
+    importlib.import_module("web.db")  # restore cached module
+
+
+def test_db_path_reads_from_env(monkeypatch, tmp_path):
+    import importlib
+    import sys
+    db_path = str(tmp_path / "custom.db")
+    monkeypatch.setenv("DATABASE_PATH", db_path)
+    sys.modules.pop("web.db", None)
+    fresh = importlib.import_module("web.db")
+    assert fresh.DB_PATH == Path(db_path)
+    sys.modules.pop("web.db", None)
+    importlib.import_module("web.db")  # restore cached module
