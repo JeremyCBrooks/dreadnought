@@ -99,6 +99,31 @@ class TestConfirmQuitDialogText:
         assert state.confirm_label == "[Y] Yes, abandon"
 
 
+class TestOnQuit:
+    def test_y_calls_on_quit_when_set(self):
+        """When engine.on_quit is set, pressing Y calls it instead of raising SystemExit."""
+        import tcod.event
+
+        engine = make_engine()
+        called = []
+        engine.on_quit = lambda: called.append(True)
+        state = ConfirmQuitState()
+        engine.push_state(state)
+        state.ev_key(engine, _key_event(tcod.event.KeySym.y))
+        assert called == [True]
+
+    def test_y_raises_system_exit_when_on_quit_is_none(self):
+        """When engine.on_quit is None, pressing Y still raises SystemExit."""
+        import tcod.event
+
+        engine = make_engine()
+        assert engine.on_quit is None
+        state = ConfirmQuitState()
+        engine.push_state(state)
+        with pytest.raises(SystemExit):
+            state.ev_key(engine, _key_event(tcod.event.KeySym.y))
+
+
 class TestTacticalQuitBinding:
     def test_shift_q_pushes_confirm_quit(self):
         import tcod.event

@@ -22,6 +22,10 @@ if TYPE_CHECKING:
     from world.galaxy import Galaxy
     from world.game_map import GameMap
 
+class QuitToPortal(Exception):
+    """Raised by engine.on_quit to signal a server session should end and redirect."""
+
+
 _ANIM_TIMEOUT = 0.1
 
 
@@ -83,6 +87,7 @@ class Engine:
         self.galaxy: Galaxy | None = None
         # Monotonic counter for deterministic RNG: bumped per game-time tick.
         self.turn_counter: int = 0
+        self.on_quit: Callable[[], None] | None = None
 
     def rng(self, salt: str) -> random.Random:
         """Return a Random seeded from (galaxy.seed, turn_counter, salt).
