@@ -124,6 +124,7 @@ async def test_has_game(db_module):
 async def test_db_path_default_is_dreadnought_db(monkeypatch):
     import importlib
     import sys
+
     monkeypatch.delenv("DATABASE_PATH", raising=False)
     sys.modules.pop("web.db", None)
     fresh = importlib.import_module("web.db")
@@ -135,6 +136,7 @@ async def test_db_path_default_is_dreadnought_db(monkeypatch):
 async def test_db_path_reads_from_env(monkeypatch, tmp_path):
     import importlib
     import sys
+
     db_path = str(tmp_path / "custom.db")
     monkeypatch.setenv("DATABASE_PATH", db_path)
     sys.modules.pop("web.db", None)
