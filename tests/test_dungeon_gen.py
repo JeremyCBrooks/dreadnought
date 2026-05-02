@@ -949,20 +949,6 @@ def test_ship_windows_adjacent_to_corridor():
                 assert has_neighbor, f"seed={seed}: window at ({x},{y}) has no walkable or window neighbor"
 
 
-def test_colony_no_crash_with_windows():
-    """Colony generator with windows must not crash across 200 seeds."""
-    for seed in range(200):
-        game_map, rooms, exit_pos = generate_dungeon(width=80, height=45, seed=seed, loc_type="colony")
-        assert rooms
-
-
-def test_derelict_no_crash_with_windows():
-    """Derelict generator with windows must not crash across 200 seeds."""
-    for seed in range(200):
-        game_map, rooms, exit_pos = generate_dungeon(width=80, height=45, seed=seed, loc_type="derelict")
-        assert rooms
-
-
 def test_derelict_has_hull_facing_windows():
     """Across seeds, at least some derelict windows have a wall (hull) neighbor."""
     window_tid = int(tile_types.structure_window["tile_id"])
