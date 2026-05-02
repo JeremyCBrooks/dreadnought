@@ -66,6 +66,11 @@ async def serve_tileset() -> FileResponse:
     return FileResponse("data/terminal10x16_gs_ro.png", media_type="image/png")
 
 
+@app.get("/health")
+async def health() -> dict:
+    return {"status": "ok"}
+
+
 # ── Player WebSocket ──────────────────────────────────────────────────────────
 
 
