@@ -1,6 +1,9 @@
 """Tests for Dreadnought spawning, core item, and victory mechanics."""
 
+import copy
 from collections import deque
+
+import pytest
 
 from engine.game_state import Engine
 from game.entity import Entity, Fighter
@@ -45,20 +48,37 @@ def _make_engine_with_galaxy(seed: int = 42) -> tuple[Engine, Galaxy]:
 
 
 # ---------------------------------------------------------------------------
+# Shared galaxy fixture — expands once per module, per-test deepcopy for isolation
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def _galaxy_42_template():
+    """Build and fully expand Galaxy(seed=42) once. Never mutate this directly."""
+    g = Galaxy(seed=42)
+    _expand_all(g)
+    return g
+
+
+@pytest.fixture
+def expanded_galaxy(_galaxy_42_template):
+    """Per-test isolated copy of the pre-expanded galaxy."""
+    return copy.deepcopy(_galaxy_42_template)
+
+
+# ---------------------------------------------------------------------------
 # Galaxy spawn tests
 # ---------------------------------------------------------------------------
 
 
 class TestSpawnDreadnought:
-    def test_spawn_creates_system(self):
-        galaxy = Galaxy(seed=42)
-        _expand_all(galaxy)
+    def test_spawn_creates_system(self, expanded_galaxy):
+        galaxy = expanded_galaxy
         galaxy.spawn_dreadnought()
         assert DREADNOUGHT_SYSTEM_NAME in galaxy.systems
 
-    def test_spawn_single_derelict_location(self):
-        galaxy = Galaxy(seed=42)
-        _expand_all(galaxy)
+    def test_spawn_single_derelict_location(self, expanded_galaxy):
+        galaxy = expanded_galaxy
         galaxy.spawn_dreadnought()
         sys = galaxy.systems[DREADNOUGHT_SYSTEM_NAME]
         assert len(sys.locations) == 1
@@ -66,24 +86,21 @@ class TestSpawnDreadnought:
         assert loc.name == DREADNOUGHT_LOCATION_NAME
         assert loc.loc_type == "derelict"
 
-    def test_spawn_beyond_deepest(self):
-        galaxy = Galaxy(seed=42)
-        _expand_all(galaxy)
+    def test_spawn_beyond_deepest(self, expanded_galaxy):
+        galaxy = expanded_galaxy
         max_depth = max(s.depth for s in galaxy.systems.values())
         galaxy.spawn_dreadnought()
         dread = galaxy.systems[DREADNOUGHT_SYSTEM_NAME]
         assert dread.depth >= max_depth
 
-    def test_spawn_reachable(self):
-        galaxy = Galaxy(seed=42)
-        _expand_all(galaxy)
+    def test_spawn_reachable(self, expanded_galaxy):
+        galaxy = expanded_galaxy
         galaxy.spawn_dreadnought()
         reachable = _bfs_reachable(galaxy, galaxy.home_system)
         assert DREADNOUGHT_SYSTEM_NAME in reachable
 
-    def test_spawn_idempotent(self):
-        galaxy = Galaxy(seed=42)
-        _expand_all(galaxy)
+    def test_spawn_idempotent(self, expanded_galaxy):
+        galaxy = expanded_galaxy
         name1 = galaxy.spawn_dreadnought()
         count_before = len(galaxy.systems)
         name2 = galaxy.spawn_dreadnought()
@@ -101,17 +118,15 @@ class TestSpawnDreadnought:
             positions.append((sys.gx, sys.gy))
         assert positions[0] == positions[1]
 
-    def test_spawn_not_on_existing_position(self):
-        galaxy = Galaxy(seed=42)
-        _expand_all(galaxy)
+    def test_spawn_not_on_existing_position(self, expanded_galaxy):
+        galaxy = expanded_galaxy
         occupied_before = set(galaxy._occupied_positions.keys())
         galaxy.spawn_dreadnought()
         sys = galaxy.systems[DREADNOUGHT_SYSTEM_NAME]
         assert (sys.gx, sys.gy) not in occupied_before
 
-    def test_spawn_connections_bidirectional(self):
-        galaxy = Galaxy(seed=42)
-        _expand_all(galaxy)
+    def test_spawn_connections_bidirectional(self, expanded_galaxy):
+        galaxy = expanded_galaxy
         galaxy.spawn_dreadnought()
         dread = galaxy.systems[DREADNOUGHT_SYSTEM_NAME]
         assert len(dread.connections) >= 1
@@ -119,16 +134,14 @@ class TestSpawnDreadnought:
             parent = galaxy.systems[parent_name]
             assert DREADNOUGHT_SYSTEM_NAME in parent.connections
 
-    def test_spawn_is_dead_end(self):
-        galaxy = Galaxy(seed=42)
-        _expand_all(galaxy)
+    def test_spawn_is_dead_end(self, expanded_galaxy):
+        galaxy = expanded_galaxy
         galaxy.spawn_dreadnought()
         assert DREADNOUGHT_SYSTEM_NAME in galaxy._generated_frontiers
 
-    def test_spawn_is_frontier(self):
+    def test_spawn_is_frontier(self, expanded_galaxy):
         """Dreadnought system has travel cost 2 (unexplored frontier)."""
-        galaxy = Galaxy(seed=42)
-        _expand_all(galaxy)
+        galaxy = expanded_galaxy
         galaxy.spawn_dreadnought()
         assert galaxy.travel_cost(DREADNOUGHT_SYSTEM_NAME) == 2
 
@@ -413,7 +426,7 @@ class TestDreadnoughtCore:
 
 
 class TestDreadnoughtTrigger:
-    def test_reveal_on_sixth_nav_unit(self):
+    def test_reveal_on_sixth_nav_unit(self, expanded_galaxy):
         """Dreadnought spawns after installing 6th nav unit on tactical exit."""
         from tests.conftest import make_arena
         from ui.tactical_state import TacticalState
@@ -421,8 +434,7 @@ class TestDreadnoughtTrigger:
 
         engine = Engine()
         engine.ship = Ship()
-        galaxy = Galaxy(seed=42)
-        _expand_all(galaxy)
+        galaxy = expanded_galaxy
         engine.galaxy = galaxy
         engine.ship.nav_units = 5  # already have 5
 
@@ -448,7 +460,7 @@ class TestDreadnoughtTrigger:
         assert engine.ship.nav_units == 6
         assert galaxy.dreadnought_system == DREADNOUGHT_SYSTEM_NAME
 
-    def test_no_reveal_before_six(self):
+    def test_no_reveal_before_six(self, expanded_galaxy):
         """Dreadnought does not spawn with fewer than 6 nav units."""
         from tests.conftest import make_arena
         from ui.tactical_state import TacticalState
@@ -456,8 +468,7 @@ class TestDreadnoughtTrigger:
 
         engine = Engine()
         engine.ship = Ship()
-        galaxy = Galaxy(seed=42)
-        _expand_all(galaxy)
+        galaxy = expanded_galaxy
         engine.galaxy = galaxy
         engine.ship.nav_units = 4  # only 4 before
 
