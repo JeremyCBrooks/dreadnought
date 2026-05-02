@@ -437,7 +437,7 @@ def test_explore_ship_on_exit_skips_fuel_conversion():
 
 
 def test_explore_ship_exit_tile_message():
-    """Stepping on exit_pos logs 'You step out of your ship.' when explore_ship=True."""
+    """Stepping on exit_pos logs 'You return to the bridge.' when explore_ship=True."""
     from unittest.mock import patch
 
     from tests.conftest import FakeEvent
@@ -460,7 +460,7 @@ def test_explore_ship_exit_tile_message():
         state.ev_key(engine, FakeEvent(wait_key))
 
     messages = [m[0] for m in engine.message_log.messages]
-    assert any("step out of your ship" in m.lower() for m in messages)
+    assert any("return to the bridge" in m.lower() for m in messages)
 
 
 def test_take_reactor_core_blocked_in_explore_ship():

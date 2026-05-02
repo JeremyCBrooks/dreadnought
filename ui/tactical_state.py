@@ -367,7 +367,7 @@ class TacticalState(State):
         engine.game_map = game_map
         engine.player = player
         game_map.update_fov(player.x, player.y)
-        engine.message_log.add_message("You step inside your ship.", (200, 200, 255))
+        engine.message_log.add_message("You explore your ship.", (200, 200, 255))
         self._update_ground_underfoot(engine)
 
     # ------------------------------------------------------------------
@@ -479,7 +479,7 @@ class TacticalState(State):
             return True
 
         if self.exit_pos and (engine.player.x, engine.player.y) == self.exit_pos:
-            msg = "You step out of your ship." if self.explore_ship else "You return to your ship."
+            msg = "You return to the bridge." if self.explore_ship else "You return to your ship."
             engine.message_log.add_message(msg, EQUIP_MSG)
             engine.pop_state()
             return True
@@ -830,7 +830,7 @@ class TacticalState(State):
 
             if consumed:
                 if self.exit_pos and (engine.player.x, engine.player.y) == self.exit_pos:
-                    msg = "You step out of your ship." if self.explore_ship else "You return to your ship."
+                    msg = "You return to the bridge." if self.explore_ship else "You return to your ship."
                     engine.message_log.add_message(msg, EQUIP_MSG)
                     engine.pop_state()
                     return True
