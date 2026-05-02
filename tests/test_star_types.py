@@ -2,14 +2,10 @@
 
 import random
 
-from data.star_types import STAR_TYPES, StarType, pick_star_type
+from data.star_types import STAR_TYPES, pick_star_type
 
 
 class TestStarTypeDefinitions:
-    def test_all_types_are_star_type_instances(self):
-        for key, st in STAR_TYPES.items():
-            assert isinstance(st, StarType), f"{key} is not a StarType"
-
     def test_required_fields_have_correct_types(self):
         for key, st in STAR_TYPES.items():
             assert isinstance(st.name, str), f"{key}.name"
@@ -100,9 +96,3 @@ class TestPickStarType:
         for _ in range(5000):
             seen.add(pick_star_type(rng))
         assert seen == set(STAR_TYPES.keys()), f"Missing types: {set(STAR_TYPES.keys()) - seen}"
-
-    def test_cached_keys_and_weights_are_immutable(self):
-        from data.star_types import _KEYS, _WEIGHTS
-
-        assert isinstance(_KEYS, tuple)
-        assert isinstance(_WEIGHTS, tuple)

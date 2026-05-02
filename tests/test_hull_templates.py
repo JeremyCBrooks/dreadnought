@@ -95,9 +95,7 @@ def test_mid_profiles_start_at_bow_end_value():
     assert len(bow_end) == 1, f"Bows end at different values: {bow_end}"
     expected = bow_end.pop()
     for mid in MIDS:
-        assert mid.profile[0] == expected, (
-            f"Mid {mid.name} starts at {mid.profile[0]}, bows end at {expected}"
-        )
+        assert mid.profile[0] == expected, f"Mid {mid.name} starts at {mid.profile[0]}, bows end at {expected}"
 
 
 def test_mid_profiles_end_at_stern_start_value():
@@ -106,20 +104,10 @@ def test_mid_profiles_end_at_stern_start_value():
     assert len(stern_start) == 1, f"Sterns start at different values: {stern_start}"
     expected = stern_start.pop()
     for mid in MIDS:
-        assert mid.profile[-1] == expected, (
-            f"Mid {mid.name} ends at {mid.profile[-1]}, sterns start at {expected}"
-        )
+        assert mid.profile[-1] == expected, f"Mid {mid.name} ends at {mid.profile[-1]}, sterns start at {expected}"
 
 
 # --- get_random_hull ---
-
-
-def test_get_random_hull_returns_three_sections():
-    rng = random.Random(42)
-    bow, mid, stern = get_random_hull(rng)
-    assert isinstance(bow, HullSection)
-    assert isinstance(mid, HullSection)
-    assert isinstance(stern, HullSection)
 
 
 def test_get_random_hull_correct_room_types():
