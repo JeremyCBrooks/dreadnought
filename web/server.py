@@ -15,6 +15,7 @@ from slowapi.errors import RateLimitExceeded
 from web import db, game_manager
 from web.auth import limiter
 from web.auth import router as auth_router
+from engine.game_state import QuitToPortal
 from web.key_map import BROWSER_TO_KEYSYM, WebKeyEvent, mod_flags
 
 _IDLE_TTL_SECONDS = 12 * 60 * 60  # 12 hours
@@ -107,6 +108,11 @@ async def game_session(ws: WebSocket, token: str = "") -> None:
         session = game_manager.register(username, engine)
         session.connected = True
 
+    def _quit_to_portal() -> None:
+        raise QuitToPortal()
+
+    engine.on_quit = _quit_to_portal
+
     await ws.accept()
 
     input_queue: asyncio.Queue = asyncio.Queue()
@@ -151,6 +157,13 @@ async def game_session(ws: WebSocket, token: str = "") -> None:
         await session._gather_task
     except asyncio.CancelledError:
         pass
+    except QuitToPortal:
+        await db.delete_game(user_id)
+        try:
+            await ws.send_json({"type": "portal_redirect"})
+        except Exception:
+            pass
+        session.force_end = True  # skip auto-save in finally
     finally:
         if session.force_end:
             # auth.py already wrote the save; just clean up the registry.

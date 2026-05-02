@@ -172,3 +172,44 @@ async def test_receive_loop_notifies_queue_when_iter_json_exits_normally():
     await fixed_receive_loop()
     assert not input_queue.empty(), "fix: None must be in queue after iter_json exits normally"
     assert await input_queue.get() is None
+
+
+def test_server_wires_on_quit_to_raise_quit_to_portal(client):
+    """After connecting, engine.on_quit is set and raises QuitToPortal when called."""
+    import time
+
+    from engine.game_state import QuitToPortal
+
+    token = _create_game(client, "alice")
+
+    with client.websocket_connect(f"/ws?token={token}") as ws:
+        ws.receive_json()  # first frame — engine is now running
+        session = gm.get("alice")
+        assert session is not None
+        assert callable(session.engine.on_quit), "server must set engine.on_quit"
+        with pytest.raises(QuitToPortal):
+            session.engine.on_quit()
+
+
+def test_server_wires_on_quit_on_reconnect(client):
+    """engine.on_quit is wired on reconnect (reused in-memory engine) too."""
+    import time
+
+    from engine.game_state import QuitToPortal
+
+    token = _create_game(client, "alice")
+
+    # First connection — disconnect immediately
+    with client.websocket_connect(f"/ws?token={token}") as ws:
+        ws.receive_json()
+
+    time.sleep(0.1)
+
+    # Reconnect — engine is reused from in-memory session
+    with client.websocket_connect(f"/ws?token={token}") as ws:
+        ws.receive_json()
+        session = gm.get("alice")
+        assert session is not None
+        assert callable(session.engine.on_quit)
+        with pytest.raises(QuitToPortal):
+            session.engine.on_quit()
