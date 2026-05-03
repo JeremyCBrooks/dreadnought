@@ -152,6 +152,16 @@ class StrategicState(State):
                 if direction in conn_map:
                     dest_name = conn_map[direction]
                     cost = self.galaxy.travel_cost(dest_name)
+                    # Block normal travel while a pirate boarding craft is attached.
+                    # Drift (fuel=0 path) bypasses this — see _drift().
+                    if engine.ship.fuel > 0:
+                        active = getattr(system, "interdiction", None)
+                        if active is not None and not active.resolved:
+                            engine.message_log.add_message(
+                                "Cannot escape — hostile boarding craft attached!",
+                                (255, 200, 100),
+                            )
+                            return True
                     if not engine.ship.consume_fuel(cost):
                         if engine.ship.fuel == 0:
                             self._drift(engine)
@@ -159,7 +169,7 @@ class StrategicState(State):
                             engine.message_log.add_message("Not enough fuel.", (255, 80, 80))
                         return True
                     self.galaxy.current_system = dest_name
-                    self.galaxy.arrive_at(dest_name)
+                    self.galaxy.arrive_at(dest_name, ship=engine.ship, rng=engine.rng(f"interdiction:{dest_name}"))
                     self.selected = 0
                     engine.message_log.add_message(f"Traveling to {dest_name}.", (100, 200, 255))
                     # Victory: arrive home with Dreadnought core
@@ -198,6 +208,20 @@ class StrategicState(State):
     def _drift(self, engine: Engine) -> None:
         """Execute adrift travel: random neighbor, jettison cargo, desperate messages."""
         dest_name = self._drift_destination()
+        # Drift physically tears the ship out of the system; any attached
+        # boarding craft snaps off with it. Resolve and restore the original
+        # ship map before traveling.
+        source = self.galaxy.systems[self.galaxy.current_system]
+        active = getattr(source, "interdiction", None)
+        if active is not None and not active.resolved:
+            active.resolved = True
+            from game.interdiction import restore_original_ship_map
+
+            restore_original_ship_map(active, engine.ship)
+            engine.message_log.add_message(
+                "The boarding craft tears free as you drift!",
+                (255, 200, 100),
+            )
         engine.message_log.add_message("Engines dead. The ship drifts on momentum...", (200, 100, 100))
         if engine.ship.cargo:
             item = random.choice(engine.ship.cargo)
@@ -249,7 +273,7 @@ class StrategicState(State):
                 return
         engine.message_log.add_message(f"Drifting into {dest_name}...", (200, 100, 100))
         self.galaxy.current_system = dest_name
-        self.galaxy.arrive_at(dest_name)
+        self.galaxy.arrive_at(dest_name, ship=engine.ship, rng=engine.rng(f"interdiction:{dest_name}"))
         self.selected = 0
 
     def on_render(self, console: Any, engine: Engine) -> None:
@@ -341,6 +365,17 @@ class StrategicState(State):
                 nav_str = f"NAV : {nav_count}/{max_nav}"
                 nav_color = (0, 255, 200) if nav_count >= max_nav else (140, 160, 180)
             console.print(x=hud_x, y=hud_y + 2, string=nav_str, fg=nav_color)
+
+        # Interdiction banner — appears below the NAV gauge while a hostile
+        # boarding craft is attached to the player ship.
+        active = getattr(system, "interdiction", None)
+        if active is not None and not active.resolved:
+            console.print(
+                x=hud_x,
+                y=hud_y + 4,
+                string="*** BEING BOARDED ***",
+                fg=(255, 200, 100),
+            )
 
         engine.message_log.render(console, 0, log_y, cw, log_h)
 

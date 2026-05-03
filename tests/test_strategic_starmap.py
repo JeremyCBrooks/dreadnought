@@ -62,7 +62,7 @@ def _make_graph_galaxy():
         systems={"A": a, "B": b, "C": c},
         current_system="A",
         home_system="A",
-        arrive_at=lambda name: None,
+        arrive_at=lambda name, **_: None,
         _unexplored_frontier=frontier,
         travel_cost=lambda dest: 2 if dest in frontier else 1,
     )
@@ -188,7 +188,7 @@ class TestNavigationFocus:
             systems={"A": a, "D": d},
             current_system="A",
             home_system="A",
-            arrive_at=lambda name: None,
+            arrive_at=lambda name, **_: None,
             _unexplored_frontier=frontier,
             travel_cost=lambda dest: 2 if dest in frontier else 1,
         )

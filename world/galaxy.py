@@ -1,9 +1,15 @@
 """Procedural on-demand galaxy with star systems and locations."""
 
+from __future__ import annotations
+
 import random
+from typing import TYPE_CHECKING
 
 from data.names import LOCATION_TYPES, LOCATION_WORDS, SYSTEM_WORDS
 from data.star_types import pick_star_type
+
+if TYPE_CHECKING:
+    from game.interdiction import Interdiction
 
 _LOW_GRAVITY_TYPES = frozenset({"asteroid", "derelict"})
 
@@ -58,6 +64,9 @@ class StarSystem:
         self.gx = gx
         self.gy = gy
         self.connections: dict[str, int] = {}
+        # Set when arrive_at queues a pirate boarding event for this system.
+        # Persists for the game's lifetime once created (resolved=True after).
+        self.interdiction: Interdiction | None = None
 
 
 def _direction(ax: int, ay: int, bx: int, by: int) -> tuple[int, int]:
@@ -257,8 +266,14 @@ class Galaxy:
         """Return fuel cost to travel to *destination*: 2 if frontier, 1 if explored."""
         return 2 if destination in self._unexplored_frontier else 1
 
-    def arrive_at(self, system_name: str) -> None:
-        """Called when the player arrives at a system. Expands its frontier."""
+    def arrive_at(self, system_name: str, ship=None, rng=None) -> None:
+        """Called when the player arrives at a system. Expands its frontier.
+
+        When *ship* and *rng* are provided, also rolls for a pirate
+        interdiction and queues an ``Interdiction`` on the system if it hits.
+        Both are optional for backwards compatibility with existing callers
+        and tests that exercise the galaxy in isolation.
+        """
         changed = self._expand_frontier(system_name)
         if not self._unexplored_frontier:
             # Graph would close — force at least one new exit from this system
@@ -268,6 +283,13 @@ class Galaxy:
             )
         if changed:
             self._assign_depths()
+
+        if ship is not None and rng is not None:
+            from game.interdiction import Interdiction, should_attempt_interdiction
+
+            system = self.systems[system_name]
+            if should_attempt_interdiction(system, ship, self, rng):
+                system.interdiction = Interdiction()
 
     def _assign_depths(self) -> None:
         from collections import deque

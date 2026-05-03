@@ -29,7 +29,7 @@ def _make_galaxy():
         systems={"TestSystem": system},
         current_system="TestSystem",
         home_system="TestSystem",
-        arrive_at=lambda name: None,
+        arrive_at=lambda name, **_: None,
         _unexplored_frontier=set(),
         travel_cost=lambda dest: 1,
         dreadnought_system=None,

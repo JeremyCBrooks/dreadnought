@@ -39,7 +39,7 @@ def _make_two_system_galaxy():
         systems={"TestSystem": system, "OtherSystem": other},
         current_system="TestSystem",
         home_system="TestSystem",
-        arrive_at=lambda name: None,
+        arrive_at=lambda name, **_: None,
         _unexplored_frontier={"OtherSystem"},
         travel_cost=lambda dest: 1,
     )

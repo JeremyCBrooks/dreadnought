@@ -43,7 +43,7 @@ def _make_two_system_galaxy(dest_frontier=True, dest_locations=None):
         systems={"TestSystem": system, "OtherSystem": other},
         current_system="TestSystem",
         home_system="TestSystem",
-        arrive_at=lambda name: None,
+        arrive_at=lambda name, **_: None,
         _unexplored_frontier=frontier,
         travel_cost=lambda dest: 2 if dest in frontier else 1,
     )
@@ -164,7 +164,7 @@ def test_adrift_prefers_unvisited_derelicts():
         systems={"TestSystem": system, "DerelictSys": derelict_sys, "PlainSys": plain_sys},
         current_system="TestSystem",
         home_system="TestSystem",
-        arrive_at=lambda name: None,
+        arrive_at=lambda name, **_: None,
         _unexplored_frontier=frontier,
         travel_cost=lambda dest: 2 if dest in frontier else 1,
     )

@@ -502,11 +502,17 @@ class TakeReactorCoreAction(Action):
             return 0
 
         if getattr(engine.current_state, "explore_ship", False):
-            engine.message_log.add_message(
-                "This is your ship's power core. You cannot remove it.",
-                (200, 150, 100),
-            )
-            return 0
+            # During an interdiction the composite contains BOTH ships. The
+            # "you can't take YOUR core" rule should only apply to tiles in
+            # the player ship's region, not the pirate ship's.
+            from game.interdiction import tile_in_player_ship_region
+
+            if tile_in_player_ship_region(tx, ty, engine):
+                engine.message_log.add_message(
+                    "This is your ship's power core. You cannot remove it.",
+                    (200, 150, 100),
+                )
+                return 0
 
         if not entity.can_carry():
             engine.message_log.add_message("Inventory full.", WARNING)

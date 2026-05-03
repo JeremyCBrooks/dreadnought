@@ -164,6 +164,58 @@ def _ship_from_dict(d: dict | None):
     return ship
 
 
+# ── Interdiction ──────────────────────────────────────────────────────────────
+
+
+def _interdiction_to_dict(interdiction) -> dict | None:
+    """Serialize an Interdiction.
+
+    The composite map is NOT serialized — it's deterministically rebuilt
+    from ``pirate_ship_seed`` + the saved airlock interior positions when
+    the player next enters the ship.
+    """
+    if interdiction is None:
+        return None
+    return {
+        "started": interdiction.started,
+        "resolved": interdiction.resolved,
+        "pirate_ship_seed": interdiction.pirate_ship_seed,
+        "player_offset": list(interdiction.player_offset) if interdiction.player_offset else None,
+        "pirate_offset": list(interdiction.pirate_offset) if interdiction.pirate_offset else None,
+        "player_airlock_interior": (
+            list(interdiction.player_airlock_interior) if interdiction.player_airlock_interior else None
+        ),
+        "pirate_airlock_interior": (
+            list(interdiction.pirate_airlock_interior) if interdiction.pirate_airlock_interior else None
+        ),
+        "attach_direction": (list(interdiction.attach_direction) if interdiction.attach_direction else None),
+        "pirate_entities": [_entity_to_dict(p) for p in interdiction.pirate_entities],
+    }
+
+
+def _interdiction_from_dict(d: dict | None):
+    if d is None:
+        return None
+    from game.interdiction import Interdiction
+
+    interdiction = Interdiction(
+        started=d.get("started", False),
+        resolved=d.get("resolved", False),
+    )
+    interdiction.pirate_ship_seed = d.get("pirate_ship_seed")
+    interdiction.player_offset = tuple(d["player_offset"]) if d.get("player_offset") else None
+    interdiction.pirate_offset = tuple(d["pirate_offset"]) if d.get("pirate_offset") else None
+    interdiction.player_airlock_interior = (
+        tuple(d["player_airlock_interior"]) if d.get("player_airlock_interior") else None
+    )
+    interdiction.pirate_airlock_interior = (
+        tuple(d["pirate_airlock_interior"]) if d.get("pirate_airlock_interior") else None
+    )
+    interdiction.attach_direction = tuple(d["attach_direction"]) if d.get("attach_direction") else None
+    interdiction.pirate_entities = [_entity_from_dict(p) for p in d.get("pirate_entities", [])]
+    return interdiction
+
+
 # ── Galaxy ────────────────────────────────────────────────────────────────────
 
 
@@ -191,6 +243,7 @@ def _galaxy_to_dict(galaxy) -> dict | None:
                 }
                 for loc in sys.locations
             ],
+            "interdiction": _interdiction_to_dict(sys.interdiction),
         }
 
     return {
@@ -252,6 +305,7 @@ def _galaxy_from_dict(d: dict | None):
             gy=sys_data["gy"],
         )
         system.connections = sys_data["connections"]
+        system.interdiction = _interdiction_from_dict(sys_data.get("interdiction"))
         galaxy.systems[name] = system
         galaxy._occupied_positions[(sys_data["gx"], sys_data["gy"])] = name
         galaxy._used_names.add(name)
@@ -392,7 +446,19 @@ def make_death_save_dict(cause: str = "Mission abandoned") -> dict:
 
 
 def engine_to_dict(engine: Engine) -> dict:
-    """Serialize between-mission engine state to a JSON-safe dict."""
+    """Serialize between-mission engine state to a JSON-safe dict.
+
+    For mid-ship-explore disconnects, ask the active TacticalState to flush
+    its in-flight state (detach pirates, refresh _saved_player) so the save
+    accurately reflects current player HP/inventory and pirate positions.
+    """
+    from ui.tactical_state import TacticalState
+
+    for state in engine._state_stack:
+        if isinstance(state, TacticalState) and getattr(state, "explore_ship", False):
+            state.flush_for_save(engine)
+            break
+
     return {
         "galaxy": _galaxy_to_dict(engine.galaxy),
         "ship": _ship_to_dict(engine.ship),
@@ -441,5 +507,7 @@ def dict_to_engine(data: dict, engine: Engine) -> None:
         engine.ship.game_map = gm
         engine.ship.rooms = rooms
         engine.ship.exit_pos = exit_pos
+        # Active interdictions: composite map is rebuilt lazily in
+        # _activate_interdiction_if_any when the player next presses [S].
 
     engine.push_state(StrategicState(engine.galaxy))

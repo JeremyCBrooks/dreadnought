@@ -30,6 +30,20 @@ GROUND_MAX_LINES_DEFAULT = 8
 MAX_INVENTORY_DISPLAY = 8
 
 
+_DIRECTION_NAMES: dict[tuple[int, int], str] = {
+    (0, -1): "north",
+    (0, 1): "south",
+    (-1, 0): "west",
+    (1, 0): "east",
+}
+
+
+def _direction_name(direction: tuple[int, int] | None) -> str:
+    if direction is None:
+        return "outer"
+    return _DIRECTION_NAMES.get(tuple(direction), "outer")
+
+
 def _layout(engine: Engine) -> SimpleNamespace:
     """Compute layout from engine dimensions so UI adapts to CONSOLE_WIDTH/HEIGHT."""
     cw = engine.CONSOLE_WIDTH
@@ -229,6 +243,9 @@ class TacticalState(State):
             p = engine.player
 
             if getattr(self, "explore_ship", False):
+                # Detach surviving pirates from the map so they persist on the
+                # Interdiction object across ship-explore sessions.
+                self._detach_interdiction_pirates(engine)
                 # Collect floor items back into ship cargo; skip all item conversions.
                 if engine.ship is not None:
                     engine.ship.collect_floor_items(engine.game_map)
@@ -243,6 +260,13 @@ class TacticalState(State):
                 }
                 if p in engine.game_map.entities:
                     engine.game_map.entities.remove(p)
+                # Resolved interdiction: now safe to swap composite map back
+                # to the original player ship (player has left ship interior).
+                interdiction = self._current_interdiction(engine)
+                if interdiction is not None and interdiction.resolved:
+                    from game.interdiction import restore_original_ship_map
+
+                    restore_original_ship_map(interdiction, engine.ship)
             else:
                 saved_inventory = list(p.inventory)
                 saved_loadout = p.loadout
@@ -343,8 +367,13 @@ class TacticalState(State):
         self._layout = _layout(engine)
         engine.environment = {}  # pressurized ship interior
 
+        # Pirate interdiction: may swap engine.ship.game_map to a composite
+        # containing the pirate ship + airtight corridor. Read game_map AFTER.
+        self._activate_interdiction_if_any(engine)
+
         game_map = engine.ship.game_map
         self.exit_pos = engine.ship.exit_pos
+
         engine.ship.materialize_cargo(game_map, engine.ship.rooms)
 
         # Place / restore player at exit (docking hatch)
@@ -369,6 +398,126 @@ class TacticalState(State):
         game_map.update_fov(player.x, player.y)
         engine.message_log.add_message("You explore your ship.", (200, 200, 255))
         self._update_ground_underfoot(engine)
+
+    # ------------------------------------------------------------------
+    # Interdiction lifecycle
+    # ------------------------------------------------------------------
+
+    def _current_interdiction(self, engine: Engine):
+        """Return the current system's Interdiction (or None)."""
+        if engine.galaxy is None:
+            return None
+        system = engine.galaxy.systems.get(engine.galaxy.current_system)
+        if system is None:
+            return None
+        return getattr(system, "interdiction", None)
+
+    def _activate_interdiction_if_any(self, engine: Engine) -> None:
+        """Manage interdiction state at ship entry.
+
+        * Resolved interdiction with stale composite → restore original ship map.
+        * Queued interdiction → run start_interdiction (may swap game_map).
+        * Started but composite missing (post-load) → rebuild_composite.
+        * Always: re-attach live pirates to the active map; mark carved tiles explored.
+        """
+        from game.interdiction import rebuild_composite, restore_original_ship_map, start_interdiction
+
+        interdiction = self._current_interdiction(engine)
+        if interdiction is None:
+            return
+
+        if interdiction.resolved:
+            # Restore the original ship map if a stale composite is hanging around.
+            restore_original_ship_map(interdiction, engine.ship)
+            return
+
+        if not interdiction.started:
+            rng = engine.rng(f"start_interdiction:{engine.galaxy.current_system}")
+            start_interdiction(interdiction, engine.ship, rng)
+            if interdiction.started:
+                heading = _direction_name(interdiction.attach_direction)
+                engine.message_log.add_message(
+                    f"A pirate boarding craft has clamped onto the {heading} airlock!",
+                    (255, 200, 100),
+                )
+            elif interdiction.resolved:
+                # No facing-airlock pair was available — boarding attempt failed.
+                engine.message_log.add_message(
+                    "The pirate craft couldn't find a docking point and broke off.",
+                    (200, 200, 200),
+                )
+                return
+        elif interdiction.composite_map is None:
+            # Started, but the composite was wiped (e.g. by a save/load cycle).
+            if not rebuild_composite(interdiction, engine.ship):
+                interdiction.resolve()
+                return
+
+        game_map = engine.ship.game_map
+        # Reveal the corridor + spawn-room tiles so the breach is visible
+        # on the map even before the player walks into FOV range.
+        if interdiction.connector_tiles:
+            for tx, ty in interdiction.connector_tiles:
+                if game_map.in_bounds(tx, ty):
+                    game_map.explored[tx, ty] = True
+        if interdiction.craft_room is not None:
+            cr = interdiction.craft_room
+            for tx in range(cr.x1, cr.x2 + 1):
+                for ty in range(cr.y1, cr.y2 + 1):
+                    if game_map.in_bounds(tx, ty):
+                        game_map.explored[tx, ty] = True
+        # Drop dead pirates from the roster, then re-attach the live ones.
+        interdiction.pirate_entities = [p for p in interdiction.pirate_entities if p.fighter and p.fighter.hp > 0]
+        for p in interdiction.pirate_entities:
+            if p not in game_map.entities:
+                game_map.entities.append(p)
+        game_map.invalidate_entity_index()
+
+    def flush_for_save(self, engine: Engine) -> None:
+        """Snapshot live state into engine for a clean disconnect-style save.
+
+        Called from ``engine_to_dict`` when this state is on the stack but
+        the player is mid-mission (didn't go through ``on_exit``). Performs
+        the non-destructive parts of ``on_exit`` for explore-ship mode:
+        detach pirates, sweep floor items into cargo, and refresh
+        ``engine._saved_player`` so HP/inventory changes since last clean
+        ship exit aren't lost on reload.
+        """
+        if not getattr(self, "explore_ship", False):
+            return
+        if engine.game_map is None or engine.player is None:
+            return
+        self._detach_interdiction_pirates(engine)
+        if engine.ship is not None:
+            engine.ship.collect_floor_items(engine.game_map)
+        p = engine.player
+        engine._saved_player = {
+            "hp": p.fighter.hp,
+            "max_hp": p.fighter.max_hp,
+            "defense": p.fighter.defense,
+            "power": p.fighter.base_power,
+            "base_power": p.fighter.base_power,
+            "inventory": list(p.inventory),
+            "loadout": p.loadout,
+        }
+
+    def _detach_interdiction_pirates(self, engine: Engine) -> None:
+        """Strip pirate entities from game_map.entities; references live on Interdiction.
+
+        Runs whenever the interdiction has been started, regardless of resolution
+        state — alive pirates left on the map after a hypothetical non-lethal
+        resolution (capture, conversion, etc.) would otherwise re-attach on
+        next ship entry from the cached roster.
+        """
+        interdiction = self._current_interdiction(engine)
+        if interdiction is None or not interdiction.started:
+            return
+        for p in list(interdiction.pirate_entities):
+            if p in engine.game_map.entities:
+                engine.game_map.entities.remove(p)
+        # Drop dead pirates from the roster.
+        interdiction.pirate_entities = [p for p in interdiction.pirate_entities if p.fighter and p.fighter.hp > 0]
+        engine.game_map.invalidate_entity_index()
 
     # ------------------------------------------------------------------
     # Player death
@@ -617,6 +766,26 @@ class TacticalState(State):
         if engine.player.fighter.hp <= 0:
             engine.message_log.add_message("You died.", (255, 0, 0))
             self._handle_player_death(engine, "Overwhelmed by hostiles.")
+            return
+
+        # Interdiction resolution: if we're aboard the player ship and every
+        # pirate is dead, restore the ship layout and end the interdiction.
+        if getattr(self, "explore_ship", False):
+            self._check_interdiction_resolution(engine)
+
+    def _check_interdiction_resolution(self, engine: Engine) -> None:
+        interdiction = self._current_interdiction(engine)
+        if interdiction is None or not interdiction.started or interdiction.resolved:
+            return
+        if interdiction.alive_pirate_count() > 0:
+            return
+        # Mark resolved. Map restoration is deferred to the next ship-exit
+        # so we don't strand the player on a tile that's about to vanish.
+        interdiction.resolve()
+        engine.message_log.add_message(
+            "Interdiction repelled — system clear.",
+            (100, 255, 100),
+        )
 
     # ------------------------------------------------------------------
     # Look mode
@@ -1040,12 +1209,26 @@ class TacticalState(State):
 
         if self.location:
             loc_label = f"{self.location.name} ({self.location.loc_type})"
+        elif getattr(self, "explore_ship", False):
+            loc_label = "YOUR SHIP"
         else:
             loc_label = "DREADNOUGHT"
         console.print(x=x, y=1, string=loc_label, fg=(180, 180, 255))
         from ui.colors import HEADER_SEP
 
         console.print(x=x, y=2, string="-" * (layout.stats_w - 2), fg=HEADER_SEP)
+
+        # Interdiction banner: live pirate count while aboard our ship.
+        if getattr(self, "explore_ship", False):
+            interdiction = self._current_interdiction(engine)
+            if interdiction is not None and interdiction.started and not interdiction.resolved:
+                remaining = interdiction.alive_pirate_count()
+                console.print(
+                    x=x,
+                    y=3,
+                    string=f"INTRUDERS: {remaining} remain",
+                    fg=(255, 200, 100),
+                )
 
         from ui.colors import HP_GREEN, HP_RED, HP_YELLOW
 
