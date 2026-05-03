@@ -33,6 +33,16 @@ CREATE TABLE IF NOT EXISTS game_saves (
     state_json TEXT NOT NULL,
     updated_at REAL NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id         INTEGER PRIMARY KEY,
+    user_id    INTEGER NOT NULL,
+    username   TEXT NOT NULL,
+    body       TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_created_at ON chat_messages(created_at);
 """
 
 
@@ -152,3 +162,43 @@ async def has_game(user_id: int) -> bool:
     async with _connect() as conn:
         async with conn.execute("SELECT 1 FROM game_saves WHERE user_id = ?", (user_id,)) as cur:
             return await cur.fetchone() is not None
+
+
+async def insert_chat_message(user_id: int, username: str, body: str) -> int:
+    async with _connect() as conn:
+        cur = await conn.execute(
+            "INSERT INTO chat_messages (user_id, username, body, created_at) VALUES (?, ?, ?, ?)",
+            (user_id, username, body, time.time()),
+        )
+        await conn.commit()
+        return cur.lastrowid
+
+
+async def get_chat_messages(since_id: int | None, limit: int) -> list[aiosqlite.Row]:
+    async with _connect() as conn:
+        if since_id is None:
+            async with conn.execute(
+                """
+                SELECT id, username, body, created_at FROM chat_messages
+                ORDER BY id DESC LIMIT ?
+                """,
+                (limit,),
+            ) as cur:
+                rows = await cur.fetchall()
+            return list(reversed(rows))
+        async with conn.execute(
+            """
+            SELECT id, username, body, created_at FROM chat_messages
+            WHERE id > ? ORDER BY id ASC LIMIT ?
+            """,
+            (since_id, limit),
+        ) as cur:
+            return list(await cur.fetchall())
+
+
+async def delete_old_chat_messages(max_age_seconds: float) -> int:
+    cutoff = time.time() - max_age_seconds
+    async with _connect() as conn:
+        cur = await conn.execute("DELETE FROM chat_messages WHERE created_at < ?", (cutoff,))
+        await conn.commit()
+        return cur.rowcount or 0

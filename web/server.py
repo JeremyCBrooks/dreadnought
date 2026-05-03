@@ -16,11 +16,14 @@ from engine.game_state import QuitToPortal
 from web import db, game_manager
 from web.auth import _cookies_secure, limiter
 from web.auth import router as auth_router
+from web.chat import router as chat_router
 from web.key_map import BROWSER_TO_KEYSYM, WebKeyEvent, mod_flags
 
 _IDLE_TTL_SECONDS = 12 * 60 * 60  # 12 hours
 _IDLE_CHECK_INTERVAL = 5 * 60  # 5 minutes
 _SESSION_CLEANUP_INTERVAL = 24 * 60 * 60  # 1 day
+_CHAT_CLEANUP_INTERVAL = 24 * 60 * 60  # 1 day
+_CHAT_RETENTION_SECONDS = 30 * 24 * 60 * 60  # 30 days
 
 
 async def _evict_idle_sessions(ttl_seconds: float = _IDLE_TTL_SECONDS) -> None:
@@ -50,13 +53,20 @@ async def _session_cleanup_loop() -> None:
         await db.delete_expired_sessions()
 
 
+async def _chat_cleanup_loop() -> None:
+    while True:
+        await asyncio.sleep(_CHAT_CLEANUP_INTERVAL)
+        await db.delete_old_chat_messages(_CHAT_RETENTION_SECONDS)
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     await db.init_db()
     idle_task = asyncio.create_task(_idle_cleanup_loop())
     session_task = asyncio.create_task(_session_cleanup_loop())
+    chat_task = asyncio.create_task(_chat_cleanup_loop())
     yield
-    for t in (idle_task, session_task):
+    for t in (idle_task, session_task, chat_task):
         t.cancel()
         try:
             await t
@@ -68,6 +78,7 @@ app = FastAPI(lifespan=_lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.include_router(auth_router)
+app.include_router(chat_router)
 
 
 @app.middleware("http")

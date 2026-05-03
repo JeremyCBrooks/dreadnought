@@ -40,6 +40,7 @@
       color: #ccc;
       font-family: monospace;
       padding: 2rem;
+      padding-left: calc(320px + 3rem);
       min-height: 100vh;
       isolation: isolate;
     }
@@ -98,6 +99,7 @@
       align-items: center;
       justify-content: space-between;
       margin-bottom: 2rem;
+      margin-left: calc(-320px - 1rem);
       border-bottom: 1px solid #333;
       padding-bottom: 1rem;
       position: relative;
@@ -133,6 +135,99 @@
     a { color: #6af; text-decoration: none; }
     a:hover { text-decoration: underline; }
     .msg { color: #f66; margin-top: 0.5rem; font-size: 0.85rem; min-height: 1.2rem; }
+    #layout {
+      display: flex;
+      gap: 2rem;
+      align-items: flex-start;
+      position: relative;
+      z-index: 1;
+    }
+    #main-col {
+      flex: 1;
+      min-width: 0;
+    }
+    #chat-sidebar {
+      width: 320px;
+      background: rgba(0, 0, 0, 0.55);
+      border: 1px solid #222;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      position: fixed;
+      top: 6rem;
+      left: 1rem;
+      bottom: 1rem;
+    }
+    #chat-sidebar h2 {
+      margin-bottom: 0.5rem;
+    }
+    #chat-log {
+      flex: 1;
+      overflow-y: auto;
+      background: #050505;
+      border: 1px solid #1a1a1a;
+      padding: 0.5rem;
+      font-size: 0.8rem;
+      color: #bbb;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .chat-msg {
+      overflow-wrap: anywhere;
+      line-height: 1.35;
+    }
+    .chat-msg time {
+      color: #555;
+      margin-right: 0.4rem;
+      font-size: 0.7rem;
+    }
+    .chat-msg strong {
+      color: #6af;
+      margin-right: 0.3rem;
+    }
+    .chat-empty {
+      color: #444;
+      font-style: italic;
+    }
+    #chat-form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    #chat-input {
+      background: #050505;
+      border: 1px solid #333;
+      color: #ccc;
+      font-family: monospace;
+      font-size: 0.85rem;
+      padding: 0.4rem;
+      resize: none;
+    }
+    #chat-input:focus {
+      outline: none;
+      border-color: #6af;
+    }
+    #chat-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: #555;
+      min-height: 1rem;
+    }
+    #chat-count.warn {
+      color: #f66;
+    }
+    #chat-error {
+      color: #f66;
+    }
+    @media (max-width: 900px) {
+      body { padding-left: 2rem; }
+      header { margin-left: 0; }
+      #layout { flex-direction: column; }
+      #chat-sidebar { width: auto; max-height: 50vh; position: static; top: auto; left: auto; bottom: auto; margin-bottom: 1rem; }
+    }
   </style>
 </head>
 <body>
@@ -144,19 +239,36 @@
     </div>
   </header>
 
-  <section>
-    <h2>My Game</h2>
-    <div id="my-game-section"></div>
-    <div class="msg" id="game-msg"></div>
-  </section>
+  <div id="layout">
+    <aside id="chat-sidebar">
+      <h2>Public Chat</h2>
+      <div id="chat-log"></div>
+      <form id="chat-form" onsubmit="sendChat(event)">
+        <textarea id="chat-input" maxlength="280" rows="2" placeholder="Say something…"></textarea>
+        <div id="chat-meta">
+          <span id="chat-count">0/280</span>
+          <span id="chat-error"></span>
+        </div>
+        <button type="submit">Send</button>
+      </form>
+    </aside>
 
-  <section>
-    <h2>Active Players</h2>
-    <table>
-      <thead><tr><th>Player</th><th>Watchers</th><th></th></tr></thead>
-      <tbody id="active-players"></tbody>
-    </table>
-  </section>
+    <main id="main-col">
+      <section>
+        <h2>My Game</h2>
+        <div id="my-game-section"></div>
+        <div class="msg" id="game-msg"></div>
+      </section>
+
+      <section>
+        <h2>Active Players</h2>
+        <table>
+          <thead><tr><th>Player</th><th>Watchers</th><th></th></tr></thead>
+          <tbody id="active-players"></tbody>
+        </table>
+      </section>
+    </main>
+  </div>
 
   <script src="portal.js"></script>
   <script>
