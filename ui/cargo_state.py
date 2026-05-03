@@ -126,7 +126,7 @@ class CargoState(State):
         # 'e' key for equip/unequip
         import tcod.event
 
-        if key == tcod.event.KeySym.e:
+        if key == tcod.event.KeySym.E:
             self._equip_unequip(engine)
             return True
 

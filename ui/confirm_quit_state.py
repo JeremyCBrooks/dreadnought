@@ -24,7 +24,7 @@ class ConfirmQuitState(State):
         key = event.sym
         K = tcod.event.KeySym
 
-        if key == K.y:
+        if key == K.Y:
             if self.abandon:
                 from ui.game_over_state import GameOverState
 
@@ -34,7 +34,7 @@ class ConfirmQuitState(State):
                 engine.on_quit()
                 return True
             raise SystemExit
-        if key == K.n or key == K.ESCAPE:
+        if key == K.N or key == K.ESCAPE:
             engine.pop_state()
             return True
         return True  # consume all other keys

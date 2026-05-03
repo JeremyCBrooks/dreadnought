@@ -49,7 +49,7 @@ class InventoryState(State):
 
         import tcod.event
 
-        if key == tcod.event.KeySym.d:
+        if key == tcod.event.KeySym.D:
             self._drop(engine)
             return True
 

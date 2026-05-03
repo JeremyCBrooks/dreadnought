@@ -113,13 +113,13 @@ class StrategicState(State):
             engine.push_state(CargoState())
             return True
 
-        if key == tcod.event.KeySym.m:
+        if key == tcod.event.KeySym.M:
             from ui.galaxy_map_state import GalaxyMapState
 
             engine.push_state(GalaxyMapState(self.galaxy))
             return True
 
-        if key == tcod.event.KeySym.s or key == tcod.event.KeySym.S:
+        if key == tcod.event.KeySym.S:
             from ui.tactical_state import TacticalState
 
             engine.push_state(TacticalState(explore_ship=True))

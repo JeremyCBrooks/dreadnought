@@ -691,13 +691,13 @@ class TacticalState(State):
         if key in (
             tcod.event.KeySym.UP,
             tcod.event.KeySym.DOWN,
-            tcod.event.KeySym.k,
-            tcod.event.KeySym.j,
+            tcod.event.KeySym.K,
+            tcod.event.KeySym.J,
             tcod.event.KeySym.KP_8,
             tcod.event.KeySym.KP_2,
         ):
             if self._visible_enemies:
-                if key in (tcod.event.KeySym.DOWN, tcod.event.KeySym.j, tcod.event.KeySym.KP_2):
+                if key in (tcod.event.KeySym.DOWN, tcod.event.KeySym.J, tcod.event.KeySym.KP_2):
                     self._enemy_cycle_index = (self._enemy_cycle_index + 1) % len(self._visible_enemies)
                 else:
                     self._enemy_cycle_index = (self._enemy_cycle_index - 1) % len(self._visible_enemies)

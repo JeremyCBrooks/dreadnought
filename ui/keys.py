@@ -22,14 +22,14 @@ def move_keys() -> dict[int, tuple[int, int]]:
         K.KP_7: (-1, -1),
         K.KP_8: (0, -1),
         K.KP_9: (1, -1),
-        K.h: (-1, 0),
-        K.j: (0, 1),
-        K.k: (0, -1),
-        K.l: (1, 0),
-        K.y: (-1, -1),
-        K.u: (1, -1),
-        K.b: (-1, 1),
-        K.n: (1, 1),
+        K.H: (-1, 0),
+        K.J: (0, 1),
+        K.K: (0, -1),
+        K.L: (1, 0),
+        K.Y: (-1, -1),
+        K.U: (1, -1),
+        K.B: (-1, 1),
+        K.N: (1, 1),
     }
 
 
@@ -63,15 +63,15 @@ def action_keys() -> dict[str, tuple[set[int], str, str]]:
 
     K = tcod.event.KeySym
     return {
-        "look": ({K.x}, "x", "look"),
-        "fire": ({K.f}, "f", "fire"),
-        "inventory": ({K.i}, "i", "inventory"),
-        "scan": ({K.s}, "s", "scan"),
-        "interact": ({K.e}, "e", "interact"),
-        "get": ({K.g, K.COMMA}, "g", "get"),
+        "look": ({K.X}, "x", "look"),
+        "fire": ({K.F}, "f", "fire"),
+        "inventory": ({K.I}, "i", "inventory"),
+        "scan": ({K.S}, "s", "scan"),
+        "interact": ({K.E}, "e", "interact"),
+        "get": ({K.G, K.COMMA}, "g", "get"),
         "wait": ({K.PERIOD, K.KP_5}, ".", "wait"),
         "quit": ({K.Q}, "Q", "quit"),
-        "cargo": ({K.c}, "c", "cargo"),
+        "cargo": ({K.C}, "c", "cargo"),
     }
 
 

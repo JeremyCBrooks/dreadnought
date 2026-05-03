@@ -41,14 +41,14 @@ class GalaxyMapState(State):
             return True
 
         # 'c' = center on current system
-        if key == tcod.event.KeySym.c:
+        if key == tcod.event.KeySym.C:
             current = self.galaxy.systems[self.galaxy.current_system]
             self.camera_gx = current.gx
             self.camera_gy = current.gy
             return True
 
         # Shift+H = center on home system
-        if key == tcod.event.KeySym.h and event.mod & tcod.event.Modifier.SHIFT:
+        if key == tcod.event.KeySym.H and event.mod & tcod.event.Modifier.SHIFT:
             home = self.galaxy.systems[self.galaxy.home_system]
             self.camera_gx = home.gx
             self.camera_gy = home.gy
