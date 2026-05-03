@@ -61,10 +61,13 @@ def _build_map() -> dict[str, int]:
     for n in range(10):
         m[str(n)] = getattr(K, f"N{n}")
 
-    # All lowercase and uppercase letters
+    # All lowercase and uppercase letters — tcod KeySym only exposes uppercase
+    # attributes for letter keys, but the integer value is the SDL keycode for
+    # the lowercase character, so both browser variants map to the same sym.
     for c in "abcdefghijklmnopqrstuvwxyz":
-        m[c] = getattr(K, c)
-        m[c.upper()] = getattr(K, c.upper())
+        sym = getattr(K, c.upper())
+        m[c] = sym
+        m[c.upper()] = sym
 
     # Numpad — browser sends "Numpad0" … "Numpad9" for numlock-on numeric keys
     numpad = {
