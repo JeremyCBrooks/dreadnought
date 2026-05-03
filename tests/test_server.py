@@ -44,13 +44,14 @@ def test_watch_own_game_rejected(client):
 
 def test_watch_other_game_allowed(client):
     alice_token = _register_login(client, "alice")
-    _register_login(client, "bob")
+    _register_login(client, "bobby")
     from engine.game_state import Engine
 
-    gm.register("bob", Engine())
-    gm.get("bob").connected = True
+    gm.register("bobby", Engine())
+    gm.get("bobby").connected = True
 
-    with client.websocket_connect(f"/ws/watch/bob?token={alice_token}"):
+    headers = {"Cookie": f"session_token={alice_token}"}
+    with client.websocket_connect("/ws/watch/bobby", headers=headers):
         pass
 
 
@@ -58,7 +59,7 @@ def _create_game(client, username="alice", password="supersecret1"):
     """Register, login, create a new game, and return the session token."""
     _register_login(client, username, password)
     client.post("/api/new-game", json={})
-    return client.cookies.get("session_token_pub")
+    return client.cookies.get("session_token")
 
 
 def test_session_connected_false_after_disconnect(client):
@@ -113,13 +114,16 @@ def test_player_receives_portal_redirect_when_no_save(client):
 def test_watcher_receives_portal_redirect_on_player_disconnect(client):
     """Watcher gets portal_redirect when the player navigates away (disconnects)."""
     alice_token = _create_game(client)
-    bob_token = _register_login(client, "bob")
+    bob_token = _register_login(client, "bobby")
 
-    alice_ctx = client.websocket_connect(f"/ws?token={alice_token}")
+    alice_headers = {"Cookie": f"session_token={alice_token}"}
+    bob_headers = {"Cookie": f"session_token={bob_token}"}
+
+    alice_ctx = client.websocket_connect("/ws", headers=alice_headers)
     alice_ws = alice_ctx.__enter__()
     alice_ws.receive_json()  # first frame — session is active and connected
 
-    bob_ctx = client.websocket_connect(f"/ws/watch/alice?token={bob_token}")
+    bob_ctx = client.websocket_connect("/ws/watch/alice", headers=bob_headers)
     bob_ws = bob_ctx.__enter__()
     bob_ws.receive_json()  # full snapshot from server
 

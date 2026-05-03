@@ -117,16 +117,15 @@ function applyTiles(tiles) {
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
-const _token = (typeof GAME_TOKEN !== "undefined" ? GAME_TOKEN : "");
 const _watchMode = (typeof WATCH_MODE !== "undefined" ? WATCH_MODE : false);
 const _watchUser = (typeof WATCH_USERNAME !== "undefined" ? WATCH_USERNAME : null);
 
 function _buildWsUrl() {
-  const token = encodeURIComponent(_token);
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
   if (_watchMode && _watchUser) {
-    return `ws://${location.host}/ws/watch/${encodeURIComponent(_watchUser)}?token=${token}`;
+    return `${proto}//${location.host}/ws/watch/${encodeURIComponent(_watchUser)}`;
   }
-  return `ws://${location.host}/ws?token=${token}`;
+  return `${proto}//${location.host}/ws`;
 }
 
 let ws = null;

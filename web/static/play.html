@@ -26,12 +26,6 @@
   <div id="status">Connecting…</div>
   <div id="seed-bar">SEED: <span id="seed-value"></span><button id="seed-copy">Copy</button></div>
   <script>
-    // Read session token from the readable cookie (session_token_pub)
-    function getCookie(name) {
-      const m = document.cookie.match(new RegExp("(?:^|; )" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "=([^;]*)"));
-      return m ? decodeURIComponent(m[1]) : "";
-    }
-    window.GAME_TOKEN = getCookie("session_token_pub");
     window.WATCH_MODE = false;
     window.WATCH_USERNAME = null;
   </script>

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 
 import bcrypt as _bcrypt_lib
@@ -13,19 +14,32 @@ from web import db, game_manager
 
 
 def _real_ip(request: Request) -> str:
-    """Rate-limit key: first IP in X-Forwarded-For, else the direct client IP."""
+    """Rate-limit key. Prefer Fly-Client-IP (set by Fly's edge, unspoofable from outside)
+    over X-Forwarded-For, and fall back to the direct client IP."""
+    fly_ip = request.headers.get("Fly-Client-IP")
+    if fly_ip:
+        return fly_ip.strip()
     forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
         return forwarded_for.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
 
 
+def _cookies_secure() -> bool:
+    """Whether to mark auth cookies as Secure. True in prod (HTTPS), false for local HTTP dev."""
+    return os.environ.get("COOKIE_SECURE") == "1" or bool(os.environ.get("FLY_APP_NAME"))
+
+
 limiter = Limiter(key_func=_real_ip)
 
 router = APIRouter(prefix="/api")
 
-_USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{1,30}$")
+_USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{5,30}$")
 _MIN_PASSWORD = 10
+
+# Pre-computed bcrypt hash of a random password, used to keep login timing
+# constant when the username does not exist (avoids username-enumeration via timing).
+_DUMMY_HASH = _bcrypt_lib.hashpw(b"dummy-password-for-timing", _bcrypt_lib.gensalt()).decode()
 
 
 async def _require_auth(session_token: str | None = None):
@@ -38,26 +52,25 @@ async def _require_auth(session_token: str | None = None):
 
 
 def _set_auth_cookies(response: Response, token: str) -> None:
-    response.set_cookie("session_token", token, httponly=True, samesite="strict")
-    response.set_cookie("session_token_pub", token, httponly=False, samesite="strict")
+    response.set_cookie("session_token", token, httponly=True, samesite="strict", secure=_cookies_secure())
 
 
 def _clear_auth_cookies(response: Response) -> None:
     response.delete_cookie("session_token")
-    response.delete_cookie("session_token_pub")
 
 
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 
 
 @router.post("/register", status_code=201)
-async def register(body: dict):
+@limiter.limit("5/minute")
+async def register(request: Request, body: dict):
     username = str(body.get("username", "")).strip()
     password = str(body.get("password", ""))
     confirm = str(body.get("confirm", ""))
 
     if not _USERNAME_RE.match(username):
-        raise HTTPException(400, "Username must be 1–30 alphanumeric/underscore characters")
+        raise HTTPException(400, "Username must be 5–30 alphanumeric/underscore characters")
     if len(password) < _MIN_PASSWORD:
         raise HTTPException(400, f"Password must be at least {_MIN_PASSWORD} characters")
     if password != confirm:
@@ -72,13 +85,17 @@ async def register(body: dict):
 
 
 @router.post("/login")
-@limiter.limit("10/minute")
+@limiter.limit("5/minute")
 async def login(request: Request, body: dict, response: Response):
     username = str(body.get("username", "")).strip()
     password = str(body.get("password", ""))
 
     user = await db.get_user_by_name(username)
-    if user is None or not _bcrypt_lib.checkpw(password.encode(), user["pw_hash"].encode()):
+    # Always run bcrypt — if the user is missing, check against a dummy hash so
+    # response time does not reveal whether the username exists.
+    pw_hash = user["pw_hash"] if user is not None else _DUMMY_HASH
+    pw_ok = _bcrypt_lib.checkpw(password.encode(), pw_hash.encode())
+    if user is None or not pw_ok:
         raise HTTPException(401, "Invalid username or password")
 
     token = await db.create_session(user["id"])

@@ -14,12 +14,13 @@ from slowapi.errors import RateLimitExceeded
 
 from engine.game_state import QuitToPortal
 from web import db, game_manager
-from web.auth import limiter
+from web.auth import _cookies_secure, limiter
 from web.auth import router as auth_router
 from web.key_map import BROWSER_TO_KEYSYM, WebKeyEvent, mod_flags
 
 _IDLE_TTL_SECONDS = 12 * 60 * 60  # 12 hours
 _IDLE_CHECK_INTERVAL = 5 * 60  # 5 minutes
+_SESSION_CLEANUP_INTERVAL = 24 * 60 * 60  # 1 day
 
 
 async def _evict_idle_sessions(ttl_seconds: float = _IDLE_TTL_SECONDS) -> None:
@@ -43,22 +44,41 @@ async def _idle_cleanup_loop() -> None:
         await _evict_idle_sessions()
 
 
+async def _session_cleanup_loop() -> None:
+    while True:
+        await asyncio.sleep(_SESSION_CLEANUP_INTERVAL)
+        await db.delete_expired_sessions()
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     await db.init_db()
-    task = asyncio.create_task(_idle_cleanup_loop())
+    idle_task = asyncio.create_task(_idle_cleanup_loop())
+    session_task = asyncio.create_task(_session_cleanup_loop())
     yield
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    for t in (idle_task, session_task):
+        t.cancel()
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(lifespan=_lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.include_router(auth_router)
+
+
+@app.middleware("http")
+async def _security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    if _cookies_secure():
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
 
 
 @app.get("/tileset.png")
@@ -75,7 +95,8 @@ async def health() -> dict[str, str]:
 
 
 @app.websocket("/ws")
-async def game_session(ws: WebSocket, token: str = "") -> None:
+async def game_session(ws: WebSocket) -> None:
+    token = ws.cookies.get("session_token", "")
     user = await db.get_session_user(token)
     if user is None:
         await ws.close(code=1008)
@@ -193,9 +214,10 @@ async def game_session(ws: WebSocket, token: str = "") -> None:
 
 
 @app.websocket("/ws/watch/{username}")
-async def watch_session(ws: WebSocket, username: str, token: str = "") -> None:
+async def watch_session(ws: WebSocket, username: str) -> None:
+    token = ws.cookies.get("session_token", "")
     user = await db.get_session_user(token)
-    if user is None or user["username"] == username:
+    if user is None or user["username"] == username.lower():
         await ws.close(code=1008)
         return
 

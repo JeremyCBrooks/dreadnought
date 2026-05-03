@@ -60,6 +60,16 @@ def test_register_invalid_username_too_long(client):
     assert r.status_code == 400
 
 
+def test_register_invalid_username_too_short(client):
+    r = _register(client, username="abcd")
+    assert r.status_code == 400
+
+
+def test_register_username_minimum_5_chars(client):
+    r = _register(client, username="abcde")
+    assert r.status_code == 201
+
+
 def test_register_password_too_short(client):
     r = _register(client, password="short", confirm="short")
     assert r.status_code == 400
@@ -79,7 +89,6 @@ def test_login_success(client):
     assert r.status_code == 200
     assert r.json()["username"] == "alice"
     assert "session_token" in r.cookies
-    assert "session_token_pub" in r.cookies
 
 
 def test_login_wrong_password(client):
@@ -302,16 +311,16 @@ def test_active_games_empty(client):
 
 def test_active_games_shows_sessions(client):
     _register(client, username="alice")
-    _register(client, username="bob")
+    _register(client, username="bobby")
     _login(client)
     from engine.game_state import Engine
 
-    gm.register("bob", Engine())
+    gm.register("bobby", Engine())
     r = client.get("/api/active-games")
     assert r.status_code == 200
     data = r.json()
     assert len(data) == 1
-    assert data[0]["username"] == "bob"
+    assert data[0]["username"] == "bobby"
     assert data[0]["watching_count"] == 0
     gm._sessions.clear()
 
@@ -331,16 +340,16 @@ def test_active_games_excludes_own_session(client):
 
 def test_active_games_shows_others_not_self(client):
     _register(client)
-    _register(client, username="bob")
+    _register(client, username="bobby")
     _login(client)
     from engine.game_state import Engine
 
     gm.register("alice", Engine())
-    gm.register("bob", Engine())
+    gm.register("bobby", Engine())
     r = client.get("/api/active-games")
     assert r.status_code == 200
     usernames = [p["username"] for p in r.json()]
-    assert "bob" in usernames
+    assert "bobby" in usernames
     assert "alice" not in usernames
     gm._sessions.clear()
 

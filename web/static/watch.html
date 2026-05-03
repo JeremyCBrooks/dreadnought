@@ -22,14 +22,9 @@
   <canvas id="game"></canvas>
   <div id="status">Connecting…</div>
   <script>
-    function getCookie(name) {
-      const m = document.cookie.match(new RegExp("(?:^|; )" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "=([^;]*)"));
-      return m ? decodeURIComponent(m[1]) : "";
-    }
     const params = new URLSearchParams(location.search);
     const watchUser = params.get("u") || "";
     document.getElementById("watch-label").textContent = watchUser ? `Watching ${watchUser}` : "Spectating";
-    window.GAME_TOKEN = getCookie("session_token_pub");
     window.WATCH_MODE = true;
     window.WATCH_USERNAME = watchUser;
   </script>

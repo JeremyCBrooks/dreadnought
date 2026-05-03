@@ -30,7 +30,7 @@ def _register(client, username="alice", password="supersecret1"):
     )
 
 
-_LIMIT = 10  # must match the limit set on /api/login
+_LIMIT = 5  # must match the limit set on /api/login
 
 
 def test_login_rate_limited_after_threshold(client):
