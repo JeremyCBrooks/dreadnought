@@ -38,6 +38,42 @@ _ROSE_CHARS: dict[tuple[int, int], str] = {
 }
 
 
+_RED = (255, 80, 80)
+_WARNING = (255, 200, 100)
+_DRIFT = (200, 100, 100)
+_TRAVEL = (100, 200, 255)
+
+# "{item}" is the name of the cargo item that was lost.
+_CARGO_LOST_MSGS: list[str] = [
+    "A crate tumbles into the void. {item} is lost.",
+    "The ship lurches and {item} slides out of the cargo bay.",
+    "An impact shakes {item} loose. It spins away into the dark.",
+    "Emergency venting ejects {item} to stabilize the ship.",
+    "The cargo hold buckles. {item} is pushed into space.",
+    "A hull breach tears {item} from its moorings.",
+    "Gravity shifts and {item} tumbles out through a gap in the hull.",
+    "You watch helplessly as {item} drifts away into the void.",
+]
+
+_DRIFT_DAMAGE_MSGS: list[str] = [
+    "The hull groans under the stress of unshielded drift!",
+    "Unable to maneuver, your ship strikes something.",
+    "Metal screams as the hull scrapes against debris.",
+    "A shudder runs through the ship.",
+    "Without power, the ship drifts helplessly into an asteroid. The hull dents inward.",
+    "Micro-debris peppers the hull.",
+    "The ship tumbles, slamming broadside into a rock.",
+    "An alarm blares as the hull deforms under impact.",
+]
+
+_BREAK_AWAY_DAMAGE_MSGS: list[str] = [
+    "Hull plating peels away where the clamps held on.",
+    "The airlock frame buckles as the boarding craft is ripped off.",
+    "Metal shrieks. A strip of hull goes with the pirate ship.",
+    "The ship wrenches sideways; something structural gives.",
+]
+
+
 def _gauge_color(ratio: float) -> tuple[int, int, int]:
     """Return green/yellow/red color based on a 0-1 ratio."""
     from data.colors import HP_GREEN, HP_RED, HP_YELLOW
@@ -153,27 +189,23 @@ class StrategicState(State):
                 if direction in conn_map:
                     dest_name = conn_map[direction]
                     cost = self.galaxy.travel_cost(dest_name)
-                    # Block normal travel while a pirate boarding craft is attached.
-                    # Drift (fuel=0 path) bypasses this — see _drift().
-                    if engine.ship.fuel > 0:
+                    # A hard-docked ship can only leave by tearing free, so ask
+                    # first. Drift (fuel=0 path) tears free unasked — see _drift().
+                    if engine.ship.fuel > 0 and engine.ship.fuel >= cost:
                         active = current_interdiction(engine)
                         if active is not None and not active.resolved:
-                            engine.message_log.add_message(
-                                "Cannot escape — hostile boarding craft attached!",
-                                (255, 200, 100),
-                            )
+                            from ui.break_away_state import BreakAwayState
+
+                            engine.push_state(BreakAwayState(self, dest_name))
                             return True
                     if not engine.ship.consume_fuel(cost):
                         if engine.ship.fuel == 0:
                             self._drift(engine)
                         else:
-                            engine.message_log.add_message("Not enough fuel.", (255, 80, 80))
+                            engine.message_log.add_message("Not enough fuel.", _RED)
                         return True
-                    self.galaxy.current_system = dest_name
-                    self.galaxy.arrive_at(dest_name, ship=engine.ship, rng=engine.rng(f"interdiction:{dest_name}"))
-                    self.selected = 0
-                    engine.message_log.add_message(f"Traveling to {dest_name}.", (100, 200, 255))
-                    self._check_victory(engine)
+                    engine.message_log.add_message(f"Traveling to {dest_name}.", _TRAVEL)
+                    self._arrive(engine, dest_name)
                 return True
             if key in confirm_keys():
                 return True
@@ -208,77 +240,101 @@ class StrategicState(State):
             weights.append(5 if has_derelict else 1)
         return random.choices(neighbors, weights=weights, k=1)[0]
 
+    def _arrive(self, engine: Engine, dest_name: str, interdictable: bool = True) -> None:
+        """Put the ship in *dest_name*; pirates may be waiting unless *interdictable* is False."""
+        self.galaxy.current_system = dest_name
+        if interdictable:
+            self.galaxy.arrive_at(dest_name, ship=engine.ship, rng=engine.rng(f"interdiction:{dest_name}"))
+        else:
+            self.galaxy.arrive_at(dest_name)
+        self.selected = 0
+        self._check_victory(engine)
+
+    def _tear_free(self, engine: Engine, message: str) -> None:
+        """Snap any attached boarding craft off: resolve it and restore the original ship map."""
+        source = self.galaxy.systems[self.galaxy.current_system]
+        active = getattr(source, "interdiction", None)
+        if active is None or active.resolved:
+            return
+        from game.interdiction import restore_original_ship_map
+
+        active.resolve()
+        restore_original_ship_map(active, engine.ship)
+        engine.message_log.add_message(message, _WARNING)
+
+    def _jettison_cargo(self, engine: Engine, rng: Any) -> bool:
+        """Lose one random cargo item to space. Returns True if that ended the game."""
+        item = rng.choice(engine.ship.cargo)
+        engine.ship.remove_cargo(item)
+        engine.message_log.add_message(rng.choice(_CARGO_LOST_MSGS).format(item=item.name), _RED)
+        if not (item.item and item.item.get("type") == "dreadnought_core"):
+            return False
+        self._game_over(
+            engine,
+            title="THE CORE IS LOST",
+            cause="The Dreadnought's reactor core tumbles into the void. All hope is lost.",
+        )
+        return True
+
+    def _damage_hull(self, engine: Engine, amount: int, messages: list[str], cause: str, rng: Any) -> bool:
+        """Take *amount* hull damage. Returns True if the ship broke apart (*cause* ends the game)."""
+        engine.ship.damage_hull(amount)
+        engine.message_log.add_message(rng.choice(messages), (255, 120, 50))
+        if engine.ship.hull > 0:
+            return False
+        engine.message_log.add_message("The hull buckles and breaks apart...", (255, 0, 0))
+        self._game_over(engine, title="SHIP DESTROYED", cause=cause)
+        return True
+
+    @staticmethod
+    def _game_over(engine: Engine, title: str, cause: str) -> None:
+        from ui.game_over_state import GameOverState
+
+        engine.switch_state(GameOverState(title=title, cause=cause))
+
     def _drift(self, engine: Engine) -> None:
         """Execute adrift travel: random neighbor, jettison cargo, desperate messages."""
         dest_name = self._drift_destination()
         # Drift physically tears the ship out of the system; any attached
-        # boarding craft snaps off with it. Resolve and restore the original
-        # ship map before traveling.
-        source = self.galaxy.systems[self.galaxy.current_system]
-        active = getattr(source, "interdiction", None)
-        if active is not None and not active.resolved:
-            active.resolved = True
-            from game.interdiction import restore_original_ship_map
-
-            restore_original_ship_map(active, engine.ship)
-            engine.message_log.add_message(
-                "The boarding craft tears free as you drift!",
-                (255, 200, 100),
-            )
-        engine.message_log.add_message("Engines dead. The ship drifts on momentum...", (200, 100, 100))
+        # boarding craft snaps off with it.
+        self._tear_free(engine, "The boarding craft tears free as you drift!")
+        engine.message_log.add_message("Engines dead. The ship drifts on momentum...", _DRIFT)
         if engine.ship.cargo:
-            item = random.choice(engine.ship.cargo)
-            engine.ship.remove_cargo(item)
-            cargo_lost_msgs = [
-                f"A crate tumbles into the void. {item.name} is lost.",
-                f"The ship lurches and {item.name} slides out of the cargo bay.",
-                f"An impact shakes {item.name} loose. It spins away into the dark.",
-                f"Emergency venting ejects {item.name} to stabilize the ship.",
-                f"The cargo hold buckles. {item.name} is pushed into space.",
-                f"A hull breach tears {item.name} from its moorings.",
-                f"Gravity shifts and {item.name} tumbles out through a gap in the hull.",
-                f"You watch helplessly as {item.name} drifts away into the void.",
-            ]
-            engine.message_log.add_message(random.choice(cargo_lost_msgs), (255, 80, 80))
-            if item.item and item.item.get("type") == "dreadnought_core":
-                from ui.game_over_state import GameOverState
-
-                engine.switch_state(
-                    GameOverState(
-                        title="THE CORE IS LOST",
-                        cause="The Dreadnought's reactor core tumbles into the void. All hope is lost.",
-                    )
-                )
+            if self._jettison_cargo(engine, random):
                 return
-        else:
-            engine.ship.damage_hull(1)
-            drift_damage_msgs = [
-                "The hull groans under the stress of unshielded drift!",
-                "Unable to maneuver, your ship strikes something.",
-                "Metal screams as the hull scrapes against debris.",
-                "A shudder runs through the ship.",
-                "Without power, the ship drifts helplessly into an asteroid. The hull dents inward.",
-                "Micro-debris peppers the hull.",
-                "The ship tumbles, slamming broadside into a rock.",
-                "An alarm blares as the hull deforms under impact.",
-            ]
-            engine.message_log.add_message(random.choice(drift_damage_msgs), (255, 120, 50))
-            if engine.ship.hull <= 0:
-                from ui.game_over_state import GameOverState
+        elif self._damage_hull(
+            engine, 1, _DRIFT_DAMAGE_MSGS, "Your ship broke apart drifting through the void.", random
+        ):
+            return
+        engine.message_log.add_message(f"Drifting into {dest_name}...", _DRIFT)
+        self._arrive(engine, dest_name)
 
-                engine.message_log.add_message("The hull buckles and breaks apart...", (255, 0, 0))
-                engine.switch_state(
-                    GameOverState(
-                        title="SHIP DESTROYED",
-                        cause="Your ship broke apart drifting through the void.",
-                    )
-                )
-                return
-        engine.message_log.add_message(f"Drifting into {dest_name}...", (200, 100, 100))
-        self.galaxy.current_system = dest_name
-        self.galaxy.arrive_at(dest_name, ship=engine.ship, rng=engine.rng(f"interdiction:{dest_name}"))
-        self.selected = 0
-        self._check_victory(engine)
+    def break_away(self, engine: Engine, dest_name: str) -> None:
+        """Burn clear of a hard-docked boarding craft and travel to *dest_name* under power.
+
+        Unlike drift the player keeps their heading and pays for the jump, but
+        the clamps take hull with them and may shake cargo loose.
+        """
+        from game.interdiction import BREAK_AWAY_CARGO_LOSS_CHANCE, BREAK_AWAY_HULL_DAMAGE
+
+        if not engine.ship.consume_fuel(self.galaxy.travel_cost(dest_name)):
+            engine.message_log.add_message("Not enough fuel.", _RED)
+            return
+        rng = engine.rng(f"break_away:{dest_name}")
+        self._tear_free(engine, "The docking clamps shear away as you burn clear!")
+        if self._damage_hull(
+            engine,
+            BREAK_AWAY_HULL_DAMAGE,
+            _BREAK_AWAY_DAMAGE_MSGS,
+            "Your ship broke apart tearing free of the boarding craft.",
+            rng,
+        ):
+            return
+        if engine.ship.cargo and rng.random() < BREAK_AWAY_CARGO_LOSS_CHANCE and self._jettison_cargo(engine, rng):
+            return
+        engine.message_log.add_message(f"Traveling to {dest_name}.", _TRAVEL)
+        # The pirates here are left behind; nobody is lying in wait at the far end.
+        self._arrive(engine, dest_name, interdictable=False)
 
     def on_render(self, console: Any, engine: Engine) -> None:
         from data.star_types import STAR_TYPES

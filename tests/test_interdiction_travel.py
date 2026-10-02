@@ -1,7 +1,7 @@
 """Tests for interdiction travel-blocking + drift detach (Phase 3).
 
-* While a system has an unresolved interdiction, navigation is blocked
-  (warning in log, no fuel consumed, no system change).
+* While a system has an unresolved interdiction, navigation asks before
+  breaking away (see test_break_away.py).
 * Once resolved, navigation works normally.
 * Drift (fuel-0 forced travel) escapes interdiction by marking it resolved
   on the source system before traveling.
@@ -69,24 +69,6 @@ def _engine(galaxy) -> MockEngine:
 
 
 # ---- Navigation gate ----
-
-
-def test_navigation_blocked_while_interdiction_active():
-    galaxy = _two_system_galaxy()
-    galaxy.systems["Here"].interdiction = Interdiction(started=True)
-    state = StrategicState(galaxy)
-    engine = _engine(galaxy)
-    fuel_before = engine.ship.fuel
-
-    state.ev_key(engine, FakeEvent(_sym("TAB")))  # navigation focus
-    state.ev_key(engine, FakeEvent(_sym("RIGHT")))
-
-    assert galaxy.current_system == "Here", "must not move while interdicted"
-    assert engine.ship.fuel == fuel_before, "must not consume fuel when blocked"
-    # A warning should be logged.
-    assert any("board" in m[0].lower() or "escape" in m[0].lower() for m in engine.message_log._messages), (
-        f"expected interdiction warning in log, got {engine.message_log._messages}"
-    )
 
 
 def test_navigation_unblocked_after_interdiction_resolved():

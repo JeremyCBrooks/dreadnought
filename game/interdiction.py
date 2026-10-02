@@ -24,6 +24,11 @@ INTERDICTION_CHANCE: float = 1.0
 MIN_PIRATES = 1
 MAX_PIRATES = 4
 
+# Price of burning away from a hard-docked boarding craft under power.
+# Tunable; revisit during playtest.
+BREAK_AWAY_HULL_DAMAGE: int = 2
+BREAK_AWAY_CARGO_LOSS_CHANCE: float = 0.5
+
 
 @dataclass
 class Interdiction:
