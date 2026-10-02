@@ -14,7 +14,7 @@ from __future__ import annotations
 import random
 from unittest.mock import patch
 
-from game.interdiction import Interdiction, restore_original_ship_map, start_interdiction
+from game.interdiction import Interdiction, detach_pirates, restore_original_ship_map, start_interdiction
 from game.ship import Ship
 from tests.conftest import make_engine
 from world.dungeon_gen import generate_player_ship
@@ -269,12 +269,12 @@ def test_detach_strips_alive_pirates_even_when_resolved():
     remain on the map, detach should still remove them so they don't re-attach."""
     interdiction = Interdiction()
     engine = _make_ship_engine_with_galaxy(interdiction)
-    state = _enter_ship(engine)
+    _enter_ship(engine)
     if not interdiction.started:
         return
     interdiction.resolved = True
     live = [p for p in interdiction.pirate_entities if p.fighter and p.fighter.hp > 0]
-    state._detach_interdiction_pirates(engine)
+    detach_pirates(engine)
     for p in live:
         assert p not in engine.game_map.entities
 

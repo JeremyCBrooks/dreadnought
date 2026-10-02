@@ -85,6 +85,7 @@ class StrategicState(State):
     def ev_key(self, engine: Engine, event: Any) -> bool:
         import tcod.event
 
+        from game.interdiction import current_interdiction
         from ui.keys import confirm_keys, is_action, move_keys
 
         key = event.sym
@@ -155,7 +156,7 @@ class StrategicState(State):
                     # Block normal travel while a pirate boarding craft is attached.
                     # Drift (fuel=0 path) bypasses this — see _drift().
                     if engine.ship.fuel > 0:
-                        active = getattr(system, "interdiction", None)
+                        active = current_interdiction(engine)
                         if active is not None and not active.resolved:
                             engine.message_log.add_message(
                                 "Cannot escape — hostile boarding craft attached!",
@@ -282,6 +283,7 @@ class StrategicState(State):
     def on_render(self, console: Any, engine: Engine) -> None:
         from data.star_types import STAR_TYPES
         from game.helpers import stable_seed
+        from game.interdiction import current_interdiction
         from ui.viewport_renderer import render_viewport
 
         system = self.galaxy.systems[self.galaxy.current_system]
@@ -372,7 +374,7 @@ class StrategicState(State):
 
         # Interdiction banner — appears below the NAV gauge while a hostile
         # boarding craft is attached to the player ship.
-        active = getattr(system, "interdiction", None)
+        active = current_interdiction(engine)
         if active is not None and not active.resolved:
             console.print(
                 x=hud_x,

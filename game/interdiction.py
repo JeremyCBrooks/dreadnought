@@ -366,13 +366,7 @@ def tile_in_player_ship_region(tile_x: int, tile_y: int, engine) -> bool:
     Checks the original_ship_map tiles directly: a composite tile is "in the
     player ship" iff it corresponds to a non-space tile in player_map.
     """
-    galaxy = getattr(engine, "galaxy", None)
-    if galaxy is None:
-        return True
-    system = galaxy.systems.get(galaxy.current_system) if hasattr(galaxy, "current_system") else None
-    if system is None:
-        return True
-    interdiction = getattr(system, "interdiction", None)
+    interdiction = current_interdiction(engine)
     # Keyed off the composite being the active map, NOT off ``resolved``:
     # restoration is deferred to ship exit, so the pirate ship is still
     # there (and its core still lootable) after the last pirate dies.
@@ -434,3 +428,116 @@ def restore_original_ship_map(interdiction: Interdiction, ship) -> None:
     interdiction.pristine_tile_ids = None
     pmap.invalidate_entity_index()
     pmap.invalidate_hazards()
+
+
+# ---------------------------------------------------------------------------
+# Session lifecycle (driven by whichever state puts the player aboard)
+# ---------------------------------------------------------------------------
+
+_DIRECTION_NAMES: dict[tuple[int, int], str] = {
+    (0, -1): "north",
+    (0, 1): "south",
+    (-1, 0): "west",
+    (1, 0): "east",
+}
+
+
+def _direction_name(direction: tuple[int, int] | None) -> str:
+    if direction is None:
+        return "outer"
+    return _DIRECTION_NAMES.get(tuple(direction), "outer")
+
+
+def current_interdiction(engine) -> Interdiction | None:
+    """The current system's Interdiction, or None."""
+    galaxy = getattr(engine, "galaxy", None)
+    if galaxy is None:
+        return None
+    system = galaxy.systems.get(galaxy.current_system)
+    return system.interdiction if system is not None else None
+
+
+def prepare_ship_entry(engine) -> None:
+    """Bring the interdiction up to date as the player boards their ship.
+
+    * Resolved with a stale composite -> restore the original ship map.
+    * Queued -> start it (may swap ``engine.ship.game_map`` to the composite).
+    * Started but composite missing (post-load) -> rebuild it.
+    * Always: reveal the breach and re-attach live pirates to the active map.
+    """
+    interdiction = current_interdiction(engine)
+    if interdiction is None:
+        return
+
+    if interdiction.resolved:
+        restore_original_ship_map(interdiction, engine.ship)
+        return
+
+    if not interdiction.started:
+        rng = engine.rng(f"start_interdiction:{engine.galaxy.current_system}")
+        start_interdiction(interdiction, engine.ship, rng)
+        if interdiction.started:
+            heading = _direction_name(interdiction.attach_direction)
+            engine.message_log.add_message(
+                f"A pirate boarding craft has clamped onto the {heading} airlock!",
+                (255, 200, 100),
+            )
+        elif interdiction.resolved:
+            # No facing-airlock pair was available — boarding attempt failed.
+            engine.message_log.add_message(
+                "The pirate craft couldn't find a docking point and broke off.",
+                (200, 200, 200),
+            )
+            return
+    elif interdiction.composite_map is None:
+        # Started, but the composite was wiped (e.g. by a save/load cycle).
+        if not rebuild_composite(interdiction, engine.ship):
+            interdiction.resolve()
+            return
+
+    game_map = engine.ship.game_map
+    # Reveal the corridor + spawn-room tiles so the breach is visible
+    # on the map even before the player walks into FOV range.
+    for tx, ty in interdiction.connector_tiles:
+        if game_map.in_bounds(tx, ty):
+            game_map.explored[tx, ty] = True
+    if interdiction.craft_room is not None:
+        room = interdiction.craft_room
+        for tx in range(room.x1, room.x2 + 1):
+            for ty in range(room.y1, room.y2 + 1):
+                if game_map.in_bounds(tx, ty):
+                    game_map.explored[tx, ty] = True
+    # Drop dead pirates from the roster, then re-attach the live ones.
+    interdiction.pirate_entities = [p for p in interdiction.pirate_entities if p.fighter and p.fighter.hp > 0]
+    for pirate in interdiction.pirate_entities:
+        if pirate not in game_map.entities:
+            game_map.entities.append(pirate)
+    game_map.invalidate_entity_index()
+
+
+def detach_pirates(engine) -> None:
+    """Strip pirates from the active map; the roster on the Interdiction keeps the living ones."""
+    interdiction = current_interdiction(engine)
+    if interdiction is None or not interdiction.started:
+        return
+    for pirate in list(interdiction.pirate_entities):
+        if pirate in engine.game_map.entities:
+            engine.game_map.entities.remove(pirate)
+    interdiction.pirate_entities = [p for p in interdiction.pirate_entities if p.fighter and p.fighter.hp > 0]
+    engine.game_map.invalidate_entity_index()
+
+
+def resolve_if_cleared(engine) -> bool:
+    """Resolve the interdiction once every pirate is dead. Returns True if it resolved just now.
+
+    Map restoration stays deferred to the next ship exit so the player is
+    never left standing on a tile that is about to vanish.
+    """
+    interdiction = current_interdiction(engine)
+    if interdiction is None or not interdiction.started or interdiction.resolved:
+        return False
+    if interdiction.alive_pirate_count() > 0:
+        return False
+    interdiction.resolve()
+    engine.message_log.add_message("Interdiction repelled — system clear.", (100, 255, 100))
+    return True

@@ -185,7 +185,7 @@ def test_save_mid_ship_explore_persists_pirates_and_flushes_player():
     assert engine._saved_player["hp"] == 3
     assert "picked-up" in [it.name for it in engine._saved_player["inventory"]]
 
-    # Reload: composite rebuilds via _activate_interdiction_if_any, pirates re-attach.
+    # Reload: composite rebuilds via prepare_ship_entry, pirates re-attach.
     from engine.game_state import Engine
 
     new_engine = Engine()
