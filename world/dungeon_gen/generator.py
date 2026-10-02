@@ -95,36 +95,23 @@ def generate_dungeon(
                 )
             _spawn_items(room, game_map, rng, max_items, exit_pos=exit_pos)
 
-    # 1–3 interactables in random rooms (ship rooms get themed dressing instead,
-    # but still place wall interactables for them)
-    if rooms:
-        if profile.generator == "ship":
-            # Ship rooms already have floor dressing; only place wall interactables
-            if profile.wall_interactable and len(rooms) > 1:
-                for _ in range(rng.randint(1, 3)):
-                    room = rng.choice(rooms[1:])
-                    _spawn_interactables(
-                        room,
-                        game_map,
-                        rng,
-                        count=1,
-                        hazard_chance=0.2,
-                        wall_interactable_name=profile.wall_interactable,
-                        exit_pos=exit_pos,
-                    )
-        else:
-            num_interactables = rng.randint(1, 3)
-            for _ in range(num_interactables):
-                room = rng.choice(rooms[1:]) if len(rooms) > 1 else rooms[0]
-                _spawn_interactables(
-                    room,
-                    game_map,
-                    rng,
-                    count=1,
-                    hazard_chance=0.2,
-                    wall_interactable_name=profile.wall_interactable,
-                    exit_pos=exit_pos,
-                )
+    # 1–3 interactables in random rooms. Ship rooms already have themed
+    # dressing, so ships only get these when the profile has a wall
+    # interactable and there is a room besides the entrance. The guard must
+    # stay ahead of the randint: skipping it must not consume a draw.
+    wants_interactables = profile.generator != "ship" or (profile.wall_interactable and len(rooms) > 1)
+    if rooms and wants_interactables:
+        for _ in range(rng.randint(1, 3)):
+            room = rng.choice(rooms[1:]) if len(rooms) > 1 else rooms[0]
+            _spawn_interactables(
+                room,
+                game_map,
+                rng,
+                count=1,
+                hazard_chance=0.2,
+                wall_interactable_name=profile.wall_interactable,
+                exit_pos=exit_pos,
+            )
 
     # Place airlocks before hull conversion (need wall tiles to identify hull)
     if profile.generator in ("ship", "standard"):

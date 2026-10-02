@@ -7,10 +7,34 @@ import random
 import numpy as np
 
 from world.dungeon_gen.corridors import _carve_winding_tunnel, _connect_l_corridor
-from world.dungeon_gen.rooms import RectRoom, _pick_room_spec, _required_specs
+from world.dungeon_gen.rooms import RectRoom, _pick_room_spec, _required_specs, _roll_room
 from world.dungeon_gen.windows import _place_building_windows, _place_exterior_windows
 from world.game_map import GameMap
 from world.loc_profiles import LocationProfile
+
+# Room light per room label: add_light_source keyword arguments.
+type RoomLights = dict[str, dict[str, object]]
+
+# Sparse bioluminescent / mineral glow in caverns.
+_CAVERN_LIGHTS: RoomLights = {
+    "cavern": {"radius": 5, "color": (40, 80, 60), "intensity": 0.4},
+    "shaft": {"radius": 3, "color": (60, 50, 30), "intensity": 0.3},
+}
+
+_STARBASE_LIGHTS: RoomLights = {
+    "control_room": {"radius": 5, "color": (80, 160, 255), "intensity": 0.6},
+    "trade_area": {"radius": 6, "color": (200, 190, 150), "intensity": 0.6},
+    "dock": {"radius": 5, "color": (160, 140, 100), "intensity": 0.4},
+    "cargo": {"radius": 4, "color": (160, 140, 100), "intensity": 0.3},
+}
+
+
+def _place_room_lights(game_map: GameMap, rooms: list[RectRoom], lights: RoomLights) -> None:
+    """Light the centre of every room whose label has an entry in *lights*."""
+    for room in rooms:
+        light = lights.get(room.label)
+        if light is not None:
+            game_map.add_light_source(*room.center, **light)
 
 
 def _generate_organic(
@@ -30,11 +54,7 @@ def _generate_organic(
         if len(rooms) >= profile.max_rooms:
             break
         spec = _pick_room_spec(rng, profile, label_counts)
-        rw = rng.randint(spec.min_w, spec.max_w)
-        rh = rng.randint(spec.min_h, spec.max_h)
-        rx = rng.randint(1, max(1, w - rw - 2))
-        ry = rng.randint(1, max(1, h - rh - 2))
-        room = RectRoom(rx, ry, rw, rh, label=spec.label)
+        room = _roll_room(rng, w, h, spec.min_w, spec.max_w, spec.min_h, spec.max_h, label=spec.label)
 
         if any(room.intersects(r) for r in rooms):
             continue
@@ -67,13 +87,7 @@ def _generate_organic(
         rooms.append(room)
         label_counts[spec.label] = label_counts.get(spec.label, 0) + 1
 
-    # Sparse bioluminescent / mineral glow in caverns
-    for room in rooms:
-        cx, cy = room.center
-        if room.label == "cavern":
-            game_map.add_light_source(cx, cy, radius=5, color=(40, 80, 60), intensity=0.4)
-        elif room.label == "shaft":
-            game_map.add_light_source(cx, cy, radius=3, color=(60, 50, 30), intensity=0.3)
+    _place_room_lights(game_map, rooms, _CAVERN_LIGHTS)
 
     return rooms
 
@@ -94,11 +108,7 @@ def _generate_standard(
     # Place required rooms first
     for spec in _required_specs(profile):
         for _ in range(profile.max_rooms * 3):
-            rw = rng.randint(spec.min_w, spec.max_w)
-            rh = rng.randint(spec.min_h, spec.max_h)
-            rx = rng.randint(1, max(1, w - rw - 2))
-            ry = rng.randint(1, max(1, h - rh - 2))
-            room = RectRoom(rx, ry, rw, rh, label=spec.label)
+            room = _roll_room(rng, w, h, spec.min_w, spec.max_w, spec.min_h, spec.max_h, label=spec.label)
             if not any(room.intersects(r) for r in rooms):
                 game_map.tiles[room.inner] = floor_tile
                 if rooms:
@@ -114,11 +124,7 @@ def _generate_standard(
         if len(rooms) >= profile.max_rooms:
             break
         spec = _pick_room_spec(rng, profile, label_counts)
-        rw = rng.randint(spec.min_w, spec.max_w)
-        rh = rng.randint(spec.min_h, spec.max_h)
-        rx = rng.randint(1, max(1, w - rw - 2))
-        ry = rng.randint(1, max(1, h - rh - 2))
-        room = RectRoom(rx, ry, rw, rh, label=spec.label)
+        room = _roll_room(rng, w, h, spec.min_w, spec.max_w, spec.min_h, spec.max_h, label=spec.label)
 
         if any(room.intersects(r) for r in rooms):
             continue
@@ -148,17 +154,7 @@ def _generate_standard(
     # Place windows on walls facing the hull (uncarved wall fill)
     _place_exterior_windows(game_map, rng, wall_tile, floor_tile)
 
-    # Room lights for starbase
-    for room in rooms:
-        cx, cy = room.center
-        if room.label == "control_room":
-            game_map.add_light_source(cx, cy, radius=5, color=(80, 160, 255), intensity=0.6)
-        elif room.label == "trade_area":
-            game_map.add_light_source(cx, cy, radius=6, color=(200, 190, 150), intensity=0.6)
-        elif room.label == "dock":
-            game_map.add_light_source(cx, cy, radius=5, color=(160, 140, 100), intensity=0.4)
-        elif room.label == "cargo":
-            game_map.add_light_source(cx, cy, radius=4, color=(160, 140, 100), intensity=0.3)
+    _place_room_lights(game_map, rooms, _STARBASE_LIGHTS)
 
     return rooms
 
@@ -178,11 +174,7 @@ def _generate_fallback(
     for _ in range(max_rooms * 3):
         if len(rooms) >= max_rooms:
             break
-        rw = rng.randint(room_min, room_max)
-        rh = rng.randint(room_min, max(room_min, room_max - 2))
-        rx = rng.randint(1, max(1, w - rw - 2))
-        ry = rng.randint(1, max(1, h - rh - 2))
-        room = RectRoom(rx, ry, rw, rh)
+        room = _roll_room(rng, w, h, room_min, room_max, room_min, max(room_min, room_max - 2))
 
         if any(room.intersects(other) for other in rooms):
             continue

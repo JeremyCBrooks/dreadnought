@@ -10,6 +10,7 @@ from data.items import all_loot
 from game.entity import Entity
 from world import tile_types
 from world.dungeon_gen.rooms import RectRoom, _near_exit
+from world.dungeon_gen.spawning import _make_interactable
 from world.game_map import GameMap
 
 _ROOM_DRESSING = {
@@ -226,14 +227,4 @@ def _dress_ship_room(
         else:
             loot = rng.choice(loot_pool) if rng.random() < loot_chance else None
         occupied.add(pos)
-        game_map.entities.append(
-            Entity(
-                x=pos[0],
-                y=pos[1],
-                char=ch,
-                color=color,
-                name=name,
-                blocks_movement=False,
-                interactable={"kind": name.lower(), "hazard": hazard, "loot": loot},
-            )
-        )
+        game_map.entities.append(_make_interactable(pos[0], pos[1], ch, color, name, hazard, loot))

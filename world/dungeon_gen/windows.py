@@ -3,12 +3,51 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Iterator
 
 import numpy as np
 
 from world import tile_types
 from world.dungeon_gen.rooms import RectRoom
 from world.game_map import GameMap
+
+type Pos = tuple[int, int]
+
+
+def _hull_facing_walls(game_map: GameMap, wall_tid: int) -> Iterator[tuple[int, int, int, int]]:
+    """Yield (x, y, dx, dy) for interior wall tiles that separate floor from hull.
+
+    (dx, dy) points from the wall to its walkable inside neighbour; the tile
+    on the opposite side is more wall (uncarved hull). The map border is
+    excluded. A tile qualifying in several directions is yielded once per
+    direction, in north, south, west, east order of the inside neighbour.
+    """
+    for x in range(1, game_map.width - 1):
+        for y in range(1, game_map.height - 1):
+            if int(game_map.tiles["tile_id"][x, y]) != wall_tid:
+                continue
+            for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+                inside = (x + dx, y + dy)
+                outside = (x - dx, y - dy)
+                if not game_map.in_bounds(*inside) or not game_map.in_bounds(*outside):
+                    continue
+                if game_map.tiles["walkable"][inside] and int(game_map.tiles["tile_id"][outside]) == wall_tid:
+                    yield x, y, dx, dy
+
+
+def _wall_sides(room: RectRoom) -> list[list[tuple[Pos, Pos, Pos]]]:
+    """Return the room's north, south, west and east walls, corners excluded.
+
+    Each wall is a list of (wall position, outside neighbour, inside neighbour).
+    """
+    xs = range(room.x1 + 1, room.x2)
+    ys = range(room.y1 + 1, room.y2)
+    return [
+        [((x, room.y1), (x, room.y1 - 1), (x, room.y1 + 1)) for x in xs],
+        [((x, room.y2), (x, room.y2 + 1), (x, room.y2 - 1)) for x in xs],
+        [((room.x1, y), (room.x1 - 1, y), (room.x1 + 1, y)) for y in ys],
+        [((room.x2, y), (room.x2 + 1, y), (room.x2 - 1, y)) for y in ys],
+    ]
 
 
 def _place_exterior_windows(
@@ -24,35 +63,13 @@ def _place_exterior_windows(
     Candidates are grouped into contiguous segments by orientation, then
     windows are placed with context-aware sizing.
     """
-    w, h = game_map.width, game_map.height
     wall_tid = int(wall_tile["tile_id"])
-
-    # Direction pairs: (dx, dy) for the inside (floor) side;
-    # opposite direction is the outside (hull) side.
-    directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
     # Collect candidates: map (x,y) -> (inside_dx, inside_dy)
     # If a tile qualifies in multiple directions, keep only the first.
     candidates: dict[tuple[int, int], tuple[int, int]] = {}
-
-    for x in range(1, w - 1):
-        for y in range(1, h - 1):
-            if int(game_map.tiles["tile_id"][x, y]) != wall_tid:
-                continue
-            for dx, dy in directions:
-                inside_x, inside_y = x + dx, y + dy
-                outside_x, outside_y = x - dx, y - dy
-                if not game_map.in_bounds(inside_x, inside_y):
-                    continue
-                if not game_map.in_bounds(outside_x, outside_y):
-                    continue
-                if not game_map.tiles["walkable"][inside_x, inside_y]:
-                    continue
-                if int(game_map.tiles["tile_id"][outside_x, outside_y]) != wall_tid:
-                    continue
-                if (x, y) not in candidates:
-                    candidates[(x, y)] = (dx, dy)
-                break
+    for x, y, dx, dy in _hull_facing_walls(game_map, wall_tid):
+        candidates.setdefault((x, y), (dx, dy))
 
     # Group candidates by (orientation, row/col) so _split_into_segments
     # receives positions that share one axis, sorted along the other.
@@ -111,60 +128,37 @@ def _place_ship_exterior_windows(
     (north/south) walls. Other rooms get small portholes (1-2 max) on any
     hull-facing wall.
     """
-    w, h = game_map.width, game_map.height
     wall_tid = int(wall_tile["tile_id"])
-
-    # Direction pairs: (dx, dy) for the inside (floor) side
-    directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
     # Collect hull-facing candidates with their room association
     # candidate -> (inside_direction, room)
+    # A tile that qualifies in several directions keeps the first accepted one.
     candidates: dict[tuple[int, int], tuple[tuple[int, int], RectRoom]] = {}
 
-    for x in range(1, w - 1):
-        for y in range(1, h - 1):
-            if int(game_map.tiles["tile_id"][x, y]) != wall_tid:
-                continue
-            for dx, dy in directions:
-                inside_x, inside_y = x + dx, y + dy
-                outside_x, outside_y = x - dx, y - dy
-                if not game_map.in_bounds(inside_x, inside_y):
-                    continue
-                if not game_map.in_bounds(outside_x, outside_y):
-                    continue
-                if not game_map.tiles["walkable"][inside_x, inside_y]:
-                    continue
-                if int(game_map.tiles["tile_id"][outside_x, outside_y]) != wall_tid:
-                    continue
+    for x, y, dx, dy in _hull_facing_walls(game_map, wall_tid):
+        if (x, y) in candidates:
+            continue
 
-                # Find which room this wall belongs to
-                room = None
-                for r in rooms:
-                    if r.x1 <= x <= r.x2 and r.y1 <= y <= r.y2:
-                        room = r
-                        break
-                if room is None:
-                    continue
+        # Find which room this wall belongs to
+        room = next((r for r in rooms if r.x1 <= x <= r.x2 and r.y1 <= y <= r.y2), None)
+        if room is None:
+            continue
 
-                # Filter by room type and direction
-                # dx, dy is direction from wall to inside (floor side)
-                # So the wall faces *away* from inside, i.e. toward (-dx, -dy)
-                # Wall facing west (forward): outside is to the west, inside east
-                #   -> dx=1, dy=0 (inside is east of wall)
-                # Wall facing north: outside north, inside south -> dx=0, dy=1
-                # Wall facing south: outside south, inside north -> dx=0, dy=-1
-                # Wall facing east (aft): outside east, inside west -> dx=-1, dy=0
-                if room.label == "bridge":
-                    # Bridge: allow west (forward), north, south — no aft (east)
-                    # Aft-facing wall: inside is west (dx=-1), so block dx=-1
-                    if dx == -1 and dy == 0:
-                        continue  # skip aft-facing bridge windows
-                else:
-                    pass  # other rooms: allow all hull-facing directions
+        # Filter by room type and direction
+        # dx, dy is direction from wall to inside (floor side)
+        # So the wall faces *away* from inside, i.e. toward (-dx, -dy)
+        # Wall facing west (forward): outside is to the west, inside east
+        #   -> dx=1, dy=0 (inside is east of wall)
+        # Wall facing north: outside north, inside south -> dx=0, dy=1
+        # Wall facing south: outside south, inside north -> dx=0, dy=-1
+        # Wall facing east (aft): outside east, inside west -> dx=-1, dy=0
+        # Bridge: allow west (forward), north, south — no aft (east).
+        # Aft-facing wall: inside is west (dx=-1), so block dx=-1.
+        # Other rooms allow all hull-facing directions.
+        if room.label == "bridge" and (dx, dy) == (-1, 0):
+            continue  # skip aft-facing bridge windows
 
-                if (x, y) not in candidates:
-                    candidates[(x, y)] = ((dx, dy), room)
-                break
+        candidates[(x, y)] = ((dx, dy), room)
 
     # Group candidates by (room, orientation) for segment building
     grouped: dict[tuple[str, tuple[int, int]], list[tuple[int, int]]] = {}
@@ -227,50 +221,15 @@ def _place_building_windows(
         outside_tid = int(tile_types.ground["tile_id"])
 
     # Collect candidate positions per side, grouped by wing & direction
-    # Each candidate: (x, y)
-    # Directions: outside_dx/dy tells which way is outside
-    sides: list[list[tuple[int, int]]] = []
-
-    for wing in wing_rects:
-        # North wall: y=wing.y1, x in (x1+1 .. x2-1), outside = y-1
-        north = []
-        for x in range(wing.x1 + 1, wing.x2):
-            pos = (x, wing.y1)
-            outside = (x, wing.y1 - 1)
-            inside = (x, wing.y1 + 1)
-            if _is_window_candidate(game_map, pos, outside, inside, wall_tid, outside_tid):
-                north.append(pos)
-        sides.append(north)
-
-        # South wall: y=wing.y2, outside = y+1
-        south = []
-        for x in range(wing.x1 + 1, wing.x2):
-            pos = (x, wing.y2)
-            outside = (x, wing.y2 + 1)
-            inside = (x, wing.y2 - 1)
-            if _is_window_candidate(game_map, pos, outside, inside, wall_tid, outside_tid):
-                south.append(pos)
-        sides.append(south)
-
-        # West wall: x=wing.x1, outside = x-1
-        west = []
-        for y in range(wing.y1 + 1, wing.y2):
-            pos = (wing.x1, y)
-            outside = (wing.x1 - 1, y)
-            inside = (wing.x1 + 1, y)
-            if _is_window_candidate(game_map, pos, outside, inside, wall_tid, outside_tid):
-                west.append(pos)
-        sides.append(west)
-
-        # East wall: x=wing.x2, outside = x+1
-        east = []
-        for y in range(wing.y1 + 1, wing.y2):
-            pos = (wing.x2, y)
-            outside = (wing.x2 + 1, y)
-            inside = (wing.x2 - 1, y)
-            if _is_window_candidate(game_map, pos, outside, inside, wall_tid, outside_tid):
-                east.append(pos)
-        sides.append(east)
+    sides: list[list[tuple[int, int]]] = [
+        [
+            pos
+            for pos, outside, inside in side
+            if _is_window_candidate(game_map, pos, outside, inside, wall_tid, outside_tid)
+        ]
+        for wing in wing_rects
+        for side in _wall_sides(wing)
+    ]
 
     # For each side, split candidates into contiguous segments and place windows
     for candidates in sides:

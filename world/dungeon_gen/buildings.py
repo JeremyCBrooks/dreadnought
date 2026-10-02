@@ -26,61 +26,33 @@ def _carve_room_interior(
                 game_map.tiles[bx, by] = floor_tile
 
 
-def _find_door_position_v(
+def _find_door_position(
     game_map: GameMap,
     rng: random.Random,
-    split_x: int,
-    y1: int,
-    y2: int,
+    split: int,
+    lo_edge: int,
+    hi_edge: int,
+    *,
+    vertical: bool,
 ) -> int | None:
-    """Find a y-position for a door through a vertical partition at split_x.
+    """Find where to cut a door through a partition wall.
 
-    Prefers positions where both adjacent tiles (split_x-1, split_x+1) are
-    already walkable, producing a clean 1-tile doorway.  Falls back to any
-    valid position if none are ideal.
+    A *vertical* partition runs along x == split and the result is a y
+    between the edges; a horizontal one runs along y == split and the result
+    is an x. Prefers positions where the tiles on both sides of the partition
+    are already walkable, producing a clean 1-tile doorway. Falls back to any
+    position in range if none are ideal, and returns None if the span is too
+    short for a door.
     """
-    lo, hi = y1 + 2, y2 - 2
+    lo, hi = lo_edge + 2, hi_edge - 2
     if lo > hi:
         return None
-    good = [
-        y
-        for y in range(lo, hi + 1)
-        if (
-            game_map.in_bounds(split_x - 1, y)
-            and game_map.tiles["walkable"][split_x - 1, y]
-            and game_map.in_bounds(split_x + 1, y)
-            and game_map.tiles["walkable"][split_x + 1, y]
-        )
-    ]
-    if good:
-        return rng.choice(good)
-    return rng.randint(lo, hi)
 
+    def open_on_both_sides(pos: int) -> bool:
+        sides = ((split - 1, pos), (split + 1, pos)) if vertical else ((pos, split - 1), (pos, split + 1))
+        return all(game_map.in_bounds(x, y) and game_map.tiles["walkable"][x, y] for x, y in sides)
 
-def _find_door_position_h(
-    game_map: GameMap,
-    rng: random.Random,
-    split_y: int,
-    x1: int,
-    x2: int,
-) -> int | None:
-    """Find an x-position for a door through a horizontal partition at split_y.
-
-    Same logic as the vertical variant but for a horizontal wall.
-    """
-    lo, hi = x1 + 2, x2 - 2
-    if lo > hi:
-        return None
-    good = [
-        x
-        for x in range(lo, hi + 1)
-        if (
-            game_map.in_bounds(x, split_y - 1)
-            and game_map.tiles["walkable"][x, split_y - 1]
-            and game_map.in_bounds(x, split_y + 1)
-            and game_map.tiles["walkable"][x, split_y + 1]
-        )
-    ]
+    good = [pos for pos in range(lo, hi + 1) if open_on_both_sides(pos)]
     if good:
         return rng.choice(good)
     return rng.randint(lo, hi)
@@ -188,7 +160,7 @@ def _subdivide_building(
         )
 
         # Carve a 1-tile doorway, preferring positions with floor on both sides
-        door_y = _find_door_position_v(game_map, rng, split_x, y1, y2)
+        door_y = _find_door_position(game_map, rng, split_x, y1, y2, vertical=True)
         if door_y is not None:
             game_map.tiles[split_x, door_y] = floor_tile
             # Only force-clear a side if it's still walled (perpendicular partition)
@@ -260,7 +232,7 @@ def _subdivide_building(
             label,
         )
 
-        door_x = _find_door_position_h(game_map, rng, split_y, x1, x2)
+        door_x = _find_door_position(game_map, rng, split_y, x1, x2, vertical=False)
         if door_x is not None:
             game_map.tiles[door_x, split_y] = floor_tile
             # Never breach the building's outer boundary walls

@@ -48,6 +48,27 @@ class RectRoom:
         return self.x1 <= other.x2 and self.x2 >= other.x1 and self.y1 <= other.y2 and self.y2 >= other.y1
 
 
+def _roll_room(
+    rng: random.Random,
+    map_w: int,
+    map_h: int,
+    min_w: int,
+    max_w: int,
+    min_h: int,
+    max_h: int,
+    label: str = "",
+) -> RectRoom:
+    """Roll a random room on a map of the given size.
+
+    Draw order (width, height, x, y) is part of the seed contract; do not reorder.
+    """
+    rw = rng.randint(min_w, max_w)
+    rh = rng.randint(min_h, max_h)
+    rx = rng.randint(1, max(1, map_w - rw - 2))
+    ry = rng.randint(1, max(1, map_h - rh - 2))
+    return RectRoom(rx, ry, rw, rh, label=label)
+
+
 def _resolve_tile(name: str) -> np.ndarray:
     """Look up a tile by attribute name on tile_types."""
     return getattr(tile_types, name)

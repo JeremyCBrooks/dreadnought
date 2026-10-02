@@ -18,6 +18,48 @@ MAX_ENEMIES_PER_ROOM = 3
 MAX_ENEMIES_PER_LEVEL = 12
 
 
+def _can_spawn_at(
+    game_map: GameMap,
+    x: int,
+    y: int,
+    exit_pos: tuple[int, int] | None,
+    *,
+    allow_non_blocking: bool = False,
+) -> bool:
+    """Return True if something may be spawned on (x, y).
+
+    The tile must be walkable floor away from the exit with nothing blocking
+    it. Items and furnishings also need the tile clear of other non-blocking
+    entities; enemies (``allow_non_blocking``) may stand on those.
+    """
+    if not game_map.in_bounds(x, y) or not game_map.tiles["walkable"][x, y]:
+        return False
+    if _near_exit(x, y, exit_pos) or game_map.get_blocking_entity(x, y):
+        return False
+    return allow_non_blocking or not game_map.get_non_blocking_entity_at(x, y)
+
+
+def _make_interactable(
+    x: int,
+    y: int,
+    char: str,
+    color: tuple[int, int, int],
+    name: str,
+    hazard: dict | None,
+    loot: dict | None,
+) -> Entity:
+    """Build a searchable furnishing (locker, console, crate) with an optional hazard and loot."""
+    return Entity(
+        x=x,
+        y=y,
+        char=char,
+        color=color,
+        name=name,
+        blocks_movement=False,
+        interactable={"kind": name.lower(), "hazard": hazard, "loot": loot},
+    )
+
+
 def _spawn_enemies(
     room: RectRoom,
     game_map: GameMap,
@@ -32,11 +74,7 @@ def _spawn_enemies(
     spawned = 0
     for _ in range(rng.randint(0, capped)):
         x, y = _random_room_pos(room, rng)
-        if not game_map.in_bounds(x, y) or not game_map.tiles["walkable"][x, y]:
-            continue
-        if game_map.get_blocking_entity(x, y):
-            continue
-        if _near_exit(x, y, exit_pos):
+        if not _can_spawn_at(game_map, x, y, exit_pos, allow_non_blocking=True):
             continue
         defn = rng.choice(ENEMIES)
         ai_config = defn.to_ai_config()
@@ -73,11 +111,7 @@ def _spawn_items(
 ) -> None:
     for _ in range(rng.randint(0, max_items)):
         x, y = _random_room_pos(room, rng)
-        if not game_map.in_bounds(x, y) or not game_map.tiles["walkable"][x, y]:
-            continue
-        if _near_exit(x, y, exit_pos):
-            continue
-        if game_map.get_blocking_entity(x, y) or game_map.get_non_blocking_entity_at(x, y):
+        if not _can_spawn_at(game_map, x, y, exit_pos):
             continue
         defn = rng.choice(ITEMS)
         game_map.entities.append(
@@ -128,25 +162,11 @@ def _spawn_interactables(
             x, y = rng.choice(candidates)
         else:
             x, y = _random_room_pos(room, rng)
-            if not game_map.in_bounds(x, y) or not game_map.tiles["walkable"][x, y]:
-                continue
-            if game_map.get_blocking_entity(x, y) or game_map.get_non_blocking_entity_at(x, y):
-                continue
-            if _near_exit(x, y, exit_pos):
+            if not _can_spawn_at(game_map, x, y, exit_pos):
                 continue
 
         hazard = None
         if rng.random() < hazard_chance:
             hazard = asdict(rng.choice(HAZARDS))
         loot = rng.choice(loot_pool) if rng.random() < 0.6 else None
-        game_map.entities.append(
-            Entity(
-                x=x,
-                y=y,
-                char=ch,
-                color=color,
-                name=name,
-                blocks_movement=False,
-                interactable={"kind": name.lower(), "hazard": hazard, "loot": loot},
-            )
-        )
+        game_map.entities.append(_make_interactable(x, y, ch, color, name, hazard, loot))

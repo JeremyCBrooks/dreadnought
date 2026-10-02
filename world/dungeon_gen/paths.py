@@ -9,21 +9,24 @@ from world import tile_types
 from world.game_map import GameMap
 
 
+def _has_cardinal_wall(game_map: GameMap, x: int, y: int, wall_tid: int) -> bool:
+    """Return True if any in-bounds orthogonal neighbour of (x, y) is a *wall_tid* tile."""
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        nx, ny = x + dx, y + dy
+        if game_map.in_bounds(nx, ny) and int(game_map.tiles["tile_id"][nx, ny]) == wall_tid:
+            return True
+    return False
+
+
 def _wall_adjacent_set(game_map: GameMap, ground_tid: int) -> set:
     """Return set of ground tiles with at least one cardinal wall neighbor."""
-    w, h = game_map.width, game_map.height
     wall_tid = int(tile_types.structure_wall["tile_id"])
-    result: set = set()
-    for x in range(w):
-        for y in range(h):
-            if int(game_map.tiles["tile_id"][x, y]) != ground_tid:
-                continue
-            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                nx, ny = x + dx, y + dy
-                if 0 <= nx < w and 0 <= ny < h and int(game_map.tiles["tile_id"][nx, ny]) == wall_tid:
-                    result.add((x, y))
-                    break
-    return result
+    return {
+        (x, y)
+        for x in range(game_map.width)
+        for y in range(game_map.height)
+        if int(game_map.tiles["tile_id"][x, y]) == ground_tid and _has_cardinal_wall(game_map, x, y, wall_tid)
+    }
 
 
 def _bfs_path(
@@ -121,20 +124,12 @@ def _meander(
     w, h = game_map.width, game_map.height
     wall_tid = int(tile_types.structure_wall["tile_id"])
 
-    def _is_wall_adjacent(x: int, y: int) -> bool:
-        for ddx, ddy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            nx, ny = x + ddx, y + ddy
-            if 0 <= nx < w and 0 <= ny < h:
-                if int(game_map.tiles["tile_id"][nx, ny]) == wall_tid:
-                    return True
-        return False
-
     def _is_valid_offset(x: int, y: int) -> bool:
         if not (0 < x < w - 1 and 0 < y < h - 1):
             return False
         if int(game_map.tiles["tile_id"][x, y]) != ground_tid:
             return False
-        if _is_wall_adjacent(x, y):
+        if _has_cardinal_wall(game_map, x, y, wall_tid):
             return False
         return True
 
