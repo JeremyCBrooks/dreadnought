@@ -5,24 +5,19 @@ import random
 import numpy as np
 
 from world import tile_types
-from world.dungeon_gen import (
-    _ROOM_DRESSING,
-    RectRoom,
-    _bfs_path,
-    _carve_external_door,
+from world.dungeon_gen import RectRoom, generate_dungeon
+from world.dungeon_gen.buildings import _carve_external_door, _subdivide_building
+from world.dungeon_gen.paths import _bfs_path, _meander
+from world.dungeon_gen.rooms import _room_wall_positions
+from world.dungeon_gen.ship_dressing import _ROOM_DRESSING
+from world.dungeon_gen.ship_layout import (
     _carve_spine,
     _connect_room_to_spine,
-    _in_dock_octagon,
     _load_hull_profile,
-    _meander,
-    _on_dock_perimeter,
     _place_rooms_in_hull,
-    _place_ship_dock,
     _rasterize_hull,
-    _room_wall_positions,
-    _subdivide_building,
-    generate_dungeon,
 )
+from world.dungeon_gen.village import _in_dock_octagon, _on_dock_perimeter, _place_ship_dock
 from world.game_map import GameMap
 
 
@@ -1988,7 +1983,7 @@ def test_generate_dungeon_no_crash_on_tiny_map():
 
 
 def test_fallback_generator_small_map():
-    from world.dungeon_gen import _generate_fallback
+    from world.dungeon_gen.basic_layouts import _generate_fallback
 
     gm = GameMap(8, 8)
     rng = random.Random(42)

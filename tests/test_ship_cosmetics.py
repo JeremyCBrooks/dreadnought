@@ -28,7 +28,7 @@ def _make_ship_map(w=30, h=20, breach_count=1):
 class TestHullPatina:
     def test_modifies_wall_colors(self):
         """Hull patina should create color variation among wall tiles."""
-        from world.dungeon_gen import _apply_hull_patina
+        from world.dungeon_gen.cosmetics import _apply_hull_patina
 
         gm = _make_ship_map()
         wall_tid = int(tile_types.wall["tile_id"])
@@ -44,7 +44,7 @@ class TestHullPatina:
 
     def test_variation_is_smooth(self):
         """Adjacent wall tiles should have similar (not wildly different) colors."""
-        from world.dungeon_gen import _apply_hull_patina
+        from world.dungeon_gen.cosmetics import _apply_hull_patina
 
         gm = GameMap(40, 30)  # All walls
         rng = random.Random(42)
@@ -68,7 +68,7 @@ class TestHullPatina:
 
     def test_does_not_modify_non_wall_tiles(self):
         """Patina should only affect wall tiles."""
-        from world.dungeon_gen import _apply_hull_patina
+        from world.dungeon_gen.cosmetics import _apply_hull_patina
 
         gm = _make_ship_map()
         rng = random.Random(42)
@@ -83,7 +83,7 @@ class TestHullPatina:
 
     def test_damage_level_scales_intensity(self):
         """Higher damage_level should produce greater color spread."""
-        from world.dungeon_gen import _apply_hull_patina
+        from world.dungeon_gen.cosmetics import _apply_hull_patina
 
         spreads = {}
         for level in (0.0, 0.5, 1.0):
@@ -99,7 +99,7 @@ class TestHullPatina:
 class TestDebrisScatter:
     def test_places_debris_on_floors(self):
         """Some floor tiles should get debris chars."""
-        from world.dungeon_gen import _scatter_floor_debris
+        from world.dungeon_gen.cosmetics import _scatter_floor_debris
 
         gm = _make_ship_map()
         rng = random.Random(42)
@@ -115,7 +115,7 @@ class TestDebrisScatter:
 
     def test_no_debris_at_zero_damage(self):
         """damage_level=0 should place no debris."""
-        from world.dungeon_gen import _scatter_floor_debris
+        from world.dungeon_gen.cosmetics import _scatter_floor_debris
 
         gm = _make_ship_map()
         rng = random.Random(42)
@@ -129,7 +129,7 @@ class TestDebrisScatter:
 
     def test_does_not_change_walkability(self):
         """Debris tiles must remain walkable and transparent."""
-        from world.dungeon_gen import _scatter_floor_debris
+        from world.dungeon_gen.cosmetics import _scatter_floor_debris
 
         gm = _make_ship_map()
         rng = random.Random(42)
@@ -143,7 +143,7 @@ class TestDebrisScatter:
 
     def test_does_not_touch_walls(self):
         """Debris scatter should not modify wall tiles."""
-        from world.dungeon_gen import _scatter_floor_debris
+        from world.dungeon_gen.cosmetics import _scatter_floor_debris
 
         gm = _make_ship_map()
         rng = random.Random(42)
@@ -159,7 +159,7 @@ class TestDebrisScatter:
 class TestScorchMarks:
     def test_darkens_tiles_near_breaches(self):
         """Floor tiles near hull breaches should be darkened."""
-        from world.dungeon_gen import _place_scorch_marks
+        from world.dungeon_gen.cosmetics import _place_scorch_marks
 
         gm = _make_ship_map()
         rng = random.Random(42)
@@ -173,7 +173,7 @@ class TestScorchMarks:
 
     def test_also_scorches_wall_tiles(self):
         """Scorch marks should affect wall tiles near breaches too."""
-        from world.dungeon_gen import _place_scorch_marks
+        from world.dungeon_gen.cosmetics import _place_scorch_marks
 
         gm = _make_ship_map()
         rng = random.Random(42)
@@ -190,7 +190,7 @@ class TestScorchMarks:
 class TestBloodstains:
     def test_places_stains_near_enemies(self):
         """Some floor tiles near enemies should get reddish tints."""
-        from world.dungeon_gen import _place_bloodstains
+        from world.dungeon_gen.cosmetics import _place_bloodstains
 
         gm = _make_ship_map()
         rng = random.Random(42)
@@ -227,7 +227,7 @@ class TestBloodstains:
 
     def test_no_stains_at_zero_damage(self):
         """damage_level=0 should place no bloodstains."""
-        from world.dungeon_gen import _place_bloodstains
+        from world.dungeon_gen.cosmetics import _place_bloodstains
 
         gm = _make_ship_map()
         rng = random.Random(42)
@@ -256,7 +256,7 @@ class TestBloodstains:
 class TestDamageLevelScaling:
     def test_no_breaches_means_clean(self):
         """A map with no breaches should have damage_level=0 (no debris)."""
-        from world.dungeon_gen import _apply_ship_cosmetics
+        from world.dungeon_gen.cosmetics import _apply_ship_cosmetics
 
         gm = _make_ship_map(breach_count=0)
         rng = random.Random(42)
@@ -273,7 +273,7 @@ class TestDamageLevelScaling:
 
     def test_more_breaches_means_more_debris(self):
         """More hull breaches should produce more debris tiles."""
-        from world.dungeon_gen import _scatter_floor_debris
+        from world.dungeon_gen.cosmetics import _scatter_floor_debris
 
         floor_tid = int(tile_types.floor["tile_id"])
         counts = {}

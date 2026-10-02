@@ -1,0 +1,208 @@
+"""Public entry points: generate_dungeon, generate_player_ship, respawn_creatures."""
+
+from __future__ import annotations
+
+import random
+
+from world import tile_types
+from world.dungeon_gen.basic_layouts import _generate_fallback, _generate_organic, _generate_standard
+from world.dungeon_gen.cosmetics import _apply_ship_cosmetics
+from world.dungeon_gen.doors import _place_doors
+from world.dungeon_gen.hull import (
+    _convert_hull_to_space,
+    _enforce_airlock_walls,
+    _place_airlocks,
+    _place_asteroid_breaches,
+    _place_hull_breaches,
+)
+from world.dungeon_gen.rooms import RectRoom, _resolve_tile
+from world.dungeon_gen.ship_layout import _generate_ship
+from world.dungeon_gen.spawning import MAX_ENEMIES_PER_LEVEL, _spawn_enemies, _spawn_interactables, _spawn_items
+from world.dungeon_gen.village import _generate_village
+from world.game_map import GameMap
+from world.loc_profiles import get_profile
+
+_GENERATORS = {
+    "ship": _generate_ship,
+    "organic": _generate_organic,
+    "standard": _generate_standard,
+    "village": _generate_village,
+}
+
+
+def generate_dungeon(
+    width: int = 80,
+    height: int = 45,
+    max_rooms: int = 12,
+    room_min: int = 4,
+    room_max: int = 10,
+    seed: int | None = None,
+    max_enemies: int = 2,
+    max_items: int = 1,
+    loc_type: str = "derelict",
+    max_total_enemies: int = MAX_ENEMIES_PER_LEVEL,
+    has_nav_unit: bool = False,
+    player_ship: bool = False,
+) -> tuple[GameMap, list[RectRoom], tuple[int, int] | None]:
+    """Returns (game_map, rooms, exit_pos)."""
+    rng = random.Random(seed)
+    profile = get_profile(loc_type)
+    wall_tile = _resolve_tile(profile.wall_tile)
+    floor_tile = _resolve_tile(profile.floor_tile)
+
+    game_map = GameMap(width, height, fill_tile=wall_tile)
+    game_map.fully_lit = profile.fully_lit
+    game_map.fov_radius = profile.fov_radius
+    from debug import VISIBLE_ALL
+
+    game_map.debug_visible_all = VISIBLE_ALL
+    gen_fn = _GENERATORS.get(profile.generator)
+    if gen_fn:
+        rooms = gen_fn(game_map, rng, profile, wall_tile, floor_tile, has_nav_unit=has_nav_unit)
+    else:
+        rooms = _generate_fallback(
+            game_map,
+            rng,
+            max_rooms,
+            room_min,
+            room_max,
+            floor_tile,
+        )
+
+    # Place doors at room entrances (skip organic/cave layouts)
+    if rooms and profile.generator != "organic":
+        _place_doors(game_map, rng, floor_tile, rooms)
+
+    # Exit hatch at entrance so the player can always leave from where they entered.
+    exit_pos: tuple[int, int] | None = None
+    if rooms:
+        exit_pos = rooms[0].center
+        if game_map.in_bounds(exit_pos[0], exit_pos[1]):
+            game_map.tiles[exit_pos[0], exit_pos[1]] = tile_types.exit_tile
+
+    if not player_ship:
+        total_spawned = 0
+        for room in rooms[1:]:
+            remaining = max_total_enemies - total_spawned
+            if remaining > 0:
+                total_spawned += _spawn_enemies(
+                    room,
+                    game_map,
+                    rng,
+                    max_enemies,
+                    exit_pos=exit_pos,
+                    remaining=remaining,
+                )
+            _spawn_items(room, game_map, rng, max_items, exit_pos=exit_pos)
+
+    # 1–3 interactables in random rooms (ship rooms get themed dressing instead,
+    # but still place wall interactables for them)
+    if rooms:
+        if profile.generator == "ship":
+            # Ship rooms already have floor dressing; only place wall interactables
+            if profile.wall_interactable and len(rooms) > 1:
+                for _ in range(rng.randint(1, 3)):
+                    room = rng.choice(rooms[1:])
+                    _spawn_interactables(
+                        room,
+                        game_map,
+                        rng,
+                        count=1,
+                        hazard_chance=0.2,
+                        wall_interactable_name=profile.wall_interactable,
+                        exit_pos=exit_pos,
+                    )
+        else:
+            num_interactables = rng.randint(1, 3)
+            for _ in range(num_interactables):
+                room = rng.choice(rooms[1:]) if len(rooms) > 1 else rooms[0]
+                _spawn_interactables(
+                    room,
+                    game_map,
+                    rng,
+                    count=1,
+                    hazard_chance=0.2,
+                    wall_interactable_name=profile.wall_interactable,
+                    exit_pos=exit_pos,
+                )
+
+    # Place airlocks before hull conversion (need wall tiles to identify hull)
+    if profile.generator in ("ship", "standard"):
+        _place_airlocks(game_map, rng, rooms, wall_tile, floor_tile)
+
+    # Convert outer hull walls to space tiles for ship/starbase maps
+    if profile.generator in ("ship", "standard"):
+        _convert_hull_to_space(game_map, wall_tile)
+        game_map.has_space = True
+        # Ensure space beyond airlock exterior doors
+        for al in game_map.airlocks:
+            ex, ey = al["exterior_door"]
+            dx, dy = al["direction"]
+            bx, by = ex + dx, ey + dy
+            if game_map.in_bounds(bx, by):
+                game_map.tiles[bx, by] = tile_types.space
+        # Re-enforce walls around airlock corridors (hull cleanup may
+        # have converted them to space, creating diagonal gaps).
+        _enforce_airlock_walls(game_map, wall_tile)
+        # Hull breaches — starbases only have a 20% chance; player ship never has breaches
+        if not player_ship and (profile.loc_type != "starbase" or rng.random() < 0.2):
+            _place_hull_breaches(game_map, rng, wall_tile)
+
+    # Hull breaches for asteroid/organic maps
+    if profile.generator == "organic":
+        _place_asteroid_breaches(game_map, rng)
+
+    # Cosmetic variation for ship and starbase maps
+    if profile.generator in ("ship", "standard"):
+        _apply_ship_cosmetics(game_map, rng, wall_tile, floor_tile)
+
+    if player_ship:
+        # Strip any loot items placed by room dressing (loot_chance dressing paths)
+        game_map.entities = [e for e in game_map.entities if e.item is None]
+
+    game_map.invalidate_hazards()
+    return game_map, rooms, exit_pos
+
+
+def generate_player_ship(
+    seed: int,
+    width: int = 80,
+    height: int = 45,
+) -> tuple[GameMap, list[RectRoom], tuple[int, int] | None]:
+    """Generate the player's ship interior once at world creation.
+
+    No enemies, no free-standing item pickups, no hull breaches. Interactable
+    furnishings (lockers, consoles) are preserved. The reactor core tile is
+    present in the engine_room — it is the ship's own power core and
+    TacticalState blocks extracting it in explore_ship mode.
+    """
+    return generate_dungeon(
+        width=width,
+        height=height,
+        max_enemies=0,
+        max_items=0,
+        seed=seed,
+        # derelict profile uses the "ship" generator — correct layout for a vessel
+        loc_type="derelict",
+        player_ship=True,
+    )
+
+
+def respawn_creatures(
+    game_map: GameMap,
+    rooms: list[RectRoom],
+    max_enemies: int = 2,
+    seed: int | None = None,
+    max_total_enemies: int = MAX_ENEMIES_PER_LEVEL,
+) -> None:
+    """Remove all entities with AI (creatures) and spawn new ones in rooms[1:].
+    Does not touch items or the map. Uses seed for deterministic placement if given.
+    """
+    game_map.entities[:] = [e for e in game_map.entities if not e.ai]
+    rng = random.Random(seed)
+    total_spawned = 0
+    for room in rooms[1:]:
+        remaining = max_total_enemies - total_spawned
+        if remaining <= 0:
+            break
+        total_spawned += _spawn_enemies(room, game_map, rng, max_enemies, remaining=remaining)

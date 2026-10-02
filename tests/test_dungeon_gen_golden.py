@@ -34,7 +34,8 @@ if __name__ == "__main__":  # allow running as a script from the project root
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from world import tile_types
-from world.dungeon_gen import _generate_fallback, generate_dungeon, generate_player_ship, respawn_creatures
+from world.dungeon_gen import generate_dungeon, generate_player_ship, respawn_creatures
+from world.dungeon_gen.basic_layouts import _generate_fallback
 from world.game_map import GameMap
 
 DIGEST_FILE = Path(__file__).with_name("dungeon_gen_golden.json")

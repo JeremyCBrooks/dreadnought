@@ -135,7 +135,7 @@ game/
 world/
   galaxy.py                      Procedural galaxy, star systems, locations
   game_map.py                    GameMap with FOV, lighting, entity tracking
-  dungeon_gen.py                 Room-and-corridor procedural generation
+  dungeon_gen/                   Procedural map generation package (ships, asteroids, starbases, colonies)
   tile_types.py                  Tile definitions, flavor text, and describe_tile
   lighting.py                    Light source propagation
   loc_profiles.py                Location type templates
