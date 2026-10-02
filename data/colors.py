@@ -19,6 +19,18 @@ HEADER_SEP: Color = (60, 60, 80)
 HEADER_TEXT: Color = (180, 180, 200)
 HEADER_TITLE: Color = (255, 255, 200)
 
+# Helm console (strategic view): frame, instruments and key hints
+CONSOLE_FRAME: Color = (55, 65, 90)
+CONSOLE_LABEL: Color = (120, 130, 155)
+CONSOLE_DIM: Color = (60, 65, 80)
+CONSOLE_IDLE: Color = (80, 80, 100)
+FOCUS_MARKER: Color = (100, 200, 255)
+KEYCAP_KEY: Color = (215, 225, 245)
+KEYCAP_LABEL: Color = (110, 118, 140)
+LOCATION_NAME: Color = (170, 175, 190)
+LOCATION_UNVISITED: Color = (150, 200, 225)
+LOCATION_VISITED: Color = (90, 95, 110)
+
 # HP colors
 HP_GREEN: Color = (0, 255, 0)
 HP_YELLOW: Color = (255, 255, 0)

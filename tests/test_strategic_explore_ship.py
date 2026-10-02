@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 from game.entity import Entity, Fighter
 from game.ship import Ship
-from tests.conftest import FakeEvent, MockEngine, make_arena
-from ui.strategic_state import StrategicState
+from tests.conftest import FakeEvent, MockEngine, make_arena, render_collecting, row_text
+from ui.strategic_state import StrategicState, helm_layout
 
 
 def _sym(name):
@@ -100,50 +100,17 @@ class TestExploreShipKeybinding:
 
 
 class TestExploreShipHUD:
-    def _render_collecting(self, state, engine):
-        """Render strategic state and collect all printed strings."""
-        import numpy as np
-
-        engine.CONSOLE_WIDTH = 160
-        engine.CONSOLE_HEIGHT = 50
-        printed = []
-        console = SimpleNamespace(
-            width=160,
-            height=50,
-            rgb=np.zeros((160, 50), dtype=[("ch", np.int32), ("fg", "3u1"), ("bg", "3u1")]),
-        )
-        console.print = lambda *, x, y, string, fg=(255, 255, 255): printed.append(string)
-        console.draw_rect = lambda *a, **kw: None
-        state.on_render(console, engine)
-        return printed
+    def _keys_row(self, focus):
+        galaxy = _make_galaxy()
+        state = StrategicState(galaxy)
+        state.focus = focus
+        printed = render_collecting(state, _make_engine(galaxy))
+        return row_text(printed, helm_layout(160, 50).keys_y)
 
     def test_hud_locations_focus_contains_explore_ship(self):
-        """Controls line in LOCATIONS focus should contain '[S] Explore Ship'."""
-        galaxy = _make_galaxy()
-        state = StrategicState(galaxy)
-        assert state.focus == "locations"
-        engine = _make_engine(galaxy)
-
-        printed = self._render_collecting(state, engine)
-
-        ctrl_lines = [s for s in printed if "[S]" in s or "Explore Ship" in s]
-        assert ctrl_lines, "HUD controls should contain '[S]' or 'Explore Ship'"
-        assert any("[S]" in s and "Explore Ship" in s for s in ctrl_lines), (
-            "HUD should contain '[S] Explore Ship' in locations focus"
-        )
+        """Key hints in LOCATIONS focus should offer 'S Ship'."""
+        assert "S Ship" in self._keys_row("locations")
 
     def test_hud_navigation_focus_contains_explore_ship(self):
-        """Controls line in NAVIGATION focus should contain '[S] Explore Ship'."""
-        galaxy = _make_galaxy()
-        state = StrategicState(galaxy)
-        engine = _make_engine(galaxy)
-        # Switch to navigation focus
-        state.focus = "navigation"
-
-        printed = self._render_collecting(state, engine)
-
-        ctrl_lines = [s for s in printed if "[S]" in s or "Explore Ship" in s]
-        assert ctrl_lines, "HUD controls should contain '[S]' or 'Explore Ship'"
-        assert any("[S]" in s and "Explore Ship" in s for s in ctrl_lines), (
-            "HUD should contain '[S] Explore Ship' in navigation focus"
-        )
+        """Key hints in NAVIGATION focus should offer 'S Ship'."""
+        assert "S Ship" in self._keys_row("navigation")

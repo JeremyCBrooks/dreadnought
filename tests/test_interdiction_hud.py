@@ -77,6 +77,20 @@ def test_strategic_banner_shown_when_interdicted():
     assert any("BOARDED" in s for s in strings), f"expected BOARDED banner in strategic HUD; got {strings[:30]}"
 
 
+def test_strategic_banner_sits_on_the_dash_not_over_the_starfield():
+    from ui.strategic_state import helm_layout
+
+    galaxy = _galaxy_with_interdiction(Interdiction(started=True))
+    state = StrategicState(galaxy)
+    engine = _strategic_engine(galaxy)
+    console = _capture_console_strings()
+    with patch("ui.viewport_renderer.render_viewport"):
+        state.on_render(console, engine)
+    banner = next(c.kwargs for c in console.print.call_args_list if "BOARDED" in c.kwargs.get("string", ""))
+    assert banner["y"] == helm_layout(160, 50).gauge_y
+    assert banner["x"] + len(banner["string"].rstrip()) == 160 - 2
+
+
 def test_strategic_banner_hidden_when_resolved():
     galaxy = _galaxy_with_interdiction(Interdiction(started=True, resolved=True))
     state = StrategicState(galaxy)

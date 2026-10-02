@@ -2,12 +2,14 @@
 
 from types import SimpleNamespace
 
-import numpy as np
-
+from data.star_types import STAR_TYPES
 from game.entity import Entity, Fighter
 from game.ship import Ship
-from tests.conftest import FakeEvent, MockEngine, make_arena
-from ui.strategic_state import StrategicState
+from tests.conftest import FakeEvent, MockEngine, make_arena, render_collecting, row_text
+from ui.strategic_state import StrategicState, helm_layout
+
+_LAYOUT = helm_layout(160, 50)
+_STAR_NAME = STAR_TYPES["yellow_dwarf"].name
 
 
 def _sym(name):
@@ -275,60 +277,34 @@ class TestStrategicFuel:
 
     def test_fuel_gauge_rendered(self):
         galaxy = _make_galaxy()
-        state = StrategicState(galaxy)
         engine = _make_strategic_engine(galaxy)
         engine.ship.fuel = 7
         engine.ship.max_fuel = 10
-        engine.CONSOLE_WIDTH = 160
-        engine.CONSOLE_HEIGHT = 50
-        printed = []
-        console = SimpleNamespace(
-            width=160,
-            height=50,
-            rgb=np.zeros((160, 50), dtype=[("ch", np.int32), ("fg", "3u1"), ("bg", "3u1")]),
-        )
+        printed = render_collecting(StrategicState(galaxy), engine)
+        assert "FUEL ■■■■■■■■■■  7/10" in row_text(printed, _LAYOUT.gauge_y)
+        lit = sum(s.count("■") for _, _, s, fg in printed if fg == (0, 255, 0))
+        assert lit == 7 + engine.ship.hull
 
-        def original_print(*, x, y, string, fg=(255, 255, 255)):
-            printed.append(string)
 
-        console.print = original_print
-        console.draw_rect = lambda *a, **kw: None
-        state.on_render(console, engine)
-        assert any("FUEL: 7/10" in s for s in printed)
+def _fg_of(printed, text):
+    """Colour of the span whose text (ignoring padding) is *text*."""
+    matches = [fg for _, _, s, fg in printed if s.strip() == text]
+    assert matches, f"{text!r} not rendered"
+    return matches[0]
 
 
 class TestStrategicRender:
-    def _make_console(self, w=160, h=50):
-        console = SimpleNamespace(
-            width=w,
-            height=h,
-            rgb=np.zeros((w, h), dtype=[("ch", np.int32), ("fg", "3u1"), ("bg", "3u1")]),
-        )
-        console.print = lambda *, x, y, string, fg=(255, 255, 255): None
-        console.draw_rect = lambda *a, **kw: None
-        return console
-
-    def _render_collecting(self, engine, galaxy=None):
+    def _render_collecting(self, engine, galaxy=None, focus="locations"):
         """Render and return list of (x, y, string, fg) tuples."""
         if galaxy is None:
             galaxy = _make_galaxy()
         state = StrategicState(galaxy)
-        engine.CONSOLE_WIDTH = 160
-        engine.CONSOLE_HEIGHT = 50
-        printed = []
-        console = self._make_console()
-        console.print = lambda *, x, y, string, fg=(255, 255, 255): printed.append((x, y, string, fg))
-        state.on_render(console, engine)
-        return printed
+        state.focus = focus
+        return render_collecting(state, engine)
 
     def test_on_render_smoke(self):
         galaxy = _make_galaxy()
-        state = StrategicState(galaxy)
-        engine = _make_strategic_engine(galaxy)
-        engine.CONSOLE_WIDTH = 160
-        engine.CONSOLE_HEIGHT = 50
-        console = self._make_console()
-        state.on_render(console, engine)
+        self._render_collecting(_make_strategic_engine(galaxy), galaxy)
 
     def test_fuel_color_uses_ratio_not_absolute(self):
         """Fuel at 6/200 (3%) should be red, not green."""
@@ -337,10 +313,7 @@ class TestStrategicRender:
         engine.ship.fuel = 6
         engine.ship.max_fuel = 200
         printed = self._render_collecting(engine, galaxy)
-        fuel_entries = [(x, y, s, fg) for x, y, s, fg in printed if "FUEL:" in s]
-        assert fuel_entries, "FUEL not rendered"
-        _, _, _, fg = fuel_entries[0]
-        assert fg == (255, 0, 0), f"Fuel 6/200 should be red, got {fg}"
+        assert _fg_of(printed, "6/200") == (255, 0, 0)
 
     def test_fuel_color_green_when_above_half(self):
         """Fuel at 150/200 (75%) should be green."""
@@ -349,10 +322,7 @@ class TestStrategicRender:
         engine.ship.fuel = 150
         engine.ship.max_fuel = 200
         printed = self._render_collecting(engine, galaxy)
-        fuel_entries = [(x, y, s, fg) for x, y, s, fg in printed if "FUEL:" in s]
-        assert fuel_entries, "FUEL not rendered"
-        _, _, _, fg = fuel_entries[0]
-        assert fg == (0, 255, 0), f"Fuel 150/200 should be green, got {fg}"
+        assert _fg_of(printed, "150/200") == (0, 255, 0)
 
     def test_fuel_color_yellow_when_between_30_and_50(self):
         """Fuel at 8/20 (40%) should be yellow."""
@@ -361,21 +331,15 @@ class TestStrategicRender:
         engine.ship.fuel = 8
         engine.ship.max_fuel = 20
         printed = self._render_collecting(engine, galaxy)
-        fuel_entries = [(x, y, s, fg) for x, y, s, fg in printed if "FUEL:" in s]
-        assert fuel_entries, "FUEL not rendered"
-        _, _, _, fg = fuel_entries[0]
-        assert fg == (255, 255, 0), f"Fuel 8/20 should be yellow, got {fg}"
+        assert _fg_of(printed, "8/20") == (255, 255, 0)
 
     def test_hud_renders_without_ship(self):
-        """HUD should not crash when engine.ship is None."""
+        """HUD should not crash, and shows no gauges, when engine.ship is None."""
         galaxy = _make_galaxy()
         engine = _make_strategic_engine(galaxy)
         engine.ship = None
-        engine.CONSOLE_WIDTH = 160
-        engine.CONSOLE_HEIGHT = 50
-        console = self._make_console()
-        state = StrategicState(galaxy)
-        state.on_render(console, engine)  # should not raise
+        printed = self._render_collecting(engine, galaxy)
+        assert "FUEL" not in row_text(printed, _LAYOUT.gauge_y)
 
     def test_nav_hud_locked_when_dreadnought_spawned(self):
         """NAV should show LOCKED when nav units are maxed and dreadnought exists."""
@@ -384,8 +348,7 @@ class TestStrategicRender:
         engine = _make_strategic_engine(galaxy)
         engine.ship.nav_units = engine.ship.max_nav_units
         printed = self._render_collecting(engine, galaxy)
-        nav_entries = [s for _, _, s, _ in printed if "NAV" in s]
-        assert any("LOCKED" in s for s in nav_entries)
+        assert "NAV ■■■■■■ LOCKED" in row_text(printed, _LAYOUT.gauge_y)
 
     def test_nav_hud_count_when_not_maxed(self):
         """NAV should show count when nav units are not maxed."""
@@ -393,8 +356,169 @@ class TestStrategicRender:
         engine = _make_strategic_engine(galaxy)
         engine.ship.nav_units = 3
         printed = self._render_collecting(engine, galaxy)
-        nav_entries = [s for _, _, s, _ in printed if "NAV" in s]
-        assert any("3/6" in s for s in nav_entries)
+        assert "NAV ■■■■■■ 3/6" in row_text(printed, _LAYOUT.gauge_y)
+
+    def test_gauges_sit_side_by_side_on_the_dash(self):
+        galaxy = _make_galaxy()
+        printed = self._render_collecting(_make_strategic_engine(galaxy), galaxy)
+        row = row_text(printed, _LAYOUT.gauge_y)
+        assert 0 <= row.index("FUEL") < row.index("HULL") < row.index("NAV")
+
+    def test_nothing_is_printed_over_the_starfield(self):
+        """The window is for stars: no gauge, key hint or label may land inside it."""
+        galaxy = _make_galaxy(connections={"OtherSystem": 10})
+        galaxy.systems["OtherSystem"] = SimpleNamespace(
+            name="OtherSystem", gx=1, gy=0, locations=[], connections={}, depth=1, star_type="red_dwarf"
+        )
+        printed = self._render_collecting(_make_strategic_engine(galaxy), galaxy)
+        over_stars = [(x, y, s) for x, y, s, _ in printed if y < _LAYOUT.viewport_h and x + len(s) > _LAYOUT.viewport_x]
+        assert not over_stars, f"printed over the starfield: {over_stars}"
+
+    def test_starfield_fills_the_window_above_the_sill(self):
+        from unittest.mock import patch
+
+        galaxy = _make_galaxy()
+        with patch("ui.viewport_renderer.render_viewport") as render_viewport:
+            self._render_collecting(_make_strategic_engine(galaxy), galaxy)
+        _, vp_x, vp_y, vp_w, vp_h = render_viewport.call_args.args[:5]
+        assert (vp_x, vp_y, vp_w, vp_h) == (64, 0, 96, _LAYOUT.sill_y)
+
+    def test_sill_runs_under_console_and_window(self):
+        galaxy = _make_galaxy()
+        printed = self._render_collecting(_make_strategic_engine(galaxy), galaxy)
+        sill = row_text(printed, _LAYOUT.sill_y)
+        assert sill[: _LAYOUT.strut_x] == "─" * _LAYOUT.strut_x
+        assert sill[_LAYOUT.strut_x] == "┴"
+        assert sill.endswith("──")
+
+    def test_instruments_are_set_into_the_sill_under_the_window(self):
+        galaxy = _make_galaxy()
+        printed = self._render_collecting(_make_strategic_engine(galaxy), galaxy)
+        sill = row_text(printed, _LAYOUT.sill_y)
+        assert _LAYOUT.gauge_y == _LAYOUT.sill_y
+        assert sill.index("FUEL") > _LAYOUT.strut_x
+        assert "┴── FUEL " in sill
+        assert "/10 ── HULL " in sill
+
+    def test_blank_row_separates_key_hints_from_message_log(self):
+        galaxy = _make_galaxy()
+        printed = self._render_collecting(_make_strategic_engine(galaxy), galaxy)
+        assert _LAYOUT.keys_y == _LAYOUT.sill_y + 1
+        assert _LAYOUT.log_y == _LAYOUT.keys_y + 2
+        assert not row_text(printed, _LAYOUT.keys_y + 1).strip()
+
+    def test_strut_divides_console_from_window(self):
+        galaxy = _make_galaxy()
+        printed = self._render_collecting(_make_strategic_engine(galaxy), galaxy)
+        for y in range(_LAYOUT.sill_y):
+            assert row_text(printed, y)[_LAYOUT.strut_x] == "│", f"strut missing on row {y}"
+
+    def test_key_hints_for_locations_focus(self):
+        galaxy = _make_galaxy()
+        printed = self._render_collecting(_make_strategic_engine(galaxy), galaxy)
+        keys = row_text(printed, _LAYOUT.keys_y)
+        for hint in ("C Cargo", "S Ship", "M Galaxy", "Tab Star Map", "↑↓ Select", "Enter Dock"):
+            assert hint in keys
+        assert "Navigate" not in keys
+
+    def test_key_hints_for_navigation_focus(self):
+        galaxy = _make_galaxy()
+        printed = self._render_collecting(_make_strategic_engine(galaxy), galaxy, focus="navigation")
+        keys = row_text(printed, _LAYOUT.keys_y)
+        for hint in ("C Cargo", "S Ship", "M Galaxy", "Tab Locations", "Arrows Navigate"):
+            assert hint in keys
+        assert "Dock" not in keys
+
+    def test_key_hints_have_no_brackets(self):
+        galaxy = _make_galaxy()
+        printed = self._render_collecting(_make_strategic_engine(galaxy), galaxy)
+        keys = row_text(printed, _LAYOUT.keys_y)
+        assert "[" not in keys and "]" not in keys
+
+    def test_quit_hint_stands_alone_at_the_right_edge(self):
+        galaxy = _make_galaxy()
+        printed = self._render_collecting(_make_strategic_engine(galaxy), galaxy)
+        keys = row_text(printed, _LAYOUT.keys_y)
+        assert keys.rstrip().endswith("Esc Quit")
+        assert len(keys.rstrip()) == 160 - 2
+        assert keys[: keys.index("Esc Quit")].endswith(" " * 10)
+
+    def test_focus_marker_sits_beside_the_active_section(self):
+        galaxy = _make_galaxy()
+        for focus, active, idle in (("locations", "LOCATIONS", "STAR MAP"), ("navigation", "STAR MAP", "LOCATIONS")):
+            printed = self._render_collecting(_make_strategic_engine(galaxy), galaxy, focus=focus)
+            rows = {s: y for _, y, s, _ in printed if s in (active, idle)}
+            assert row_text(printed, rows[active]).startswith("▌"), f"{active} should be marked"
+            assert not row_text(printed, rows[idle]).startswith("▌"), f"{idle} should not be marked"
+
+    def test_section_headers_drop_their_colons(self):
+        galaxy = _make_galaxy()
+        printed = self._render_collecting(_make_strategic_engine(galaxy), galaxy)
+        assert not [s for _, _, s, _ in printed if s.endswith(":")]
+
+    def test_header_rule_is_a_thin_line(self):
+        galaxy = _make_galaxy()
+        printed = self._render_collecting(_make_strategic_engine(galaxy), galaxy)
+        assert not [s for _, _, s, _ in printed if "=" in s]
+        assert row_text(printed, 2)[2:62] == "─" * 60
+
+    def test_header_names_system_and_star_type(self):
+        galaxy = _make_galaxy()
+        printed = self._render_collecting(_make_strategic_engine(galaxy), galaxy)
+        assert row_text(printed, 1)[: _LAYOUT.strut_x].strip() == f"TestSystem · {_STAR_NAME} · home"
+
+
+class TestLocationList:
+    def _galaxy(self):
+        galaxy = _make_galaxy(num_locations=0)
+        galaxy.systems["TestSystem"].locations.extend(
+            [
+                SimpleNamespace(name="South Bulwark", loc_type="colony", visited=False),
+                SimpleNamespace(name="Debris", loc_type="asteroid", visited=True),
+            ]
+        )
+        return galaxy
+
+    def _render(self, focus="locations"):
+        galaxy = self._galaxy()
+        state = StrategicState(galaxy)
+        state.focus = focus
+        printed = render_collecting(state, _make_strategic_engine(galaxy))
+        ys = sorted(y for _, y, s, _ in printed if s.strip() in ("South Bulwark", "Debris"))
+        return printed, [row_text(printed, y)[: _LAYOUT.strut_x] for y in ys]
+
+    def test_rows_read_name_type_status(self):
+        _, (first, second) = self._render()
+        assert first.split() == ["►", "South", "Bulwark", "colony", "unvisited"]
+        assert second.split() == ["Debris", "asteroid", "visited"]
+
+    def test_columns_line_up(self):
+        _, (first, second) = self._render()
+        assert first.index("South Bulwark") == second.index("Debris")
+        assert first.index("colony") == second.index("asteroid")
+        assert first.index("unvisited") == second.index("visited")
+
+    def test_unvisited_status_is_brighter_than_visited(self):
+        printed, _ = self._render()
+        assert sum(_fg_of(printed, "unvisited")) > sum(_fg_of(printed, "visited"))
+
+    def test_selected_name_is_brightest(self):
+        printed, _ = self._render()
+        assert _fg_of(printed, "South Bulwark") == (255, 255, 255)
+        assert sum(_fg_of(printed, "Debris")) < 3 * 255
+
+    def test_list_dims_when_star_map_has_focus(self):
+        printed, _ = self._render(focus="navigation")
+        assert _fg_of(printed, "South Bulwark") != (255, 255, 255)
+
+    def test_long_names_are_truncated_inside_the_console(self):
+        galaxy = self._galaxy()
+        galaxy.systems["TestSystem"].locations[0].name = "X" * 90
+        printed = render_collecting(StrategicState(galaxy), _make_strategic_engine(galaxy))
+        row_y = next(y for _, y, s, _ in printed if "XXX" in s)
+        row = row_text(printed, row_y)[: _LAYOUT.strut_x]
+        assert "XXX... " in row
+        assert row.split()[-2:] == ["colony", "unvisited"]
 
 
 def test_strategic_navigate_all_systems():

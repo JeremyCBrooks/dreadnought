@@ -3,9 +3,25 @@
 from __future__ import annotations
 
 import random
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from data.colors import (
+    CONSOLE_FRAME,
+    CONSOLE_IDLE,
+    CONSOLE_LABEL,
+    FOCUS_MARKER,
+    HEADER_SEP,
+    HEADER_TEXT,
+    LOCATION_NAME,
+    LOCATION_UNVISITED,
+    LOCATION_VISITED,
+    WARNING,
+    WHITE,
+    Color,
+)
 from engine.game_state import State
+from ui.helm_console import Gauge, KeyHint, Span, gauge_spans, keycap_spans, print_spans, ratio_color, spans_width
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -39,7 +55,6 @@ _ROSE_CHARS: dict[tuple[int, int], str] = {
 
 
 _RED = (255, 80, 80)
-_WARNING = (255, 200, 100)
 _DRIFT = (200, 100, 100)
 _TRAVEL = (100, 200, 255)
 
@@ -74,21 +89,86 @@ _BREAK_AWAY_DAMAGE_MSGS: list[str] = [
 ]
 
 
-def _gauge_color(ratio: float) -> tuple[int, int, int]:
-    """Return green/yellow/red color based on a 0-1 ratio."""
-    from data.colors import HP_GREEN, HP_RED, HP_YELLOW
+# Key hints on the dash: always-available keys, then the ones that follow focus.
+_GLOBAL_KEYS: tuple[KeyHint, ...] = (KeyHint("C", "Cargo"), KeyHint("S", "Ship"), KeyHint("M", "Galaxy"))
+_FOCUS_KEYS: dict[str, tuple[KeyHint, ...]] = {
+    "locations": (KeyHint("Tab", "Star Map"), KeyHint("↑↓", "Select"), KeyHint("Enter", "Dock")),
+    "navigation": (KeyHint("Tab", "Locations"), KeyHint("Arrows", "Navigate")),
+}
+_QUIT_KEYS: tuple[KeyHint, ...] = (KeyHint("Esc", "Quit"),)
 
-    if ratio > 0.5:
-        return HP_GREEN
-    if ratio >= 0.3:
-        return HP_YELLOW
-    return HP_RED
+_NAV_LOCKED: Color = (255, 200, 0)
+_NAV_FULL: Color = (0, 255, 200)
+_NAV_PARTIAL: Color = (140, 160, 180)
+
+_MARGIN = 2
+_GAUGE_GAP = 2
+_COLUMN_GAP = "   "
+_STATUS_LABELS: dict[bool, str] = {True: "visited", False: "unvisited"}
 
 
-def _render_gauge(console: Any, x: int, y: int, label: str, value: int, max_value: int) -> None:
-    """Render a labeled gauge like 'FUEL: 5/10' with ratio-based coloring."""
-    ratio = value / max_value if max_value > 0 else 0
-    console.print(x=x, y=y, string=f"{label}: {value}/{max_value}", fg=_gauge_color(ratio))
+@dataclass(frozen=True)
+class HelmLayout:
+    """Where the helm's parts sit: console on the left, window on the right, dash beneath both."""
+
+    width: int
+    height: int
+    left_w: int = 64
+    log_h: int = 8
+
+    @property
+    def log_y(self) -> int:
+        return self.height - self.log_h
+
+    @property
+    def keys_y(self) -> int:
+        """Key hints, with a blank row left between them and the message log."""
+        return self.log_y - 2
+
+    @property
+    def sill_y(self) -> int:
+        return self.keys_y - 1
+
+    @property
+    def gauge_y(self) -> int:
+        """Instruments are set into the sill itself."""
+        return self.sill_y
+
+    @property
+    def strut_x(self) -> int:
+        return self.left_w - 1
+
+    @property
+    def viewport_x(self) -> int:
+        return self.left_w
+
+    @property
+    def viewport_w(self) -> int:
+        return self.width - self.left_w
+
+    @property
+    def viewport_h(self) -> int:
+        return self.sill_y
+
+    @property
+    def text_width(self) -> int:
+        return max(1, self.left_w - 2 * _MARGIN)
+
+    @property
+    def right_edge(self) -> int:
+        return self.width - _MARGIN
+
+
+def helm_layout(width: int, height: int) -> HelmLayout:
+    """Layout of the helm screen for a console of the given size."""
+    return HelmLayout(width, height)
+
+
+def _fit(text: str, width: int) -> str:
+    """Pad *text* to *width*, or cut it with an ellipsis when it is too long."""
+    if len(text) > width:
+        text = text[: max(0, width - 3)] + "..." if width > 3 else text[:width]
+    return text.ljust(width)
 
 
 def _direction(sys_a: Any, sys_b: Any) -> tuple[int, int]:
@@ -268,7 +348,7 @@ class StrategicState(State):
 
         active.resolve()
         restore_original_ship_map(active, engine.ship)
-        engine.message_log.add_message(message, _WARNING)
+        engine.message_log.add_message(message, WARNING)
         return active.native_attach_point()
 
     def _jettison_cargo(self, engine: Engine, rng: Any) -> bool:
@@ -358,114 +438,149 @@ class StrategicState(State):
         self._arrive(engine, dest_name, interdictable=False)
 
     def on_render(self, console: Any, engine: Engine) -> None:
-        from data.star_types import STAR_TYPES
         from game.helpers import stable_seed
-        from game.interdiction import current_interdiction
         from ui.viewport_renderer import render_viewport
 
         system = self.galaxy.systems[self.galaxy.current_system]
-        cw = engine.CONSOLE_WIDTH
-        ch = engine.CONSOLE_HEIGHT
-        log_h = 8
-        log_y = ch - log_h
-        ctrl_y = log_y - 2
-        content_max_y = ctrl_y - 1
-        left_w = 64
-        text_width = max(1, left_w - 4)
+        layout = helm_layout(engine.CONSOLE_WIDTH, engine.CONSOLE_HEIGHT)
 
-        # Header
-        star_type_name = STAR_TYPES[system.star_type].name if system.star_type in STAR_TYPES else system.star_type
-        is_home = system.name == self.galaxy.home_system
-        home_tag = " (home)" if is_home else ""
-        header_color = (100, 255, 100) if is_home else (255, 255, 100)
-        console.print(x=2, y=1, string=f"{system.name} ({star_type_name}){home_tag}", fg=header_color)
-        from data.colors import HEADER_SEP
-
-        console.print(x=2, y=2, string="=" * text_width, fg=HEADER_SEP)
+        self._render_header(console, system, layout)
 
         # Star map section (fixed position at top)
         nav_active = self.focus == "navigation"
-        nav_header_color = (180, 180, 200) if nav_active else (80, 80, 100)
-        console.print(x=2, y=4, string="STAR MAP:", fg=nav_header_color)
+        self._render_section_header(console, 4, "STAR MAP", nav_active)
         compass_top = 6
         compass_bottom = compass_top + 14
-        self._render_compass(console, system, left_w, compass_top, compass_bottom, nav_active)
+        self._render_compass(console, system, layout.left_w, compass_top, compass_bottom, nav_active)
 
         # Locations section (below compass, fixed position)
         loc_y = compass_bottom + 1
         loc_active = self.focus == "locations"
-        loc_header_color = (180, 180, 200) if loc_active else (80, 80, 100)
-        console.print(x=2, y=loc_y, string="LOCATIONS:", fg=loc_header_color)
-        loc_start_y = loc_y + 2
-        max_locs = min(len(system.locations), max(0, content_max_y - loc_start_y + 1))
-        loc_start = max(0, min(self.selected - max_locs + 1, len(system.locations) - max_locs))
-        for j in range(max_locs):
-            i = loc_start + j
-            if i >= len(system.locations):
-                break
-            loc = system.locations[i]
-            y = loc_start_y + j
-            prefix = ">" if i == self.selected else " "
-            status = "VISITED" if loc.visited else "UNVISITED"
-            if loc_active:
-                color = (255, 255, 255) if i == self.selected else (140, 140, 140)
-            else:
-                color = (80, 80, 100)
-            text = f"{prefix} {loc.name} ({loc.loc_type}) - {status}"
-            if text_width > 3 and len(text) > text_width:
-                text = text[: text_width - 3] + "..."
-            console.print(x=2, y=y, string=text[:text_width], fg=color)
+        self._render_section_header(console, loc_y, "LOCATIONS", loc_active)
+        self._render_locations(console, system, layout, loc_y + 2, loc_active)
 
-        # Controls
-        if self.focus == "locations":
-            ctrl = "[ESC] Quit [C] Cargo [S] Explore Ship [M] Galaxy [TAB] Star Map [UP/DOWN] Select [ENTER] Dock"
+        # Window: star + starfield, untouched by any text
+        render_viewport(
+            console,
+            layout.viewport_x,
+            0,
+            layout.viewport_w,
+            layout.viewport_h,
+            system.star_type,
+            stable_seed(system.name),
+        )
+
+        self._render_frame(console, layout)
+        self._render_dash(console, engine, layout)
+
+        engine.message_log.render(console, 0, layout.log_y, layout.width, layout.log_h)
+
+    def _render_header(self, console: Any, system: Any, layout: HelmLayout) -> None:
+        """System name and star type over a thin rule."""
+        from data.star_types import STAR_TYPES
+
+        star_type_name = STAR_TYPES[system.star_type].name if system.star_type in STAR_TYPES else system.star_type
+        is_home = system.name == self.galaxy.home_system
+        header_color = (100, 255, 100) if is_home else (255, 255, 100)
+        spans: list[Span] = [(system.name, header_color), (f" · {star_type_name}", CONSOLE_LABEL)]
+        if is_home:
+            spans.append((" · home", header_color))
+        print_spans(console, _MARGIN, 1, spans)
+        console.print(x=_MARGIN, y=2, string="─" * layout.text_width, fg=HEADER_SEP)
+
+    @staticmethod
+    def _render_section_header(console: Any, y: int, title: str, active: bool) -> None:
+        """Section title; the one holding focus is lit and flagged in the margin."""
+        if active:
+            console.print(x=0, y=y, string="▌", fg=FOCUS_MARKER)
+        console.print(x=_MARGIN, y=y, string=title, fg=HEADER_TEXT if active else CONSOLE_IDLE)
+
+    def _render_locations(self, console: Any, system: Any, layout: HelmLayout, top_y: int, active: bool) -> None:
+        """List the system's locations as aligned name / type / status columns."""
+        locations = system.locations
+        if not locations:
+            return
+        type_w = max(len(loc.loc_type) for loc in locations)
+        status_w = max(len(label) for label in _STATUS_LABELS.values())
+        cursor_w = 2
+        room = layout.text_width - cursor_w - type_w - status_w - 2 * len(_COLUMN_GAP)
+        name_w = max(1, min(max(len(loc.name) for loc in locations), room))
+
+        max_locs = min(len(locations), max(0, layout.sill_y - top_y))
+        first = max(0, min(self.selected - max_locs + 1, len(locations) - max_locs))
+        for row, loc in enumerate(locations[first : first + max_locs]):
+            selected = first + row == self.selected
+            if active:
+                name_color = WHITE if selected else LOCATION_NAME
+                type_color = CONSOLE_LABEL
+                status_color = LOCATION_VISITED if loc.visited else LOCATION_UNVISITED
+            else:
+                name_color = type_color = status_color = CONSOLE_IDLE
+            spans: list[Span] = [
+                ("► " if selected else "  ", FOCUS_MARKER if active else CONSOLE_IDLE),
+                (_fit(loc.name, name_w), name_color),
+                (_COLUMN_GAP + _fit(loc.loc_type, type_w), type_color),
+                (_COLUMN_GAP + _STATUS_LABELS[bool(loc.visited)], status_color),
+            ]
+            print_spans(console, _MARGIN, top_y + row, spans)
+
+    @staticmethod
+    def _render_frame(console: Any, layout: HelmLayout) -> None:
+        """One strut between console and window, and a sill beneath them both."""
+        for y in range(layout.sill_y):
+            console.print(x=layout.strut_x, y=y, string="│", fg=CONSOLE_FRAME)
+        console.print(x=0, y=layout.sill_y, string="─" * layout.width, fg=CONSOLE_FRAME)
+        console.print(x=layout.strut_x, y=layout.sill_y, string="┴", fg=CONSOLE_FRAME)
+
+    def _gauges(self, engine: Engine) -> list[Gauge]:
+        """The ship's instruments, left to right."""
+        ship = engine.ship
+        if not ship:
+            return []
+        nav_full = ship.nav_units >= ship.max_nav_units
+        locked = nav_full and bool(self.galaxy.dreadnought_system)
+        if locked:
+            nav_color = _NAV_LOCKED
         else:
-            ctrl = "[ESC] Quit [C] Cargo [S] Explore Ship [M] Galaxy [TAB] Locations [ARROWS] Navigate"
-        console.print(x=2, y=ctrl_y, string=ctrl, fg=(80, 80, 80))
+            nav_color = _NAV_FULL if nav_full else _NAV_PARTIAL
+        return [
+            Gauge("FUEL", ship.fuel, ship.max_fuel, ratio_color(ship.fuel / ship.max_fuel if ship.max_fuel else 0)),
+            Gauge("HULL", ship.hull, ship.max_hull, ratio_color(ship.hull / ship.max_hull if ship.max_hull else 0)),
+            Gauge(
+                "NAV",
+                ship.nav_units,
+                ship.max_nav_units,
+                nav_color,
+                readout="LOCKED" if locked else None,
+                width=min(Gauge.width, max(1, ship.max_nav_units)),
+            ),
+        ]
 
-        # Viewport: star + starfield
-        vp_x = left_w
-        vp_w = cw - left_w
-        vp_h = ctrl_y
-        system_seed = stable_seed(system.name)
-        render_viewport(console, vp_x, 0, vp_w, vp_h, system.star_type, system_seed)
+    def _render_dash(self, console: Any, engine: Engine, layout: HelmLayout) -> None:
+        """The dash under the window: instruments and alerts, then the keys that work here."""
+        from game.interdiction import current_interdiction
 
-        # HUD gauges (top of star map viewport, left-justified, rendered after viewport)
-        hud_x = left_w + 1
-        hud_y = 0
+        # Instruments break the sill under the window, each padded clear of the rule.
+        pad: Span = (" ", CONSOLE_FRAME)
+        x = layout.viewport_x + _GAUGE_GAP
+        for gauge in self._gauges(engine):
+            x = print_spans(console, x, layout.gauge_y, [pad, *gauge_spans(gauge), pad]) + _GAUGE_GAP
 
-        if engine.ship:
-            _render_gauge(console, hud_x, hud_y, "FUEL", engine.ship.fuel, engine.ship.max_fuel)
-            _render_gauge(console, hud_x, hud_y + 1, "HULL", engine.ship.hull, engine.ship.max_hull)
-
-            # Nav unit counter
-            nav_count = engine.ship.nav_units
-            max_nav = engine.ship.max_nav_units
-            if nav_count >= max_nav and self.galaxy.dreadnought_system:
-                nav_str = "NAV : LOCKED"
-                nav_color = (255, 200, 0)
-            else:
-                nav_str = f"NAV : {nav_count}/{max_nav}"
-                nav_color = (0, 255, 200) if nav_count >= max_nav else (140, 160, 180)
-            console.print(x=hud_x, y=hud_y + 2, string=nav_str, fg=nav_color)
-
-        # Interdiction banner — appears below the NAV gauge while a hostile
-        # boarding craft is attached to the player ship.
+        # Alert while a hostile boarding craft is attached to the player ship.
         active = current_interdiction(engine)
         if active is not None and not active.resolved:
-            console.print(
-                x=hud_x,
-                y=hud_y + 4,
-                string="*** BEING BOARDED ***",
-                fg=(255, 200, 100),
-            )
+            alert = " ‼ BEING BOARDED "
+            console.print(x=layout.right_edge - len(alert.rstrip()), y=layout.gauge_y, string=alert, fg=WARNING)
 
-        engine.message_log.render(console, 0, log_y, cw, log_h)
+        print_spans(console, _MARGIN, layout.keys_y, keycap_spans([_GLOBAL_KEYS, _FOCUS_KEYS[self.focus]]))
+        quit_spans = keycap_spans([_QUIT_KEYS])
+        print_spans(console, layout.right_edge - spans_width(quit_spans), layout.keys_y, quit_spans)
 
     def _render_compass(self, console: Any, system: Any, left_w: int, top_y: int, max_y: int, active: bool) -> None:
         """Draw compass rose showing connections from current system."""
         conn_map = self._connection_by_direction()
         cx = left_w // 2
+        left_w -= 1  # the last column belongs to the strut
         cy = top_y + (max_y - top_y) // 2
 
         # Draw center node (current system)

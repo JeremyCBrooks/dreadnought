@@ -1,5 +1,7 @@
 """Pytest fixtures shared across all test modules."""
 
+from types import SimpleNamespace
+
 import pytest
 
 from engine.game_state import Engine
@@ -214,6 +216,36 @@ class FakeEvent:
     def __init__(self, sym, mod=0):
         self.sym = sym
         self.mod = mod
+
+
+def render_collecting(state, engine, width: int = 160, height: int = 50) -> list[tuple]:
+    """Render *state* onto a stub console; return every print as (x, y, string, fg)."""
+    import numpy as np
+
+    engine.CONSOLE_WIDTH = width
+    engine.CONSOLE_HEIGHT = height
+    printed: list[tuple] = []
+    console = SimpleNamespace(
+        width=width,
+        height=height,
+        rgb=np.zeros((width, height), dtype=[("ch", np.int32), ("fg", "3u1"), ("bg", "3u1")]),
+    )
+    console.print = lambda *, x, y, string, fg=(255, 255, 255): printed.append((x, y, string, fg))
+    console.draw_rect = lambda *a, **kw: None
+    state.on_render(console, engine)
+    return printed
+
+
+def row_text(printed: list[tuple], y: int, width: int = 160) -> str:
+    """Reassemble everything printed on row *y* into the line the player sees."""
+    row = [" "] * width
+    for x, py, string, _ in printed:
+        if py != y:
+            continue
+        for i, char in enumerate(string):
+            if 0 <= x + i < width:
+                row[x + i] = char
+    return "".join(row)
 
 
 # ---- Whole-game helpers: a real Engine driven through real states ----
