@@ -20,7 +20,7 @@ from world.dungeon_gen.ship_layout import _generate_ship
 from world.dungeon_gen.spawning import MAX_ENEMIES_PER_LEVEL, _spawn_enemies, _spawn_interactables, _spawn_items
 from world.dungeon_gen.village import _generate_village
 from world.game_map import GameMap
-from world.loc_profiles import get_profile
+from world.loc_profiles import LocationProfile, get_profile
 
 _GENERATORS = {
     "ship": _generate_ship,
@@ -28,6 +28,13 @@ _GENERATORS = {
     "standard": _generate_standard,
     "village": _generate_village,
 }
+
+
+def _rolls_hull_breach(profile: LocationProfile, rng: random.Random) -> bool:
+    """Whether this hulled map gets breaches. Draws only when the chance is genuinely uncertain."""
+    if profile.hull_breach_chance >= 1.0:
+        return True
+    return profile.hull_breach_chance > 0.0 and rng.random() < profile.hull_breach_chance
 
 
 def generate_dungeon(
@@ -70,7 +77,7 @@ def generate_dungeon(
         )
 
     # Place doors at room entrances (skip organic/cave layouts)
-    if rooms and profile.generator != "organic":
+    if rooms and profile.places_doors:
         _place_doors(game_map, rng, floor_tile, rooms)
 
     # Exit hatch at entrance so the player can always leave from where they entered.
@@ -99,7 +106,7 @@ def generate_dungeon(
     # dressing, so ships only get these when the profile has a wall
     # interactable and there is a room besides the entrance. The guard must
     # stay ahead of the randint: skipping it must not consume a draw.
-    wants_interactables = profile.generator != "ship" or (profile.wall_interactable and len(rooms) > 1)
+    wants_interactables = not profile.themed_dressing or (profile.wall_interactable and len(rooms) > 1)
     if rooms and wants_interactables:
         for _ in range(rng.randint(1, 3)):
             room = rng.choice(rooms[1:]) if len(rooms) > 1 else rooms[0]
@@ -114,11 +121,10 @@ def generate_dungeon(
             )
 
     # Place airlocks before hull conversion (need wall tiles to identify hull)
-    if profile.generator in ("ship", "standard"):
+    if profile.has_hull:
         _place_airlocks(game_map, rng, rooms, wall_tile, floor_tile)
 
-    # Convert outer hull walls to space tiles for ship/starbase maps
-    if profile.generator in ("ship", "standard"):
+        # Convert outer hull walls to space tiles for ship/starbase maps
         _convert_hull_to_space(game_map, wall_tile)
         game_map.has_space = True
         # Ensure space beyond airlock exterior doors
@@ -132,15 +138,15 @@ def generate_dungeon(
         # have converted them to space, creating diagonal gaps).
         _enforce_airlock_walls(game_map, wall_tile)
         # Hull breaches — starbases only have a 20% chance; player ship never has breaches
-        if not player_ship and (profile.loc_type != "starbase" or rng.random() < 0.2):
+        if not player_ship and _rolls_hull_breach(profile, rng):
             _place_hull_breaches(game_map, rng, wall_tile)
 
     # Hull breaches for asteroid/organic maps
-    if profile.generator == "organic":
+    if profile.rock_breaches:
         _place_asteroid_breaches(game_map, rng)
 
     # Cosmetic variation for ship and starbase maps
-    if profile.generator in ("ship", "standard"):
+    if profile.has_hull:
         _apply_ship_cosmetics(game_map, rng, wall_tile, floor_tile)
 
     if player_ship:
