@@ -23,6 +23,7 @@ tile_dt = np.dtype(
 SHROUD = np.array((ord(" "), (255, 255, 255), (0, 0, 0)), dtype=graphic_dt)
 
 _next_tile_id = 0
+_TILES_BY_ID: dict[int, np.ndarray] = {}
 
 
 def _blend_graphic(dark: Graphic, light: Graphic, factor: float = 0.7) -> Graphic:
@@ -48,7 +49,15 @@ def new_tile(
         tid = _next_tile_id
         _next_tile_id += 1
     lit = _blend_graphic(dark, light)
-    return np.array((walkable, transparent, dark, light, lit, tid), dtype=tile_dt)
+    tile = np.array((walkable, transparent, dark, light, lit, tid), dtype=tile_dt)
+    if base_tile_id is None:
+        _TILES_BY_ID[tid] = tile
+    return tile
+
+
+def tile_by_id(tile_id: int) -> np.ndarray:
+    """Return the canonical tile for *tile_id* (recoloured variants are not registered)."""
+    return _TILES_BY_ID[tile_id]
 
 
 floor = new_tile(

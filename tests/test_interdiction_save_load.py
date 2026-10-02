@@ -151,9 +151,10 @@ def test_save_load_pirate_stolen_loot_round_trips():
     assert loaded_pirate.stolen_loot[0] is loaded_pirate.inventory[0]
 
 
-def test_save_mid_ship_explore_detaches_pirates_and_flushes_player():
+def test_save_mid_ship_explore_persists_pirates_and_flushes_player():
     """Disconnect-style save while INSIDE the ship during an interdiction:
-    1. Detaches alive pirates onto the Interdiction roster.
+    1. Persists alive pirates without stripping them from the live map
+       (a reconnect reuses the in-memory engine).
     2. Refreshes _saved_player from live engine.player.
     """
     from unittest.mock import patch
@@ -178,8 +179,8 @@ def test_save_mid_ship_explore_detaches_pirates_and_flushes_player():
 
     data = engine_to_dict(engine)
 
-    # Live engine: pirates detached.
-    assert all(p not in engine.game_map.entities for p in interdiction.pirate_entities)
+    # Live engine: pirates still on the map for a reconnecting player.
+    assert all(p in engine.game_map.entities for p in interdiction.pirate_entities)
     # _saved_player reflects live engine.player.
     assert engine._saved_player["hp"] == 3
     assert "picked-up" in [it.name for it in engine._saved_player["inventory"]]

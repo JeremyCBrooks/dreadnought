@@ -133,7 +133,8 @@ def _entity_from_dict(d: dict):
 # ── Ship ──────────────────────────────────────────────────────────────────────
 
 
-def _ship_to_dict(ship) -> dict | None:
+def _ship_to_dict(ship, floor_items: list | None = None) -> dict | None:
+    """Serialize *ship*; *floor_items* are saved as cargo without touching the live ship."""
     if ship is None:
         return None
     return {
@@ -143,7 +144,7 @@ def _ship_to_dict(ship) -> dict | None:
         "max_hull": ship.max_hull,
         "scanner_quality": ship.scanner_quality,
         "nav_units": ship.nav_units,
-        "cargo": [_entity_to_dict(e) for e in ship.cargo],
+        "cargo": [_entity_to_dict(e) for e in [*ship.cargo, *(floor_items or [])]],
     }
 
 
@@ -172,10 +173,12 @@ def _interdiction_to_dict(interdiction) -> dict | None:
 
     The composite map is NOT serialized — it's deterministically rebuilt
     from ``pirate_ship_seed`` + the saved airlock interior positions when
-    the player next enters the ship.
+    the player next enters the ship, then ``tile_changes`` are replayed on
+    top. Only living pirates are saved; the dead stay dead.
     """
     if interdiction is None:
         return None
+    alive_pirates = [p for p in interdiction.pirate_entities if p.fighter is not None and p.fighter.hp > 0]
     return {
         "started": interdiction.started,
         "resolved": interdiction.resolved,
@@ -189,7 +192,9 @@ def _interdiction_to_dict(interdiction) -> dict | None:
             list(interdiction.pirate_airlock_interior) if interdiction.pirate_airlock_interior else None
         ),
         "attach_direction": (list(interdiction.attach_direction) if interdiction.attach_direction else None),
-        "pirate_entities": [_entity_to_dict(p) for p in interdiction.pirate_entities],
+        "pirate_entities": [_entity_to_dict(p) for p in alive_pirates],
+        "tile_changes": [list(change) for change in interdiction.tile_changes()],
+        "consumed_overlay": interdiction.consumed_overlay_indices(),
     }
 
 
@@ -213,6 +218,8 @@ def _interdiction_from_dict(d: dict | None):
     )
     interdiction.attach_direction = tuple(d["attach_direction"]) if d.get("attach_direction") else None
     interdiction.pirate_entities = [_entity_from_dict(p) for p in d.get("pirate_entities", [])]
+    interdiction.saved_tile_changes = [tuple(change) for change in d.get("tile_changes", [])]
+    interdiction.saved_consumed_overlay = list(d.get("consumed_overlay", []))
     return interdiction
 
 
@@ -449,19 +456,21 @@ def engine_to_dict(engine: Engine) -> dict:
     """Serialize between-mission engine state to a JSON-safe dict.
 
     For mid-ship-explore disconnects, ask the active TacticalState to flush
-    its in-flight state (detach pirates, refresh _saved_player) so the save
-    accurately reflects current player HP/inventory and pirate positions.
+    its in-flight state (refresh _saved_player, report floor items) so the
+    save accurately reflects current player HP/inventory and cargo. The live
+    session is left untouched — a reconnect resumes the same engine.
     """
     from ui.tactical_state import TacticalState
 
+    floor_items: list = []
     for state in engine._state_stack:
         if isinstance(state, TacticalState) and getattr(state, "explore_ship", False):
-            state.flush_for_save(engine)
+            floor_items = state.flush_for_save(engine)
             break
 
     return {
         "galaxy": _galaxy_to_dict(engine.galaxy),
-        "ship": _ship_to_dict(engine.ship),
+        "ship": _ship_to_dict(engine.ship, floor_items),
         "saved_player": _saved_player_to_dict(engine._saved_player),
         "message_log": _log_to_list(engine.message_log),
         "suit": _suit_to_dict(engine.suit),

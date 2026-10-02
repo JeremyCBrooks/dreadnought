@@ -28,6 +28,9 @@ from world.game_map import GameMap
 # collapsed by hull-bbox-based placement (see _placement_offsets).
 GAP_BETWEEN_SHIPS: int = 2
 
+# GameMap attributes the composite copies verbatim from the player ship map.
+_INHERITED_MAP_STATE: tuple[str, ...] = ("space_seed", "debug_visible_all", "fov_radius", "fully_lit")
+
 
 def _opposite(direction: tuple[int, int]) -> tuple[int, int]:
     return (-direction[0], -direction[1])
@@ -214,11 +217,20 @@ def compose_ships(
     composite_h = max(player_map.height + player_offset[1], pirate_map.height + pirate_offset[1])
 
     composite = GameMap(composite_w, composite_h, fill_tile=tile_types.space)
+    # The composite stands in for the player map, so it inherits the render
+    # and vacuum state the player map carried (starfield, debug reveal, FOV).
+    composite.has_space = True
+    for attr in _INHERITED_MAP_STATE:
+        setattr(composite, attr, getattr(player_map, attr))
 
     # Player canvas (including its empty exterior) goes in first.
     for x in range(player_map.width):
         for y in range(player_map.height):
             composite.tiles[player_offset[0] + x, player_offset[1] + y] = player_map.tiles[x, y]
+    composite.explored[
+        player_offset[0] : player_offset[0] + player_map.width,
+        player_offset[1] : player_offset[1] + player_map.height,
+    ] = player_map.explored
     # Pirate canvas can overlap the player's empty exterior region in the
     # composite (because we placed by hull-bbox, not canvas-bbox). Skip
     # pirate's space tiles so they don't trample player structures; the
@@ -229,6 +241,37 @@ def compose_ships(
             if int(pirate_map.tiles["tile_id"][x, y]) == space_tid:
                 continue
             composite.tiles[pirate_offset[0] + x, pirate_offset[1] + y] = pirate_map.tiles[x, y]
+
+    # Translate airlock positions into composite coords.
+    p_ext = (
+        player_offset[0] + player_airlock["exterior_door"][0],
+        player_offset[1] + player_airlock["exterior_door"][1],
+    )
+    r_ext = (
+        pirate_offset[0] + pirate_airlock["exterior_door"][0],
+        pirate_offset[1] + pirate_airlock["exterior_door"][1],
+    )
+    p_int = (
+        player_offset[0] + player_airlock["interior_door"][0],
+        player_offset[1] + player_airlock["interior_door"][1],
+    )
+    r_int = (
+        pirate_offset[0] + pirate_airlock["interior_door"][0],
+        pirate_offset[1] + pirate_airlock["interior_door"][1],
+    )
+
+    # BFS from one tile outward of player exterior_door to one tile inward
+    # of pirate exterior_door. We pathfind through SPACE tiles only — the
+    # corridor never crosses either ship's hull or interior. Routed BEFORE
+    # touching the shared entity/light lists so a failed composition leaves
+    # the player map exactly as it was (callers retry with other seeds).
+    pdx, pdy = pdir
+    rdx, rdy = rdir
+    bfs_start = (p_ext[0] + pdx, p_ext[1] + pdy)
+    bfs_goal = (r_ext[0] + rdx, r_ext[1] + rdy)
+    path = _bfs_corridor(composite, bfs_start, bfs_goal)
+    if path is None:
+        return None
 
     # ---- Merge entities, airlocks, and light sources from both ships ----
     # Player entities live ON the player_map.entities list (shared); we
@@ -276,35 +319,6 @@ def compose_ships(
         ls.y += roy
         composite.light_sources.append(ls)
 
-    # Translate airlock positions into composite coords.
-    p_ext = (
-        player_offset[0] + player_airlock["exterior_door"][0],
-        player_offset[1] + player_airlock["exterior_door"][1],
-    )
-    r_ext = (
-        pirate_offset[0] + pirate_airlock["exterior_door"][0],
-        pirate_offset[1] + pirate_airlock["exterior_door"][1],
-    )
-    p_int = (
-        player_offset[0] + player_airlock["interior_door"][0],
-        player_offset[1] + player_airlock["interior_door"][1],
-    )
-    r_int = (
-        pirate_offset[0] + pirate_airlock["interior_door"][0],
-        pirate_offset[1] + pirate_airlock["interior_door"][1],
-    )
-
-    # BFS from one tile outward of player exterior_door to one tile inward
-    # of pirate exterior_door. We pathfind through SPACE tiles only — the
-    # corridor never crosses either ship's hull or interior.
-    pdx, pdy = pdir
-    rdx, rdy = rdir
-    bfs_start = (p_ext[0] + pdx, p_ext[1] + pdy)
-    bfs_goal = (r_ext[0] + rdx, r_ext[1] + rdy)
-    path = _bfs_corridor(composite, bfs_start, bfs_goal)
-    if path is None:
-        return None
-
     # Open both exterior + interior doors. Use airlock_floor (not
     # airlock_ext_open) for the exterior-door tiles: an "open exterior airlock"
     # is treated as a vacuum source by GameMap.recalculate_hazards and would
@@ -342,13 +356,8 @@ def compose_ships(
     if chosen is None:
         spawn_room = RectRoom(r_int[0] - 1, r_int[1] - 1, 2, 2, label="pirate_ship")
     else:
-        spawn_room = RectRoom(
-            chosen.x1 + pirate_offset[0],
-            chosen.y1 + pirate_offset[1],
-            chosen.x2 - chosen.x1,
-            chosen.y2 - chosen.y1,
-            label=chosen.label or "pirate_ship",
-        )
+        spawn_room = chosen.translated(*pirate_offset)
+        spawn_room.label = spawn_room.label or "pirate_ship"
 
     return CompositeLayout(
         composite_map=composite,

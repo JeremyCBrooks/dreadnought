@@ -473,23 +473,22 @@ class TacticalState(State):
                 game_map.entities.append(p)
         game_map.invalidate_entity_index()
 
-    def flush_for_save(self, engine: Engine) -> None:
+    def flush_for_save(self, engine: Engine) -> list[Entity]:
         """Snapshot live state into engine for a clean disconnect-style save.
 
         Called from ``engine_to_dict`` when this state is on the stack but
-        the player is mid-mission (didn't go through ``on_exit``). Performs
-        the non-destructive parts of ``on_exit`` for explore-ship mode:
-        detach pirates, sweep floor items into cargo, and refresh
-        ``engine._saved_player`` so HP/inventory changes since last clean
-        ship exit aren't lost on reload.
+        the player is mid-mission (didn't go through ``on_exit``). Refreshes
+        ``engine._saved_player`` so HP/inventory changes since the last clean
+        ship exit aren't lost on reload, and returns the floor items that
+        ``on_exit`` would have swept into cargo so the save can include them.
+
+        Must NOT mutate the live map: a reconnect within the idle TTL reuses
+        this in-memory engine, so pirates and floor items have to stay put.
         """
         if not getattr(self, "explore_ship", False):
-            return
+            return []
         if engine.game_map is None or engine.player is None:
-            return
-        self._detach_interdiction_pirates(engine)
-        if engine.ship is not None:
-            engine.ship.collect_floor_items(engine.game_map)
+            return []
         p = engine.player
         engine._saved_player = {
             "hp": p.fighter.hp,
@@ -500,6 +499,7 @@ class TacticalState(State):
             "inventory": list(p.inventory),
             "loadout": p.loadout,
         }
+        return engine.ship.floor_items(engine.game_map) if engine.ship is not None else []
 
     def _detach_interdiction_pirates(self, engine: Engine) -> None:
         """Strip pirate entities from game_map.entities; references live on Interdiction.

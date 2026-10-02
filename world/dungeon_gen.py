@@ -58,6 +58,10 @@ class RectRoom:
     def inner(self) -> tuple[slice, slice]:
         return slice(self.x1 + 1, self.x2), slice(self.y1 + 1, self.y2)
 
+    def translated(self, dx: int, dy: int) -> RectRoom:
+        """Return a copy of this room shifted by (dx, dy)."""
+        return RectRoom(self.x1 + dx, self.y1 + dy, self.x2 - self.x1, self.y2 - self.y1, label=self.label)
+
     def intersects(self, other: RectRoom) -> bool:
         return self.x1 <= other.x2 and self.x2 >= other.x1 and self.y1 <= other.y2 and self.y2 >= other.y1
 

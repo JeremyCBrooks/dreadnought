@@ -123,9 +123,14 @@ class Ship:
         del self.cargo[:placed]
         game_map.invalidate_entity_index()
 
+    @staticmethod
+    def floor_items(game_map: GameMap) -> list[Entity]:
+        """Items lying on *game_map* that a ship exit would sweep into cargo."""
+        return [e for e in game_map.entities if e.item is not None]
+
     def collect_floor_items(self, game_map: GameMap) -> None:
         """Sweep floor items from *game_map* into cargo and remove them from the map."""
-        floor_items = [e for e in game_map.entities if e.item is not None]
+        floor_items = self.floor_items(game_map)
         for item in floor_items:
             self.cargo.append(item)
             game_map.entities.remove(item)

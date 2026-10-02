@@ -141,7 +141,7 @@ def test_tactical_banner_shows_pirate_count():
     pirate_count = interdiction.alive_pirate_count()
 
     console = _capture_console_strings()
-    with patch.object(engine.game_map, "render"):
+    with patch.object(engine.game_map, "render"), patch.object(engine.game_map, "animate_space"):
         state.on_render(console, engine)
     strings = _printed_strings(console)
     assert any("INTRUDERS" in s for s in strings), f"expected INTRUDERS banner in tactical HUD; got {strings[:30]}"
@@ -162,7 +162,7 @@ def test_tactical_banner_hidden_after_resolution():
     assert interdiction.resolved is True
 
     console = _capture_console_strings()
-    with patch.object(engine.game_map, "render"):
+    with patch.object(engine.game_map, "render"), patch.object(engine.game_map, "animate_space"):
         state.on_render(console, engine)
     strings = _printed_strings(console)
     assert not any("INTRUDERS" in s for s in strings), f"banner should be gone after resolution; got {strings[:30]}"

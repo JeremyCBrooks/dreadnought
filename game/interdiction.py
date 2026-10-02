@@ -56,7 +56,17 @@ class Interdiction:
     # --- Restoration ---
     original_ship_map: Any | None = None  # GameMap; restored after resolve
     original_exit_pos: tuple[int, int] | None = None
+    original_rooms: list | None = None  # ship.rooms in native coords
     composite_map: Any | None = None  # GameMap; transient (active engine.ship.game_map)
+    # --- Tile persistence ---
+    # tile_ids of the freshly composed map; diffed against the live composite
+    # to find tiles the player changed (extracted cores, opened doors).
+    pristine_tile_ids: Any | None = None
+    # (x, y, tile_id) changes loaded from a save, awaiting rebuild_composite.
+    saved_tile_changes: list[tuple[int, int, int]] = field(default_factory=list)
+    # Indices into pirate_entities_overlay of furnishings the player already
+    # searched, loaded from a save and awaiting rebuild_composite.
+    saved_consumed_overlay: list[int] = field(default_factory=list)
     # Pirate-side entities and light_sources that were appended to the shared
     # player_map lists in compose_ships; removed from those lists on resolve.
     pirate_entities_overlay: list[Any] = field(default_factory=list)
@@ -65,6 +75,29 @@ class Interdiction:
     def alive_pirate_count(self) -> int:
         """Count pirate entities whose Fighter still has HP > 0."""
         return sum(1 for p in self.pirate_entities if p.fighter is not None and p.fighter.hp > 0)
+
+    def tile_changes(self) -> list[tuple[int, int, int]]:
+        """Composite tiles that differ from the freshly composed map, as (x, y, tile_id).
+
+        The composite itself is never serialized; these changes are what a
+        save must carry so a rebuilt composite doesn't undo the player's work.
+        """
+        if self.composite_map is None or self.pristine_tile_ids is None:
+            return list(self.saved_tile_changes)
+        current = self.composite_map.tiles["tile_id"]
+        xs, ys = (current != self.pristine_tile_ids).nonzero()
+        return [(x, y, int(current[x, y])) for x, y in zip(xs.tolist(), ys.tolist(), strict=True)]
+
+    def consumed_overlay_indices(self) -> list[int]:
+        """Indices of pirate-ship furnishings that are no longer on the composite.
+
+        Furnishings regenerate in the same order from ``pirate_ship_seed``, so
+        the index identifies one across a save/load rebuild.
+        """
+        if self.composite_map is None:
+            return list(self.saved_consumed_overlay)
+        on_map = {id(e) for e in self.composite_map.entities}
+        return [i for i, e in enumerate(self.pirate_entities_overlay) if id(e) not in on_map]
 
     def resolve(self) -> None:
         """Mark resolved. The actual ship-map restoration is deferred to the
@@ -161,7 +194,9 @@ def _apply_layout(interdiction: Interdiction, layout, ship) -> None:
     """Save a CompositeLayout onto the interdiction + swap engine.ship.game_map."""
     interdiction.original_ship_map = ship.game_map
     interdiction.original_exit_pos = ship.exit_pos
+    interdiction.original_rooms = ship.rooms
     interdiction.composite_map = layout.composite_map
+    interdiction.pristine_tile_ids = layout.composite_map.tiles["tile_id"].copy()
     interdiction.player_offset = layout.player_offset
     interdiction.pirate_offset = layout.pirate_offset
     interdiction.craft_room = layout.spawn_room
@@ -174,9 +209,12 @@ def _apply_layout(interdiction: Interdiction, layout, ship) -> None:
     interdiction.pirate_entities_overlay = list(layout.pirate_entities_overlay or [])
     interdiction.pirate_light_sources_overlay = list(layout.pirate_light_sources_overlay or [])
 
-    # Swap engine.ship.game_map to the composite. Translate exit_pos by the
-    # player_offset so the docking hatch still resolves correctly.
+    # Swap engine.ship.game_map to the composite. Translate exit_pos and rooms
+    # by the player_offset so the docking hatch and cargo hold still resolve
+    # correctly.
     ship.game_map = layout.composite_map
+    if ship.rooms:
+        ship.rooms = [room.translated(*layout.player_offset) for room in ship.rooms]
     if ship.exit_pos is not None:
         ship.exit_pos = (
             ship.exit_pos[0] + layout.player_offset[0],
@@ -282,7 +320,42 @@ def rebuild_composite(interdiction: Interdiction, ship) -> bool:
     if layout is None:
         return False
     _apply_layout(interdiction, layout, ship)
+    _reapply_tile_changes(interdiction)
+    _reapply_consumed_overlay(interdiction)
     return True
+
+
+def _reapply_consumed_overlay(interdiction: Interdiction) -> None:
+    """Take already-searched pirate furnishings back off a freshly rebuilt composite."""
+    composite = interdiction.composite_map
+    overlay = interdiction.pirate_entities_overlay
+    consumed = {id(overlay[i]) for i in interdiction.saved_consumed_overlay if i < len(overlay)}
+    interdiction.saved_consumed_overlay = []
+    if consumed:
+        # Mutate in place: the list is shared with the original player map.
+        composite.entities[:] = [e for e in composite.entities if id(e) not in consumed]
+        composite.invalidate_entity_index()
+
+
+def _reapply_tile_changes(interdiction: Interdiction) -> None:
+    """Replay saved tile changes onto a freshly rebuilt composite."""
+    from world import tile_types
+
+    composite = interdiction.composite_map
+    core_tid = int(tile_types.reactor_core["tile_id"])
+    extracted_cores: set[tuple[int, int]] = set()
+    for x, y, tile_id in interdiction.saved_tile_changes:
+        if not composite.in_bounds(x, y):
+            continue
+        if int(composite.tiles["tile_id"][x, y]) == core_tid:
+            extracted_cores.add((x, y))
+        composite.tiles[x, y] = tile_types.tile_by_id(tile_id)
+    interdiction.saved_tile_changes = []
+    # An extracted core takes its glow with it (see TakeReactorCoreAction).
+    # Mutate in place: the list is shared with the original player map.
+    if extracted_cores:
+        composite.light_sources[:] = [ls for ls in composite.light_sources if (ls.x, ls.y) not in extracted_cores]
+    composite.invalidate_hazards()
 
 
 def tile_in_player_ship_region(tile_x: int, tile_y: int, engine) -> bool:
@@ -301,13 +374,10 @@ def tile_in_player_ship_region(tile_x: int, tile_y: int, engine) -> bool:
     if system is None:
         return True
     interdiction = getattr(system, "interdiction", None)
-    if (
-        interdiction is None
-        or not interdiction.started
-        or interdiction.resolved
-        or interdiction.player_offset is None
-        or interdiction.original_ship_map is None
-    ):
+    # Keyed off the composite being the active map, NOT off ``resolved``:
+    # restoration is deferred to ship exit, so the pirate ship is still
+    # there (and its core still lootable) after the last pirate dies.
+    if interdiction is None or interdiction.player_offset is None or interdiction.original_ship_map is None:
         return True
     from world import tile_types
 
@@ -356,8 +426,12 @@ def restore_original_ship_map(interdiction: Interdiction, ship) -> None:
     ship.game_map = pmap
     if interdiction.original_exit_pos is not None:
         ship.exit_pos = interdiction.original_exit_pos
+    if interdiction.original_rooms is not None:
+        ship.rooms = interdiction.original_rooms
     interdiction.original_ship_map = None
     interdiction.original_exit_pos = None
+    interdiction.original_rooms = None
     interdiction.composite_map = None
+    interdiction.pristine_tile_ids = None
     pmap.invalidate_entity_index()
     pmap.invalidate_hazards()
