@@ -508,6 +508,8 @@ def test_save_load_preserves_ship_map():
     engine.ship.game_map = gm_orig
     engine.ship.rooms = rooms_orig
     engine.ship.exit_pos = exit_pos_orig
+    # An intact hull: damage would add breaches, which are saved, not seeded.
+    engine.ship.hull = engine.ship.max_hull
 
     # Save the engine
     d = engine_to_dict(engine)

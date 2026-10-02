@@ -250,17 +250,26 @@ class StrategicState(State):
         self.selected = 0
         self._check_victory(engine)
 
-    def _tear_free(self, engine: Engine, message: str) -> None:
-        """Snap any attached boarding craft off: resolve it and restore the original ship map."""
+    def _attached_interdiction(self) -> Any | None:
+        """The unresolved interdiction holding the ship in this system, if any."""
         source = self.galaxy.systems[self.galaxy.current_system]
         active = getattr(source, "interdiction", None)
-        if active is None or active.resolved:
-            return
+        return active if active is not None and not active.resolved else None
+
+    def _tear_free(self, engine: Engine, message: str) -> tuple[int, int] | None:
+        """Snap any attached boarding craft off: resolve it and restore the original ship map.
+
+        Returns where it had clamped on (ship coordinates), if that is known.
+        """
+        active = self._attached_interdiction()
+        if active is None:
+            return None
         from game.interdiction import restore_original_ship_map
 
         active.resolve()
         restore_original_ship_map(active, engine.ship)
         engine.message_log.add_message(message, _WARNING)
+        return active.native_attach_point()
 
     def _jettison_cargo(self, engine: Engine, rng: Any) -> bool:
         """Lose one random cargo item to space. Returns True if that ended the game."""
@@ -276,9 +285,20 @@ class StrategicState(State):
         )
         return True
 
-    def _damage_hull(self, engine: Engine, amount: int, messages: list[str], cause: str, rng: Any) -> bool:
-        """Take *amount* hull damage. Returns True if the ship broke apart (*cause* ends the game)."""
-        engine.ship.damage_hull(amount)
+    def _damage_hull(
+        self,
+        engine: Engine,
+        amount: int,
+        messages: list[str],
+        cause: str,
+        rng: Any,
+        near: tuple[int, int] | None = None,
+    ) -> bool:
+        """Take *amount* hull damage, holing the hull closest to *near* when given.
+
+        Returns True if the ship broke apart (*cause* ends the game).
+        """
+        engine.ship.damage_hull(amount, rng=rng, near=near)
         engine.message_log.add_message(rng.choice(messages), (255, 120, 50))
         if engine.ship.hull > 0:
             return False
@@ -321,13 +341,14 @@ class StrategicState(State):
             engine.message_log.add_message("Not enough fuel.", _RED)
             return
         rng = engine.rng(f"break_away:{dest_name}")
-        self._tear_free(engine, "The docking clamps shear away as you burn clear!")
+        clamp_point = self._tear_free(engine, "The docking clamps shear away as you burn clear!")
         if self._damage_hull(
             engine,
             BREAK_AWAY_HULL_DAMAGE,
             _BREAK_AWAY_DAMAGE_MSGS,
             "Your ship broke apart tearing free of the boarding craft.",
             rng,
+            near=clamp_point,
         ):
             return
         if engine.ship.cargo and rng.random() < BREAK_AWAY_CARGO_LOSS_CHANCE and self._jettison_cargo(engine, rng):

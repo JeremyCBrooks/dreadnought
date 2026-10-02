@@ -105,6 +105,15 @@ class Interdiction:
 
         return missing_entity_indices(self.pirate_entities_overlay, self.composite_map)
 
+    def native_attach_point(self) -> tuple[int, int] | None:
+        """Where the boarding craft clamped on, in the player ship's own coordinates."""
+        if self.player_airlock_interior is None or self.player_offset is None:
+            return None
+        return (
+            self.player_airlock_interior[0] - self.player_offset[0],
+            self.player_airlock_interior[1] - self.player_offset[1],
+        )
+
     def resolve(self) -> None:
         """Mark resolved. The actual ship-map restoration is deferred to the
         player's next ship-entry/exit so they don't get teleported off a tile
@@ -199,6 +208,7 @@ def _apply_layout(interdiction: Interdiction, layout, ship) -> None:
     # by the player_offset so the docking hatch and cargo hold still resolve
     # correctly.
     ship.game_map = layout.composite_map
+    ship.interior_offset = layout.player_offset
     if ship.rooms:
         ship.rooms = [room.translated(*layout.player_offset) for room in ship.rooms]
     if ship.exit_pos is not None:
@@ -367,6 +377,17 @@ def tile_in_player_ship_region(tile_x: int, tile_y: int, engine) -> bool:
     return int(pmap.tiles["tile_id"][nx, ny]) != int(tile_types.space["tile_id"])
 
 
+def _carry_sealed_breaches_home(interdiction: Interdiction, player_map) -> None:
+    """Seal on *player_map* every breach that was sealed on the composite."""
+    composite = interdiction.composite_map
+    if composite is None or interdiction.player_offset is None:
+        return
+    pox, poy = interdiction.player_offset
+    still_open = {(x - pox, y - poy) for x, y in composite.hull_breaches}
+    for x, y in [breach for breach in player_map.hull_breaches if breach not in still_open]:
+        player_map.seal_hull_breach(x, y, composite.tiles[x + pox, y + poy])
+
+
 def restore_original_ship_map(interdiction: Interdiction, ship) -> None:
     """Swap ``ship.game_map`` back to the original (pre-interdiction) map.
 
@@ -400,8 +421,11 @@ def restore_original_ship_map(interdiction: Interdiction, ship) -> None:
         for ls in pmap.light_sources:
             ls.x -= pox
             ls.y -= poy
-    # 3. Swap the ship game_map back.
+    # 3. Breaches the player patched on the composite are patched for good.
+    _carry_sealed_breaches_home(interdiction, pmap)
+    # 4. Swap the ship game_map back.
     ship.game_map = pmap
+    ship.interior_offset = (0, 0)
     if interdiction.original_exit_pos is not None:
         ship.exit_pos = interdiction.original_exit_pos
     if interdiction.original_rooms is not None:

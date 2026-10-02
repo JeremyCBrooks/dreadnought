@@ -153,6 +153,24 @@ class GameMap:
         # Update light colors based on new hazard state
         self.update_hazard_lights()
 
+    def open_hull_breach(self, x: int, y: int) -> None:
+        """Hole the hull at (x, y) while nobody is aboard to see it go.
+
+        The compartment behind it has vented by the time anyone looks, so the
+        pressure baseline is dropped: boarding finds the vacuum already there
+        rather than an explosive decompression at the hatch.
+        """
+        self.tiles[x, y] = tile_types.hull_breach
+        self.hull_breaches.append((x, y))
+        self._vacuum_baseline_set = False
+        self.invalidate_hazards()
+
+    def seal_hull_breach(self, x: int, y: int, hull_tile: np.ndarray) -> None:
+        """Close the breach at (x, y) with *hull_tile*; the air returns once no breach feeds the room."""
+        self.tiles[x, y] = hull_tile
+        self.hull_breaches.remove((x, y))
+        self.invalidate_hazards()
+
     def get_hazards_at(self, x: int, y: int) -> set[str]:
         """Return set of active hazard names at (x, y)."""
         result: set[str] = set()

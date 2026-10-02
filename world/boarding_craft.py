@@ -284,6 +284,10 @@ def compose_ships(
         if tuple(a["interior_door"]) != tuple(pirate_airlock["interior_door"])
     )
 
+    # Breaches in the player hull are still holes (the pirate ship has none);
+    # their tiles came across with the canvas.
+    composite.hull_breaches = [(x + pox, y + poy) for x, y in player_map.hull_breaches]
+
     # Light sources: same shared-list pattern as entities.
     for ls in player_map.light_sources:
         ls.x += pox

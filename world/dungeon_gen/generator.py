@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import random
 
+import numpy as np
+
 from world import tile_types
 from world.dungeon_gen.basic_layouts import _generate_fallback, _generate_organic, _generate_standard
 from world.dungeon_gen.cosmetics import _apply_ship_cosmetics
@@ -14,6 +16,7 @@ from world.dungeon_gen.hull import (
     _place_airlocks,
     _place_asteroid_breaches,
     _place_hull_breaches,
+    hull_breach_candidates,
 )
 from world.dungeon_gen.rooms import RectRoom, _resolve_tile
 from world.dungeon_gen.ship_layout import _generate_ship
@@ -157,6 +160,10 @@ def generate_dungeon(
     return game_map, rooms, exit_pos
 
 
+# The derelict profile uses the "ship" generator — correct layout for a vessel.
+_PLAYER_SHIP_LOC_TYPE = "derelict"
+
+
 def generate_player_ship(
     seed: int,
     width: int = 80,
@@ -175,10 +182,23 @@ def generate_player_ship(
         max_enemies=0,
         max_items=0,
         seed=seed,
-        # derelict profile uses the "ship" generator — correct layout for a vessel
-        loc_type="derelict",
+        loc_type=_PLAYER_SHIP_LOC_TYPE,
         player_ship=True,
     )
+
+
+def player_ship_hull_tile() -> np.ndarray:
+    """The tile the player ship's hull is built from (and patched with)."""
+    return _resolve_tile(get_profile(_PLAYER_SHIP_LOC_TYPE).wall_tile)
+
+
+def player_ship_breach_candidates(game_map: GameMap) -> list[tuple[int, int]]:
+    """Outer-hull tiles of a player ship where damage could open a breach.
+
+    Airlock chambers are spared: a holed chamber would vent the docking
+    corridor of the next boarding instead of the ship.
+    """
+    return hull_breach_candidates(game_map, player_ship_hull_tile(), airlock_chambers=False)
 
 
 def respawn_creatures(

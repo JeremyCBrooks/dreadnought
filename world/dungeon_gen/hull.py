@@ -189,18 +189,23 @@ def _enforce_airlock_walls(game_map: GameMap, wall_tile: np.ndarray) -> None:
                     game_map.tiles[nx, ny] = wall_tile
 
 
-def _place_hull_breaches(
+def hull_breach_candidates(
     game_map: GameMap,
-    rng: random.Random,
     wall_tile: np.ndarray,
-) -> None:
-    """Place 1-3 hull breaches on a derelict/ship map.
+    *,
+    airlock_chambers: bool = True,
+) -> list[tuple[int, int]]:
+    """Hull tiles a breach could open in, in scan order.
 
-    Finds wall tiles adjacent to both a space tile and a walkable tile
-    (hull boundary) and replaces them with hull_breach.
+    These are *wall_tile* tiles adjacent to both a space tile and a walkable
+    tile (the hull boundary) that nothing is mounted on. With
+    ``airlock_chambers=False`` the walkable side must be more than an airlock
+    chamber, so the breach always opens into the ship proper.
     """
     space_tid = int(tile_types.space["tile_id"])
     wall_tid = int(wall_tile["tile_id"])
+    airlock_tid = int(tile_types.airlock_floor["tile_id"])
+    entity_positions = {(e.x, e.y) for e in game_map.entities}
     candidates: list[tuple[int, int]] = []
 
     for x in range(1, game_map.width - 1):
@@ -216,16 +221,20 @@ def _place_hull_breaches(
                 tid = int(game_map.tiles["tile_id"][nx, ny])
                 if tid == space_tid:
                     has_space = True
-                if bool(game_map.tiles["walkable"][nx, ny]):
+                if bool(game_map.tiles["walkable"][nx, ny]) and (airlock_chambers or tid != airlock_tid):
                     has_walkable = True
-            if has_space and has_walkable:
+            if has_space and has_walkable and (x, y) not in entity_positions:
                 candidates.append((x, y))
+    return candidates
 
-    if not candidates:
-        return
 
-    entity_positions = {(e.x, e.y) for e in game_map.entities}
-    candidates = [(x, y) for x, y in candidates if (x, y) not in entity_positions]
+def _place_hull_breaches(
+    game_map: GameMap,
+    rng: random.Random,
+    wall_tile: np.ndarray,
+) -> None:
+    """Place 1-3 hull breaches on a derelict/ship map."""
+    candidates = hull_breach_candidates(game_map, wall_tile)
     if not candidates:
         return
     count = min(rng.randint(1, 3), len(candidates))

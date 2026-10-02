@@ -148,6 +148,8 @@ def _ship_to_dict(ship, floor_items: list | None = None) -> dict | None:
         # The interior is regenerated from the galaxy seed on load; this is
         # what keeps searched lockers from refilling.
         "consumed_furnishings": ship.consumed_furnishing_indices(),
+        # ...and what keeps the holes in the hull where they were.
+        "hull_breaches": [list(pos) for pos in ship.hull_breach_positions()],
     }
 
 
@@ -544,6 +546,8 @@ def dict_to_engine(data: dict, engine: Engine) -> None:
     if engine.ship is not None:
         engine.ship.generate_interior(engine.galaxy.seed)
         engine.ship.remove_furnishings(data["ship"].get("consumed_furnishings", []))
+        engine.ship.restore_hull_breaches([tuple(pos) for pos in data["ship"].get("hull_breaches", [])])
+        engine.ship.match_breaches_to_hull(engine.rng("hull_breaches"))
         # Active interdictions: composite map is rebuilt lazily in
         # prepare_ship_entry when the player next presses [S].
 

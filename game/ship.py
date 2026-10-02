@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import random
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from game.entity import Entity
@@ -40,6 +41,9 @@ class Ship:
         self.game_map: GameMap | None = None
         self.rooms: list | None = None
         self.exit_pos: tuple[int, int] | None = None
+        # Where the ship's own interior sits on ``game_map``: non-zero only
+        # while an interdiction has swapped in a composite map.
+        self.interior_offset: tuple[int, int] = (0, 0)
         # Entities the interior was generated with, in generation order.
         self.furnishings: list[Entity] = []
 
@@ -89,9 +93,63 @@ class Ship:
         self.fuel -= cost
         return True
 
-    def damage_hull(self, amount: int = 1) -> None:
-        """Reduce hull by *amount*, clamped at 0."""
-        self.hull = max(0, self.hull - amount)
+    def damage_hull(self, amount: int = 1, rng: Any = random, near: tuple[int, int] | None = None) -> None:
+        """Reduce hull by *amount*, clamped at 0, opening one breach per point lost.
+
+        Breaches open in the outer hull closest to *near* (ship coordinates),
+        or wherever *rng* picks when no point is given. A ship without an
+        interior only loses the number.
+        """
+        lost = min(amount, self.hull)
+        self.hull -= lost
+        if self.game_map is not None:
+            self._open_hull_breaches(lost, rng, near)
+
+    def _open_hull_breaches(self, count: int, rng: Any, near: tuple[int, int] | None = None) -> None:
+        from world.dungeon_gen import player_ship_breach_candidates
+
+        candidates = player_ship_breach_candidates(self.game_map)
+        count = min(count, len(candidates))
+        if count <= 0:
+            return
+        if near is None:
+            chosen = rng.sample(candidates, count)
+        else:
+            ox, oy = self.interior_offset
+            nx, ny = near[0] + ox, near[1] + oy
+            chosen = sorted(candidates, key=lambda pos: ((pos[0] - nx) ** 2 + (pos[1] - ny) ** 2, pos))[:count]
+        for x, y in chosen:
+            self.game_map.open_hull_breach(x, y)
+
+    def hull_breach_positions(self) -> list[tuple[int, int]]:
+        """Open breaches in the ship's own coordinates, wherever its interior currently sits."""
+        if self.game_map is None:
+            return []
+        ox, oy = self.interior_offset
+        return [(x - ox, y - oy) for x, y in self.game_map.hull_breaches]
+
+    def restore_hull_breaches(self, positions: list[tuple[int, int]]) -> None:
+        """Re-open saved breaches (ship coordinates) on a freshly generated interior."""
+        ox, oy = self.interior_offset
+        for x, y in positions:
+            self.game_map.open_hull_breach(x + ox, y + oy)
+
+    def match_breaches_to_hull(self, rng: Any) -> None:
+        """Open breaches until every missing hull point has one (saves that predate breaches)."""
+        if self.game_map is None:
+            return
+        missing = self.max_hull - self.hull - len(self.game_map.hull_breaches)
+        self._open_hull_breaches(missing, rng)
+
+    def seal_hull_breach(self, x: int, y: int) -> bool:
+        """Patch the breach at (x, y) on the current map, restoring one hull point. False if none is there."""
+        if self.game_map is None or (x, y) not in self.game_map.hull_breaches:
+            return False
+        from world.dungeon_gen import player_ship_hull_tile
+
+        self.game_map.seal_hull_breach(x, y, player_ship_hull_tile())
+        self.repair_hull(1)
+        return True
 
     def repair_hull(self, amount: int) -> int:
         """Repair hull, clamped at max_hull. Returns the amount actually repaired."""
