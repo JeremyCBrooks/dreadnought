@@ -734,13 +734,11 @@ class TacticalState(State):
             edx, edy = entity.drift_direction
             enx, eny = entity.x + edx, entity.y + edy
             if not engine.game_map.in_bounds(enx, eny):
-                if entity in engine.game_map.entities:
-                    engine.game_map.entities.remove(entity)
+                self._lose_to_space(engine, entity)
                 continue
             # Only space tiles are passable while drifting
             if engine.game_map.tiles["tile_id"][enx, eny] != _space_tid:
-                if entity in engine.game_map.entities:
-                    engine.game_map.entities.remove(entity)
+                self._lose_to_space(engine, entity)
                 engine.message_log.add_message(f"The {entity.name} slams into the hull!", (200, 200, 200))
                 continue
             entity.x = enx
@@ -772,6 +770,18 @@ class TacticalState(State):
         # pirate is dead, restore the ship layout and end the interdiction.
         if getattr(self, "explore_ship", False):
             self._check_interdiction_resolution(engine)
+
+    @staticmethod
+    def _lose_to_space(engine: Engine, entity: Entity) -> None:
+        """Kill and remove an entity that drifted off the map or into a hull.
+
+        It must end up dead, not merely off the map: rosters that outlive the
+        map (boarding pirates) decide who is still a threat by HP.
+        """
+        if entity.fighter is not None:
+            entity.fighter.hp = 0
+        if entity in engine.game_map.entities:
+            engine.game_map.entities.remove(entity)
 
     def _check_interdiction_resolution(self, engine: Engine) -> None:
         interdiction = self._current_interdiction(engine)

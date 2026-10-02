@@ -527,6 +527,68 @@ def test_enemy_drift_into_non_space_tile_removed():
     assert enemy not in gm.entities
 
 
+def _engine_with_drifting_enemy(enemy_x: int, hull_at: tuple[int, int] | None = None):
+    """Open-space map with one enemy drifting east from (enemy_x, 5)."""
+    from engine.game_state import Engine
+    from game.suit import Suit
+    from ui.tactical_state import TacticalState
+
+    gm = GameMap(20, 20)
+    for x in range(10, 20):
+        for y in range(0, 20):
+            gm.tiles[x, y] = tile_types.space
+    if hull_at is not None:
+        gm.tiles[hull_at] = tile_types.floor
+    gm.has_space = True
+    gm.airlocks = []
+
+    enemy = Entity(x=enemy_x, y=5, name="Drone", fighter=Fighter(5, 5, 0, 1))
+    enemy.drifting = True
+    enemy.drift_direction = (1, 0)
+    player = Entity(x=3, y=3, name="Player", fighter=Fighter(10, 10, 0, 1))
+    gm.entities.extend([enemy, player])
+
+    eng = Engine()
+    eng.game_map = gm
+    eng.player = player
+    suit = Suit(name="Test Suit", resistances={"vacuum": 50})
+    suit.refill_pools()
+    eng.suit = suit
+    eng.environment = {"vacuum": 1}
+    state = TacticalState()
+    eng._state_stack = [state]
+    return eng, state, enemy
+
+
+def test_enemy_drifting_into_hull_is_dead_not_just_removed():
+    """Anything still holding a reference (e.g. a boarding roster) must see it as dead."""
+    eng, state, enemy = _engine_with_drifting_enemy(enemy_x=13, hull_at=(14, 5))
+
+    state._after_player_turn(eng)
+
+    assert enemy not in eng.game_map.entities
+    assert enemy.fighter.hp == 0
+
+
+def test_enemy_drifting_off_the_map_is_dead_not_just_removed():
+    eng, state, enemy = _engine_with_drifting_enemy(enemy_x=19)
+
+    state._after_player_turn(eng)
+
+    assert enemy not in eng.game_map.entities
+    assert enemy.fighter.hp == 0
+
+
+def test_enemy_still_drifting_through_space_stays_alive():
+    eng, state, enemy = _engine_with_drifting_enemy(enemy_x=12)
+
+    state._after_player_turn(eng)
+
+    assert enemy in eng.game_map.entities
+    assert enemy.x == 13
+    assert enemy.fighter.hp > 0  # vacuum hurts, but drifting alone is not fatal
+
+
 def test_airlock_chamber_gets_vacuum_when_ext_open():
     """Opening the exterior door should give the airlock chamber vacuum."""
     gm = _make_airlock_map()

@@ -351,6 +351,46 @@ def test_untouched_composite_rebuilds_identically_after_reload():
     assert (loaded.composite_map.tiles["tile_id"] == original_ids).all()
 
 
+# ---- Pirates lost to space count as dead ----
+
+
+def _vent_into_space(engine, pirate) -> None:
+    """Put *pirate* on the map edge, drifting outward, as explosive decompression would."""
+    pirate.x, pirate.y = engine.game_map.width - 1, 0
+    pirate.drifting = True
+    pirate.drift_direction = (1, 0)
+
+
+def test_interdiction_resolves_when_every_pirate_is_vented_into_space():
+    """Otherwise travel stays blocked forever with 'intruders remain' and nobody to fight."""
+    engine, interdiction = _engine_boarded_in_ship()
+    state = engine._state_stack[-1]
+    for pirate in interdiction.pirate_entities:
+        _vent_into_space(engine, pirate)
+
+    state._after_player_turn(engine)
+
+    assert interdiction.alive_pirate_count() == 0
+    assert interdiction.resolved is True
+
+
+def test_vented_pirate_is_not_reattached_on_next_ship_entry():
+    engine, interdiction = _engine_boarded_in_ship()
+    state = engine._state_stack[-1]
+    vented = list(interdiction.pirate_entities)
+    for pirate in vented:
+        _vent_into_space(engine, pirate)
+    state._after_player_turn(engine)
+
+    engine.pop_state()
+    with patch("world.game_map.GameMap.update_fov", lambda *a, **k: None):
+        from ui.tactical_state import TacticalState
+
+        engine.push_state(TacticalState(explore_ship=True))
+
+    assert all(p not in engine.game_map.entities for p in vented)
+
+
 # ---- Searched pirate-ship furnishings stay searched after a reload ----
 
 
