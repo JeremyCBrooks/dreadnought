@@ -41,7 +41,7 @@ def build_debug_inventory() -> list[Entity]:
     if not START_INVENTORY:
         return []
     from data import items as items_mod
-    from game.entity import Entity
+    from game.factories import build_item_entity
 
     lookup: dict[str, Callable[[str], ItemDef | ScannerDef]] = {
         cat: getattr(items_mod, fn_name) for cat, fn_name in _CATEGORY_LOOKUPS.items()
@@ -56,15 +56,7 @@ def build_debug_inventory() -> list[Entity]:
             defn = lookup_fn(name)
         except KeyError:
             continue
-        item_data = items_mod.build_item_data(defn)
-        result.append(
-            Entity(
-                char=defn.char,
-                color=defn.color,
-                name=defn.name,
-                item=item_data,
-            )
-        )
+        result.append(build_item_entity(defn))
     return result
 
 

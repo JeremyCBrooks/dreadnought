@@ -141,10 +141,7 @@ def _pirate_definitions() -> list:
 
 def _spawn_pirates_in_room(craft_room, game_map, rng, count) -> list:
     """Build *count* pirate Entities placed at distinct walkable tiles inside *craft_room*."""
-    from data.enemies import build_enemy_inventory
-    from game.ai import CreatureAI
-    from game.entity import Entity, Fighter
-    from game.helpers import recalc_melee_power_ai
+    from game.factories import build_enemy
 
     defns = _pirate_definitions()
     if not defns:
@@ -165,24 +162,7 @@ def _spawn_pirates_in_room(craft_room, game_map, rng, count) -> list:
     pirates: list[Entity] = []
     for x, y in positions:
         defn = rng.choice(defns)
-        entity = Entity(
-            x=x,
-            y=y,
-            char=defn.char,
-            color=defn.color,
-            name=defn.name,
-            blocks_movement=True,
-            fighter=Fighter(hp=defn.hp, max_hp=defn.hp, defense=defn.defense, power=defn.power),
-            ai=CreatureAI(),
-            organic=defn.organic,
-            gore_color=defn.gore_color,
-        )
-        entity.ai_config = defn.to_ai_config()
-        entity.ai_state = entity.ai_config.get("ai_initial_state", "wandering")
-        entity.inventory = build_enemy_inventory(defn, rng)
-        entity.max_inventory = defn.max_inventory
-        recalc_melee_power_ai(entity)
-        pirates.append(entity)
+        pirates.append(build_enemy(defn, x, y, rng))
     return pirates
 
 

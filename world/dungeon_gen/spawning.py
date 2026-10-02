@@ -5,12 +5,12 @@ from __future__ import annotations
 import random
 from dataclasses import asdict
 
-from data.enemies import ENEMIES, build_enemy_inventory
+from data.enemies import ENEMIES
 from data.hazards import HAZARDS
 from data.interactables import FLOOR_INTERACTABLES, interactable_by_name
-from data.items import ITEMS, all_loot, build_item_data
-from game.ai import CreatureAI
-from game.entity import Entity, Fighter
+from data.items import ITEMS, all_loot
+from game.entity import Entity
+from game.factories import build_enemy, build_item_entity
 from world.dungeon_gen.rooms import RectRoom, _near_exit, _random_room_pos, _room_wall_positions
 from world.game_map import GameMap
 
@@ -77,26 +77,7 @@ def _spawn_enemies(
         if not _can_spawn_at(game_map, x, y, exit_pos, allow_non_blocking=True):
             continue
         defn = rng.choice(ENEMIES)
-        ai_config = defn.to_ai_config()
-        entity = Entity(
-            x=x,
-            y=y,
-            char=defn.char,
-            color=defn.color,
-            name=defn.name,
-            blocks_movement=True,
-            fighter=Fighter(hp=defn.hp, max_hp=defn.hp, defense=defn.defense, power=defn.power),
-            ai=CreatureAI(),
-            organic=defn.organic,
-            gore_color=defn.gore_color,
-        )
-        entity.ai_config = ai_config
-        entity.ai_state = ai_config.get("ai_initial_state", "wandering")
-        entity.inventory = build_enemy_inventory(defn, rng)
-        entity.max_inventory = defn.max_inventory
-        from game.helpers import recalc_melee_power_ai
-
-        recalc_melee_power_ai(entity)
+        entity = build_enemy(defn, x, y, rng)
         game_map.entities.append(entity)
         spawned += 1
     return spawned
@@ -114,17 +95,7 @@ def _spawn_items(
         if not _can_spawn_at(game_map, x, y, exit_pos):
             continue
         defn = rng.choice(ITEMS)
-        game_map.entities.append(
-            Entity(
-                x=x,
-                y=y,
-                char=defn.char,
-                color=defn.color,
-                name=defn.name,
-                blocks_movement=False,
-                item=build_item_data(defn),
-            )
-        )
+        game_map.entities.append(build_item_entity(defn, x, y))
 
 
 def _spawn_interactables(

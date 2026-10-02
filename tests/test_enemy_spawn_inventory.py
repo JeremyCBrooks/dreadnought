@@ -2,9 +2,10 @@
 
 import random
 
-from data.enemies import EnemyDef, build_enemy_inventory, enemy_by_name
+from data.enemies import EnemyDef, enemy_by_name
 from game.ai import CreatureAI
 from game.entity import Entity, Fighter
+from game.factories import build_enemy_inventory
 from game.helpers import get_equipped_ranged_weapon, recalc_melee_power_ai
 
 

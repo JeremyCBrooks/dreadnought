@@ -2,8 +2,9 @@
 
 import random
 
-from data.enemies import EnemyDef, build_enemy_inventory, enemy_by_name
+from data.enemies import EnemyDef, enemy_by_name
 from data.items import item_by_name
+from game.factories import build_enemy_inventory
 
 
 class TestLootTableFields:

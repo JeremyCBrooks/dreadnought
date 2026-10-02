@@ -2,13 +2,7 @@
 
 from __future__ import annotations
 
-import random as _random_mod
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from game.entity import Entity
-
 
 _AI_CONFIG_KEYS: tuple[str, ...] = (
     "ai_initial_state",
@@ -180,33 +174,3 @@ def _validate_loot_tables() -> None:
 
 
 _validate_loot_tables()
-
-
-def build_enemy_inventory(defn: EnemyDef, rng: _random_mod.Random) -> list[Entity]:
-    """Roll loot table and return item Entities for an enemy's starting inventory."""
-    if not defn.loot_table:
-        return []
-    # 25% chance this enemy carries nothing
-    if rng.random() < 0.25:
-        return []
-
-    from data.items import build_item_data, item_by_name
-    from game.entity import Entity as _Entity
-
-    items: list[Entity] = []
-    for item_name, prob in defn.loot_table:
-        if len(items) >= defn.max_inventory:
-            break
-        if rng.random() < prob:
-            idef = item_by_name(item_name)
-            item_ent = _Entity(
-                x=0,
-                y=0,
-                char=idef.char,
-                color=idef.color,
-                name=idef.name,
-                blocks_movement=False,
-                item=build_item_data(idef),
-            )
-            items.append(item_ent)
-    return items

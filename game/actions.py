@@ -333,19 +333,9 @@ class InteractAction(Action):
 
         # Loot
         if has_loot:
-            from data.items import build_item_data
-            from game.entity import Entity as _Entity
+            from game.factories import build_item_entity
 
-            item_data = build_item_data(loot)
-            item_ent = _Entity(
-                x=entity.x,
-                y=entity.y,
-                char=loot["char"],
-                color=loot["color"],
-                name=loot["name"],
-                blocks_movement=False,
-                item=item_data,
-            )
+            item_ent = build_item_entity(loot, entity.x, entity.y)
             entity.inventory.append(item_ent)
             engine.message_log.add_message(f"You search the {name}... Found {loot['name']}!", INTERACT_LOOT)
         else:
