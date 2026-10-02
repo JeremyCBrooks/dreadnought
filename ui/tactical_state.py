@@ -624,141 +624,18 @@ class TacticalState(State):
             self._update_ground_underfoot(engine)
 
     def _after_player_turn(self, engine: Engine) -> None:
-        """Environment tick, radiation, drift, enemy turns. Switch to game over if dead."""
-        from game.environment import (
-            apply_environment_tick,
-            apply_environment_tick_entity,
-            process_decompression_step,
-            trigger_decompression,
-        )
-        from game.hazards import apply_dot_effects
+        """Advance the world one tick; start the death fade if it killed the player."""
+        from game.turn import advance_turn
 
-        engine.turn_counter += 1
-        engine.game_map.invalidate_entity_index()
-        engine.game_map.clear_fov_cache()
-        apply_environment_tick(engine)
-        apply_dot_effects(engine)
-        if engine.player.fighter.hp <= 0:
-            self._handle_player_death(engine, "Succumbed to the environment.")
-            return
-
-        # Trigger new decompression events
-        pending = engine.game_map._pending_decompression
-        if pending:
-            pull_dirs = trigger_decompression(
-                engine,
-                pending["breach_sources"],
-                pending["newly_exposed"],
-            )
-            engine.game_map._pull_directions = pull_dirs
-            engine.game_map._pending_decompression = None
-
-        # Process ongoing decompression (up to 3 tiles/turn per entity)
-        pull_dirs = engine.game_map._pull_directions
-        if pull_dirs:
-            for entity in list(engine.game_map.entities):
-                if entity.decompression_moves > 0:
-                    process_decompression_step(engine.game_map, entity, pull_dirs)
-            # Clear pull directions when no entities are still being pulled
-            if not any(e.decompression_moves > 0 for e in engine.game_map.entities):
-                engine.game_map._pull_directions = None
-
-        # Clean up entities killed by decompression impact
-        for entity in list(engine.game_map.entities):
-            if entity is engine.player:
-                continue
-            if entity.fighter and entity.fighter.hp <= 0:
-                engine.message_log.add_message(
-                    f"The {entity.name} is crushed by the decompression!",
-                    (200, 200, 200),
-                )
-                engine.game_map.entities.remove(entity)
-
-        # Check for player death from decompression impact
-        if engine.player.fighter.hp <= 0:
-            self._handle_player_death(engine, "Crushed by explosive decompression.")
-            return
-
-        # Drift processing (player + enemies)
-        from world import tile_types as _tt
-
-        _space_tid = int(_tt.space["tile_id"])
-
-        if engine.player.drifting:
-            dx, dy = engine.player.drift_direction
-            nx, ny = engine.player.x + dx, engine.player.y + dy
-            if not engine.game_map.in_bounds(nx, ny):
-                engine.message_log.add_message("You drift beyond reach... lost to the void.", (255, 0, 0))
-                engine.player.fighter.hp = 0
-                self._handle_player_death(engine, "Lost to the void.")
-                return
-            # Only space tiles are passable while drifting
-            if engine.game_map.tiles["tile_id"][nx, ny] != _space_tid:
-                engine.message_log.add_message("You slam into the hull. The impact is fatal.", (255, 0, 0))
-                engine.player.fighter.hp = 0
-                self._handle_player_death(engine, "Slammed into the hull.")
-                return
-            engine.player.x = nx
-            engine.player.y = ny
-            engine.message_log.add_message("You drift further into space...", (180, 100, 255))
-
-        # Enemy drift
-        for entity in list(engine.game_map.entities):
-            if entity is engine.player:
-                continue
-            if not entity.drifting:
-                continue
-            edx, edy = entity.drift_direction
-            enx, eny = entity.x + edx, entity.y + edy
-            if not engine.game_map.in_bounds(enx, eny):
-                self._lose_to_space(engine, entity)
-                continue
-            # Only space tiles are passable while drifting
-            if engine.game_map.tiles["tile_id"][enx, eny] != _space_tid:
-                self._lose_to_space(engine, entity)
-                engine.message_log.add_message(f"The {entity.name} slams into the hull!", (200, 200, 200))
-                continue
-            entity.x = enx
-            entity.y = eny
-
-        engine.game_map.invalidate_entity_index()
-        import debug
-
-        if not debug.DISABLE_ENEMY_AI:
-            for entity in list(engine.game_map.entities):
-                if entity is engine.player:
-                    continue
-                if entity.ai and entity.fighter and entity.fighter.hp > 0:
-                    entity.ai.perform(entity, engine)
-
-        # Per-tile hazard damage for enemies
-        for entity in list(engine.game_map.entities):
-            if entity is engine.player:
-                continue
-            if entity.fighter and entity.fighter.hp > 0:
-                apply_environment_tick_entity(engine, entity)
-
-        if engine.player.fighter.hp <= 0:
-            engine.message_log.add_message("You died.", (255, 0, 0))
-            self._handle_player_death(engine, "Overwhelmed by hostiles.")
+        cause = advance_turn(engine)
+        if cause is not None:
+            self._handle_player_death(engine, cause)
             return
 
         # Interdiction resolution: if we're aboard the player ship and every
-        # pirate is dead, restore the ship layout and end the interdiction.
+        # pirate is dead, end the interdiction.
         if getattr(self, "explore_ship", False):
             self._check_interdiction_resolution(engine)
-
-    @staticmethod
-    def _lose_to_space(engine: Engine, entity: Entity) -> None:
-        """Kill and remove an entity that drifted off the map or into a hull.
-
-        It must end up dead, not merely off the map: rosters that outlive the
-        map (boarding pirates) decide who is still a threat by HP.
-        """
-        if entity.fighter is not None:
-            entity.fighter.hp = 0
-        if entity in engine.game_map.entities:
-            engine.game_map.entities.remove(entity)
 
     def _check_interdiction_resolution(self, engine: Engine) -> None:
         interdiction = self._current_interdiction(engine)
