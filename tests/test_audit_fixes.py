@@ -25,53 +25,26 @@ from game.entity import Entity, Fighter
 from game.interdiction import Interdiction, start_interdiction
 from game.ship import Ship
 from game.suit import EVA_SUIT
-from tests.conftest import FakeEvent, make_heal_item, make_scanner, make_weapon
+from tests.conftest import (
+    FakeEvent,
+    enter_mission,
+    enter_ship,
+    key_for,
+    make_heal_item,
+    make_scanner,
+    make_weapon,
+    new_game,
+)
 from ui.game_over_state import GameOverState
-from ui.keys import move_keys
 from ui.strategic_state import StrategicState
 from ui.tactical_state import TacticalState
 from ui.title_state import TitleState
 from web.save_load import dict_to_engine, engine_to_dict
 from world import tile_types
-from world.galaxy import Galaxy
 from world.game_map import GameMap
 
 K = tcod.event.KeySym
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-
-def _new_game(seed: int = 1) -> tuple[Engine, StrategicState]:
-    engine = Engine()
-    engine.galaxy = Galaxy(seed=seed)
-    engine.ship = Ship()
-    engine.ship.generate_interior(engine.galaxy.seed)
-    strategic = StrategicState(engine.galaxy)
-    engine.push_state(strategic)
-    return engine, strategic
-
-
-def _location(engine: Engine, loc_type: str):
-    for system in engine.galaxy.systems.values():
-        for loc in system.locations:
-            if loc.loc_type == loc_type:
-                return loc
-    pytest.fail(f"seed has no {loc_type}")
-
-
-def _enter_mission(engine: Engine, loc_type: str = "colony") -> TacticalState:
-    state = TacticalState(location=_location(engine, loc_type), depth=0)
-    engine.push_state(state)
-    return state
-
-
-def _enter_ship(engine: Engine) -> TacticalState:
-    state = TacticalState(explore_ship=True)
-    engine.push_state(state)
-    return state
-
-
-def _key_for(direction: tuple[int, int]) -> int:
-    return next(key for key, move in move_keys().items() if move == direction)
 
 
 def _messages(engine: Engine) -> list[str]:
@@ -93,8 +66,8 @@ def _console() -> tcod.console.Console:
 
 
 def test_turn_counter_advances_once_per_game_turn():
-    engine, _ = _new_game()
-    state = _enter_mission(engine)
+    engine, _ = new_game()
+    state = enter_mission(engine)
     before = engine.turn_counter
     state._after_player_turn(engine)
     state._after_player_turn(engine)
@@ -102,8 +75,8 @@ def test_turn_counter_advances_once_per_game_turn():
 
 
 def test_same_salt_rolls_differently_on_later_turns():
-    engine, _ = _new_game()
-    state = _enter_mission(engine)
+    engine, _ = new_game()
+    state = enter_mission(engine)
     rolls = set()
     for _ in range(6):
         state._after_player_turn(engine)
@@ -115,9 +88,9 @@ def test_same_salt_rolls_differently_on_later_turns():
 
 
 def test_scanning_on_the_spawn_tile_stays_in_the_mission():
-    engine, _ = _new_game()
+    engine, _ = new_game()
     engine.mission_loadout = [make_scanner()]
-    state = _enter_mission(engine, "derelict")
+    state = enter_mission(engine, "derelict")
     assert (engine.player.x, engine.player.y) == state.exit_pos
 
     state.ev_key(engine, FakeEvent(K.S))
@@ -127,8 +100,8 @@ def test_scanning_on_the_spawn_tile_stays_in_the_mission():
 
 
 def test_waiting_on_the_spawn_tile_stays_in_the_mission():
-    engine, _ = _new_game()
-    state = _enter_mission(engine, "derelict")
+    engine, _ = new_game()
+    state = enter_mission(engine, "derelict")
 
     state.ev_key(engine, FakeEvent(K.PERIOD))
 
@@ -136,18 +109,18 @@ def test_waiting_on_the_spawn_tile_stays_in_the_mission():
 
 
 def test_walking_back_onto_the_exit_leaves_the_mission():
-    engine, strategic = _new_game()
-    state = _enter_mission(engine)
+    engine, strategic = new_game()
+    state = enter_mission(engine)
     ex, ey = state.exit_pos
     dx, dy = next(
         (dx, dy)
         for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
         if engine.game_map.is_walkable(ex + dx, ey + dy) and not engine.game_map.get_blocking_entity(ex + dx, ey + dy)
     )
-    state.ev_key(engine, FakeEvent(_key_for((dx, dy))))
+    state.ev_key(engine, FakeEvent(key_for((dx, dy))))
     assert engine.current_state is state
 
-    state.ev_key(engine, FakeEvent(_key_for((-dx, -dy))))
+    state.ev_key(engine, FakeEvent(key_for((-dx, -dy))))
 
     assert engine.current_state is strategic
 
@@ -156,10 +129,10 @@ def test_walking_back_onto_the_exit_leaves_the_mission():
 
 
 def _boarded_ship(seed: int = 11) -> tuple[Engine, StrategicState, TacticalState, Interdiction]:
-    engine, strategic = _new_game(seed)
+    engine, strategic = new_game(seed)
     interdiction = Interdiction()
     engine.galaxy.systems[engine.galaxy.current_system].interdiction = interdiction
-    state = _enter_ship(engine)
+    state = enter_ship(engine)
     assert interdiction.started and interdiction.pirate_entities
     return engine, strategic, state, interdiction
 
@@ -183,7 +156,7 @@ def test_killing_the_last_pirate_from_the_hatch_resolves_the_interdiction():
     pirate.fighter.defense = 0
     game_map.invalidate_entity_index()
 
-    state.ev_key(engine, FakeEvent(_key_for((dx, dy))))
+    state.ev_key(engine, FakeEvent(key_for((dx, dy))))
 
     assert interdiction.alive_pirate_count() == 0
     assert interdiction.resolved is True
@@ -296,7 +269,7 @@ def test_plain_door_still_resolves_to_door():
 
 
 def test_save_from_title_screen_after_death_reloads_to_title():
-    engine, _ = _new_game(5)
+    engine, _ = new_game(5)
     engine.switch_state(GameOverState(victory=False, cause="Killed in action."))
     engine.current_state._fade_start -= 5
     engine.current_state.ev_key(engine, FakeEvent(K.RETURN))
@@ -312,8 +285,8 @@ def test_save_from_title_screen_after_death_reloads_to_title():
 
 
 def test_save_on_the_death_screen_reloads_as_game_over():
-    engine, _ = _new_game(5)
-    state = _enter_mission(engine)
+    engine, _ = new_game(5)
+    state = enter_mission(engine)
     engine.player.inventory.append(make_heal_item())
     engine.player.fighter.hp = 0
     state._handle_player_death(engine, "Killed in action.")
@@ -329,8 +302,8 @@ def test_save_on_the_death_screen_reloads_as_game_over():
 
 
 def test_save_during_the_death_fade_reloads_as_game_over():
-    engine, _ = _new_game(5)
-    state = _enter_mission(engine)
+    engine, _ = new_game(5)
+    state = enter_mission(engine)
     engine.player.fighter.hp = 0
     state._handle_player_death(engine, "Overwhelmed by hostiles.")
 
@@ -341,7 +314,7 @@ def test_save_during_the_death_fade_reloads_as_game_over():
 
 
 def test_save_on_the_victory_screen_reloads_as_victory():
-    engine, _ = _new_game(5)
+    engine, _ = new_game(5)
     engine.switch_state(GameOverState(victory=True, title="VICTORY", cause="You delivered the core."))
 
     loaded = _reload(engine)
@@ -352,7 +325,7 @@ def test_save_on_the_victory_screen_reloads_as_victory():
 
 
 def test_mid_mission_save_keeps_current_hp_not_pre_mission_hp():
-    engine, _ = _new_game(5)
+    engine, _ = new_game(5)
     engine._saved_player = {
         "hp": 10,
         "max_hp": 10,
@@ -362,7 +335,7 @@ def test_mid_mission_save_keeps_current_hp_not_pre_mission_hp():
         "inventory": [],
         "loadout": None,
     }
-    _enter_mission(engine)
+    enter_mission(engine)
     engine.player.fighter.hp = 1
 
     loaded = _reload(engine)
@@ -372,8 +345,8 @@ def test_mid_mission_save_keeps_current_hp_not_pre_mission_hp():
 
 
 def test_mid_mission_save_leaves_the_live_session_untouched():
-    engine, _ = _new_game(5)
-    state = _enter_mission(engine)
+    engine, _ = new_game(5)
+    state = enter_mission(engine)
     player = engine.player
     entities_before = list(engine.game_map.entities)
 
@@ -388,7 +361,7 @@ def test_mid_mission_save_leaves_the_live_session_untouched():
 
 
 def _adrift_next_to_home(monkeypatch) -> tuple[Engine, StrategicState, str]:
-    engine, strategic = _new_game(7)
+    engine, strategic = new_game(7)
     galaxy = engine.galaxy
     home = galaxy.home_system
     neighbour = next(iter(galaxy.systems[home].connections))
@@ -572,9 +545,9 @@ def test_login_does_not_accept_a_72_byte_prefix_match(auth_client):
 
 
 def _ship_with_suit() -> tuple[Engine, TacticalState]:
-    engine, _ = _new_game(1)
+    engine, _ = new_game(1)
     engine.suit = EVA_SUIT.copy()
-    return engine, _enter_ship(engine)
+    return engine, enter_ship(engine)
 
 
 def test_pressurised_ship_costs_no_oxygen():
@@ -626,10 +599,10 @@ def test_vented_ship_hurts_once_oxygen_runs_out():
 
 
 def test_exploring_the_ship_without_a_suit_issues_one():
-    engine, _ = _new_game(1)
+    engine, _ = new_game(1)
     assert engine.suit is None
 
-    _enter_ship(engine)
+    enter_ship(engine)
 
     assert engine.suit is not None
     assert engine.suit.has_protection("vacuum")

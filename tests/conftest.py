@@ -217,3 +217,65 @@ class FakeEvent:
     def __init__(self, sym, mod=0):
         self.sym = sym
         self.mod = mod
+
+
+# ---- Whole-game helpers: a real Engine driven through real states ----
+
+
+def new_game(seed: int = 1):
+    """A fresh game on the strategic screen: (engine, strategic_state)."""
+    from game.ship import Ship
+    from ui.strategic_state import StrategicState
+    from world.galaxy import Galaxy
+
+    engine = Engine()
+    engine.galaxy = Galaxy(seed=seed)
+    engine.ship = Ship()
+    engine.ship.generate_interior(engine.galaxy.seed)
+    strategic = StrategicState(engine.galaxy)
+    engine.push_state(strategic)
+    return engine, strategic
+
+
+def find_location(engine, loc_type: str):
+    """First generated location of *loc_type*; fails the test if the seed has none."""
+    for system in engine.galaxy.systems.values():
+        for loc in system.locations:
+            if loc.loc_type == loc_type:
+                return loc
+    pytest.fail(f"seed has no {loc_type}")
+
+
+def enter_mission(engine, loc_type: str = "colony"):
+    from ui.tactical_state import TacticalState
+
+    state = TacticalState(location=find_location(engine, loc_type), depth=0)
+    engine.push_state(state)
+    return state
+
+
+def enter_ship(engine):
+    from ui.tactical_state import TacticalState
+
+    state = TacticalState(explore_ship=True)
+    engine.push_state(state)
+    return state
+
+
+def key_for(direction: tuple[int, int]) -> int:
+    """A key that moves in *direction*."""
+    from ui.keys import move_keys
+
+    return next(key for key, move in move_keys().items() if move == direction)
+
+
+def free_step_from(engine, x: int, y: int) -> tuple[int, int]:
+    """A cardinal (dx, dy) from (x, y) onto a walkable tile with nothing standing on it."""
+    game_map = engine.game_map
+    return next(
+        (dx, dy)
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+        if game_map.is_walkable(x + dx, y + dy)
+        and not game_map.get_blocking_entity(x + dx, y + dy)
+        and not game_map.get_interactable_at(x + dx, y + dy)
+    )

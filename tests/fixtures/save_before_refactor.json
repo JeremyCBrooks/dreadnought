@@ -1,0 +1,470 @@
+{
+ "galaxy": {
+  "seed": 1,
+  "home_system": "Melvori Edge",
+  "current_system": "Torvalis",
+  "dreadnought_system": null,
+  "generated_frontiers": [
+   "Torvalis",
+   "Melvori Edge"
+  ],
+  "unexplored_frontier": [
+   "Sirius-967",
+   "Barnard-266",
+   "Synthara",
+   "Korvain"
+  ],
+  "nav_unit_rings": {
+   "2": "Rusted Cutter",
+   "1": "Hulk",
+   "3": "Skiff 527"
+  },
+  "systems": {
+   "Melvori Edge": {
+    "gx": 0,
+    "gy": 0,
+    "depth": 0,
+    "star_type": "blue_supergiant",
+    "connections": {
+     "Torvalis": 30,
+     "Korvain": 30,
+     "Synthara": 30,
+     "Sirius-967": 30
+    },
+    "locations": [
+     {
+      "name": "Shoal 103",
+      "loc_type": "asteroid",
+      "environment": {
+       "vacuum": 1,
+       "low_gravity": 1
+      },
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Melvori Edge"
+     },
+     {
+      "name": "Carbon Quarry",
+      "loc_type": "asteroid",
+      "environment": {
+       "vacuum": 1
+      },
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Melvori Edge"
+     }
+    ],
+    "interdiction": null
+   },
+   "Torvalis": {
+    "gx": 1,
+    "gy": 1,
+    "depth": 1,
+    "star_type": "wolf_rayet",
+    "connections": {
+     "Melvori Edge": 30,
+     "Barnard-266": 30
+    },
+    "locations": [
+     {
+      "name": "Outer Stead",
+      "loc_type": "colony",
+      "environment": {},
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Torvalis"
+     },
+     {
+      "name": "Keep",
+      "loc_type": "starbase",
+      "environment": {},
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Torvalis"
+     },
+     {
+      "name": "Rusted Cutter",
+      "loc_type": "derelict",
+      "environment": {
+       "vacuum": 1
+      },
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": true,
+      "is_dreadnought": false,
+      "system_name": "Torvalis"
+     },
+     {
+      "name": "Steadfast Platform",
+      "loc_type": "starbase",
+      "environment": {},
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Torvalis"
+     }
+    ],
+    "interdiction": null
+   },
+   "Korvain": {
+    "gx": 0,
+    "gy": 1,
+    "depth": 1,
+    "star_type": "yellow_giant",
+    "connections": {
+     "Melvori Edge": 30
+    },
+    "locations": [
+     {
+      "name": "Pocket",
+      "loc_type": "asteroid",
+      "environment": {
+       "vacuum": 1,
+       "low_gravity": 1
+      },
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Korvain"
+     },
+     {
+      "name": "Hulk",
+      "loc_type": "derelict",
+      "environment": {
+       "vacuum": 1
+      },
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": true,
+      "is_dreadnought": false,
+      "system_name": "Korvain"
+     },
+     {
+      "name": "Cradle",
+      "loc_type": "starbase",
+      "environment": {},
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Korvain"
+     },
+     {
+      "name": "Far Anchorage",
+      "loc_type": "colony",
+      "environment": {},
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Korvain"
+     }
+    ],
+    "interdiction": null
+   },
+   "Synthara": {
+    "gx": 0,
+    "gy": -1,
+    "depth": 1,
+    "star_type": "yellow_dwarf",
+    "connections": {
+     "Melvori Edge": 30
+    },
+    "locations": [
+     {
+      "name": "Crater 394",
+      "loc_type": "asteroid",
+      "environment": {
+       "vacuum": 1
+      },
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Synthara"
+     },
+     {
+      "name": "Pylon 460",
+      "loc_type": "starbase",
+      "environment": {},
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Synthara"
+     },
+     {
+      "name": "Nexus 979",
+      "loc_type": "starbase",
+      "environment": {},
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Synthara"
+     }
+    ],
+    "interdiction": null
+   },
+   "Sirius-967": {
+    "gx": 1,
+    "gy": 0,
+    "depth": 1,
+    "star_type": "white_dwarf",
+    "connections": {
+     "Melvori Edge": 30
+    },
+    "locations": [
+     {
+      "name": "South Prospect",
+      "loc_type": "colony",
+      "environment": {},
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Sirius-967"
+     },
+     {
+      "name": "Lower Ridge",
+      "loc_type": "colony",
+      "environment": {},
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Sirius-967"
+     },
+     {
+      "name": "Yacht 496",
+      "loc_type": "derelict",
+      "environment": {
+       "vacuum": 1
+      },
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Sirius-967"
+     }
+    ],
+    "interdiction": null
+   },
+   "Barnard-266": {
+    "gx": 1,
+    "gy": 2,
+    "depth": 2,
+    "star_type": "red_dwarf",
+    "connections": {
+     "Torvalis": 30
+    },
+    "locations": [
+     {
+      "name": "Platform",
+      "loc_type": "starbase",
+      "environment": {},
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Barnard-266"
+     },
+     {
+      "name": "Ember Shelf",
+      "loc_type": "asteroid",
+      "environment": {
+       "vacuum": 1,
+       "low_gravity": 1
+      },
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Barnard-266"
+     },
+     {
+      "name": "Dredger",
+      "loc_type": "derelict",
+      "environment": {
+       "vacuum": 1,
+       "low_gravity": 1
+      },
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": false,
+      "is_dreadnought": false,
+      "system_name": "Barnard-266"
+     },
+     {
+      "name": "Skiff 527",
+      "loc_type": "derelict",
+      "environment": {
+       "vacuum": 1,
+       "low_gravity": 1
+      },
+      "visited": false,
+      "scanned": false,
+      "has_nav_unit": true,
+      "is_dreadnought": false,
+      "system_name": "Barnard-266"
+     }
+    ],
+    "interdiction": null
+   }
+  }
+ },
+ "ship": {
+  "fuel": 3,
+  "max_fuel": 10,
+  "hull": 10,
+  "max_hull": 10,
+  "scanner_quality": 1,
+  "nav_units": 0,
+  "cargo": [],
+  "consumed_furnishings": []
+ },
+ "saved_player": {
+  "hp": 7,
+  "max_hp": 10,
+  "defense": 0,
+  "power": 1,
+  "base_power": 1,
+  "inventory": [
+   {
+    "name": "Combat Knife",
+    "char": ")",
+    "color": [
+     200,
+     200,
+     200
+    ],
+    "item": {
+     "type": "weapon",
+     "weapon_class": "melee",
+     "value": 3
+    },
+    "blocks_movement": false,
+    "x": 0,
+    "y": 0,
+    "organic": true,
+    "max_inventory": null,
+    "interactable": null,
+    "drifting": false,
+    "drift_direction": [
+     0,
+     0
+    ],
+    "decompression_moves": 0,
+    "decompression_direction": [
+     0,
+     0
+    ],
+    "move_cooldown": 0,
+    "inventory": []
+   },
+   {
+    "name": "Medkit",
+    "char": "+",
+    "color": [
+     0,
+     255,
+     0
+    ],
+    "item": {
+     "type": "heal",
+     "value": 5
+    },
+    "blocks_movement": false,
+    "x": 0,
+    "y": 0,
+    "organic": true,
+    "max_inventory": null,
+    "interactable": null,
+    "drifting": false,
+    "drift_direction": [
+     0,
+     0
+    ],
+    "decompression_moves": 0,
+    "decompression_direction": [
+     0,
+     0
+    ],
+    "move_cooldown": 0,
+    "inventory": []
+   }
+  ],
+  "loadout": {
+   "slot1_idx": 0,
+   "slot2_idx": null
+  }
+ },
+ "message_log": [
+  [
+   "You are aboard your ship.",
+   [
+    180,
+    180,
+    220
+   ]
+  ],
+  [
+   "You enter Outer Stead.",
+   [
+    200,
+    200,
+    255
+   ]
+  ],
+  [
+   "The Pirate opens a door.",
+   [
+    200,
+    200,
+    200
+   ]
+  ],
+  [
+   "You return to your ship.",
+   [
+    100,
+    255,
+    100
+   ]
+  ],
+  [
+   "Traveling to Torvalis.",
+   [
+    100,
+    200,
+    255
+   ]
+  ]
+ ],
+ "suit": {
+  "name": "EVA Suit",
+  "resistances": {
+   "vacuum": 50,
+   "cold": 10
+  },
+  "defense_bonus": 0,
+  "current_pools": {
+   "vacuum": 50,
+   "cold": 10
+  },
+  "drain_ticks": {}
+ },
+ "environment": null,
+ "active_effects": [],
+ "turn_counter": 1
+}
