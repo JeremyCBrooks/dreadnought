@@ -13,6 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from data.colors import WARNING
+
 if TYPE_CHECKING:
     from game.entity import Entity
 
@@ -35,9 +37,10 @@ class Interdiction:
     """State of a single interdiction event in a star system.
 
     Lifecycle:
-      * Queued (created by ``arrive_at``): ``started=False``, ``resolved=False``.
-      * Started (player entered ship; composite map active, pirates spawned):
-        ``started=True``, ``resolved=False``.
+      * Started (``arrive_at`` docked the craft; composite map active, pirates
+        spawned): ``started=True``, ``resolved=False``.
+      * Queued (``started=False``, ``resolved=False``) only survives in saves
+        written before docking moved to arrival; it docks on the next ship entry.
       * Resolved (all pirates dead OR drift escape): ``resolved=True``.
         Map restoration is deferred until the player next enters/exits the ship.
     """
@@ -231,11 +234,16 @@ def start_interdiction(interdiction: Interdiction, ship, rng) -> None:
     Mutates *interdiction* in place. Replaces ``ship.game_map`` with the
     composite map (the original is preserved on ``interdiction.original_ship_map``).
 
-    If no facing-airlock pair exists between the two ships, marks the
-    interdiction silently resolved (no encounter).
+    If the craft cannot dock (the ship has no interior, or no facing-airlock
+    pair admits a corridor), leaves the interdiction unstarted and marks it
+    resolved; callers treat that as a non-event and discard it.
     """
     from world.boarding_craft import compose_ships, find_compatible_airlock_pair
     from world.boarding_ship import generate_pirate_ship
+
+    if ship.game_map is None:
+        interdiction.resolved = True
+        return
 
     # Try several pirate-ship seeds until we find one whose airlocks face the
     # player's AND whose layout admits an airtight corridor through space.
@@ -457,12 +465,21 @@ def _direction_name(direction: tuple[int, int] | None) -> str:
     return _DIRECTION_NAMES.get(tuple(direction), "outer")
 
 
-def current_interdiction(engine) -> Interdiction | None:
-    """The current system's Interdiction, or None."""
+def docking_alert(interdiction: Interdiction) -> str:
+    """What the crew is told when a boarding craft clamps on."""
+    return f"A pirate boarding craft has clamped onto the {_direction_name(interdiction.attach_direction)} airlock!"
+
+
+def _current_system(engine) -> Any | None:
     galaxy = getattr(engine, "galaxy", None)
     if galaxy is None:
         return None
-    system = galaxy.systems.get(galaxy.current_system)
+    return galaxy.systems.get(galaxy.current_system)
+
+
+def current_interdiction(engine) -> Interdiction | None:
+    """The current system's Interdiction, or None."""
+    system = _current_system(engine)
     return system.interdiction if system is not None else None
 
 
@@ -470,7 +487,7 @@ def prepare_ship_entry(engine) -> None:
     """Bring the interdiction up to date as the player boards their ship.
 
     * Resolved with a stale composite -> restore the original ship map.
-    * Queued -> start it (may swap ``engine.ship.game_map`` to the composite).
+    * Queued (older saves only) -> dock it now, or forget it if it cannot dock.
     * Started but composite missing (post-load) -> rebuild it.
     * Always: reveal the breach and re-attach live pirates to the active map.
     """
@@ -485,19 +502,11 @@ def prepare_ship_entry(engine) -> None:
     if not interdiction.started:
         rng = engine.rng(f"start_interdiction:{engine.galaxy.current_system}")
         start_interdiction(interdiction, engine.ship, rng)
-        if interdiction.started:
-            heading = _direction_name(interdiction.attach_direction)
-            engine.message_log.add_message(
-                f"A pirate boarding craft has clamped onto the {heading} airlock!",
-                (255, 200, 100),
-            )
-        elif interdiction.resolved:
-            # No facing-airlock pair was available — boarding attempt failed.
-            engine.message_log.add_message(
-                "The pirate craft couldn't find a docking point and broke off.",
-                (200, 200, 200),
-            )
+        if not interdiction.started:
+            # No docking point: the boarding never happened.
+            _current_system(engine).interdiction = None
             return
+        engine.message_log.add_message(docking_alert(interdiction), WARNING)
     elif interdiction.composite_map is None:
         # Started, but the composite was wiped (e.g. by a save/load cycle).
         if not rebuild_composite(interdiction, engine.ship):

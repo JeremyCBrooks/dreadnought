@@ -266,11 +266,13 @@ class Galaxy:
         """Return fuel cost to travel to *destination*: 2 if frontier, 1 if explored."""
         return 2 if destination in self._unexplored_frontier else 1
 
-    def arrive_at(self, system_name: str, ship=None, rng=None) -> None:
+    def arrive_at(self, system_name: str, ship=None, rng=None) -> Interdiction | None:
         """Called when the player arrives at a system. Expands its frontier.
 
         When *ship* and *rng* are provided, also rolls for a pirate
-        interdiction and queues an ``Interdiction`` on the system if it hits.
+        interdiction; on a hit the boarding craft docks there and then.
+        Returns the ``Interdiction`` that just docked, if any. A craft that
+        finds no docking point is a non-event: nothing is recorded.
         Both are optional for backwards compatibility with existing callers
         and tests that exercise the galaxy in isolation.
         """
@@ -284,12 +286,19 @@ class Galaxy:
         if changed:
             self._assign_depths()
 
-        if ship is not None and rng is not None:
-            from game.interdiction import Interdiction, should_attempt_interdiction
+        if ship is None or rng is None:
+            return None
+        from game.interdiction import Interdiction, should_attempt_interdiction, start_interdiction
 
-            system = self.systems[system_name]
-            if should_attempt_interdiction(system, ship, self, rng):
-                system.interdiction = Interdiction()
+        system = self.systems[system_name]
+        if not should_attempt_interdiction(system, ship, self, rng):
+            return None
+        interdiction = Interdiction()
+        start_interdiction(interdiction, ship, rng)
+        if not interdiction.started:
+            return None
+        system.interdiction = interdiction
+        return interdiction
 
     def _assign_depths(self) -> None:
         from collections import deque

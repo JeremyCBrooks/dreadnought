@@ -324,7 +324,11 @@ class StrategicState(State):
         """Put the ship in *dest_name*; pirates may be waiting unless *interdictable* is False."""
         self.galaxy.current_system = dest_name
         if interdictable:
-            self.galaxy.arrive_at(dest_name, ship=engine.ship, rng=engine.rng(f"interdiction:{dest_name}"))
+            from game.interdiction import docking_alert
+
+            docked = self.galaxy.arrive_at(dest_name, ship=engine.ship, rng=engine.rng(f"interdiction:{dest_name}"))
+            if docked is not None:
+                engine.message_log.add_message(docking_alert(docked), WARNING)
         else:
             self.galaxy.arrive_at(dest_name)
         self.selected = 0
