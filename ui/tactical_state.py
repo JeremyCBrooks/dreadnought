@@ -885,8 +885,6 @@ class TacticalState(State):
                 consumed = RangedAction(target).perform(engine, engine.player)
                 self._ranged_cursor = None
                 self._resolve_player_action(engine, consumed)
-                if engine.current_state is self and self._death_cause is None:
-                    self._update_ground_underfoot(engine)
             else:
                 engine.message_log.add_message("No target at cursor.", GRAY)
             return True
