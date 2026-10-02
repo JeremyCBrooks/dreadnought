@@ -8,7 +8,6 @@ import os
 import random
 import subprocess
 import sys
-import zlib
 from pathlib import Path
 
 import pytest
@@ -639,47 +638,60 @@ def test_exploring_the_ship_without_a_suit_issues_one():
 # ── 13. starfield seeds are stable across processes ───────────────────────────
 
 
-def _stable_seed_in_subprocess(hash_seed: str) -> str:
+# Plays the real game in a fresh interpreter and prints the two starfield seeds a
+# player sees: the strategic viewport's and the mission map's.
+_PRINT_STARFIELD_SEEDS = """
+import tcod.console
+import ui.viewport_renderer as viewport
+from engine.game_state import Engine
+from game.ship import Ship
+from ui.strategic_state import StrategicState
+from ui.tactical_state import TacticalState
+from world.galaxy import Galaxy
+
+engine = Engine()
+engine.galaxy = Galaxy(seed=1)
+engine.ship = Ship()
+engine.ship.generate_interior(1)
+strategic = StrategicState(engine.galaxy)
+engine.push_state(strategic)
+
+real_render = viewport.render_viewport
+def spy(console, x, y, w, h, star_type, system_seed, **kwargs):
+    print("strategic", system_seed)
+    return real_render(console, x, y, w, h, star_type, system_seed, **kwargs)
+viewport.render_viewport = spy
+strategic.on_render(tcod.console.Console(160, 50, order="F"), engine)
+
+location = next(loc for s in engine.galaxy.systems.values() for loc in s.locations if loc.loc_type == "colony")
+engine.push_state(TacticalState(location=location, depth=0))
+print("mission", engine.game_map.space_seed)
+"""
+
+
+def _starfield_seeds_in_a_fresh_process(hash_seed: str) -> list[str]:
     env = {**os.environ, "PYTHONHASHSEED": hash_seed}
-    code = "from game.helpers import stable_seed; print(stable_seed('Groombridge'))"
     result = subprocess.run(  # noqa: S603
-        [sys.executable, "-c", code], cwd=PROJECT_ROOT, env=env, capture_output=True, text=True, check=False
+        [sys.executable, "-c", _PRINT_STARFIELD_SEEDS],
+        cwd=PROJECT_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
-    return result.stdout.strip()
+    return result.stdout.split()
 
 
-def test_stable_seed_is_the_same_in_every_process():
-    assert _stable_seed_in_subprocess("1") == _stable_seed_in_subprocess("2")
+def test_starfield_seeds_are_identical_in_every_process():
+    first = _starfield_seeds_in_a_fresh_process("1")
+    second = _starfield_seeds_in_a_fresh_process("2")
+
+    assert first == second
+    assert [first[0], first[2]] == ["strategic", "mission"]
 
 
-def test_stable_seed_is_a_32_bit_value_that_differs_by_name():
+def test_different_systems_get_different_starfields():
     from game.helpers import stable_seed
 
-    assert stable_seed("Groombridge") == zlib.crc32(b"Groombridge")
-    assert 0 <= stable_seed("Groombridge") <= 0xFFFFFFFF
     assert stable_seed("Groombridge") != stable_seed("Vega")
-
-
-def test_mission_starfield_uses_the_stable_seed():
-    from game.helpers import stable_seed
-
-    engine, _ = _new_game()
-    state = _enter_mission(engine)
-
-    assert engine.game_map.space_seed == stable_seed(state.location.system_name)
-
-
-def test_strategic_viewport_uses_the_stable_seed(monkeypatch):
-    from game.helpers import stable_seed
-
-    engine, strategic = _new_game()
-    seeds: list[int] = []
-    monkeypatch.setattr(
-        "ui.viewport_renderer.render_viewport",
-        lambda console, x, y, w, h, star_type, system_seed, **kwargs: seeds.append(system_seed),
-    )
-
-    strategic.on_render(_console(), engine)
-
-    assert seeds == [stable_seed(engine.galaxy.current_system)]
