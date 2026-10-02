@@ -78,7 +78,7 @@ def test_items_stay_with_player_on_exit():
     # Nothing should go to cargo
     assert len(engine.ship.cargo) == 0
     # Items preserved in saved_player
-    sp = engine._saved_player
+    sp = engine.saved_player
     inv_names = [e.name for e in sp["inventory"]]
     assert "Med-kit" in inv_names
     assert "Pipe" in inv_names

@@ -154,13 +154,13 @@ def test_game_over_input_accepted_after_fade():
     """After fade completes, Enter should trigger return to title."""
     state = GameOverState(victory=False)
     engine = Engine()
-    engine._saved_player = {"hp": 0, "max_hp": 10, "defense": 0, "power": 1, "base_power": 1, "inventory": []}
+    engine.saved_player = {"hp": 0, "max_hp": 10, "defense": 0, "power": 1, "base_power": 1, "inventory": []}
     engine.area_cache = {("test", 1): {"game_map": None}}
     engine._state_stack.append(state)
     state._fade_start = time.time() - FADE_IN_DURATION - 1.0
 
     state.ev_key(engine, FakeEvent(sym=tcod.event.KeySym.RETURN))
-    assert engine._saved_player is None
+    assert engine.saved_player is None
 
 
 def test_game_over_text_fades_in():

@@ -68,25 +68,13 @@ class CreatureAI:
     # ---- vision ----
 
     def _can_see_player(self, owner: Entity, engine: Engine) -> bool:
-        import tcod.map
-
         from game.helpers import chebyshev
 
         target = engine.player
         vision_radius = self._cfg(owner, "vision_radius")
         if chebyshev(owner.x, owner.y, target.x, target.y) > vision_radius:
             return False
-        cache_key = (owner.x, owner.y, vision_radius)
-        fov_cache = engine.game_map._fov_cache
-        fov = fov_cache.get(cache_key)
-        if fov is None:
-            fov = tcod.map.compute_fov(
-                engine.game_map.tiles["transparent"],
-                (owner.x, owner.y),
-                radius=vision_radius,
-            )
-            fov_cache[cache_key] = fov
-        return bool(fov[target.x, target.y])
+        return bool(engine.game_map.fov_from(owner.x, owner.y, vision_radius)[target.x, target.y])
 
     # ---- pathfinding ----
 

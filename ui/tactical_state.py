@@ -227,7 +227,7 @@ class TacticalState(State):
                 # Collect floor items back into ship cargo; skip all item conversions.
                 if engine.ship is not None:
                     engine.ship.collect_floor_items(engine.game_map)
-                engine._saved_player = snapshot_player(p)
+                engine.saved_player = snapshot_player(p)
                 if p in engine.game_map.entities:
                     engine.game_map.entities.remove(p)
                 # Resolved interdiction: now safe to swap composite map back
@@ -239,8 +239,8 @@ class TacticalState(State):
                 if interdiction is not None and interdiction.resolved:
                     restore_original_ship_map(interdiction, engine.ship)
             else:
-                engine._saved_player = snapshot_player(p)
-                saved_inventory = engine._saved_player["inventory"]
+                engine.saved_player = snapshot_player(p)
+                saved_inventory = engine.saved_player["inventory"]
                 if engine.ship is not None:
                     from game.salvage import unload_mission_salvage
 
@@ -264,7 +264,7 @@ class TacticalState(State):
         """Apply saved player stats and inventory to a freshly created player entity."""
         from game.player_state import apply_snapshot
 
-        apply_snapshot(player, engine._saved_player)
+        apply_snapshot(player, engine.saved_player)
 
     def _enter_ship(self, engine: Engine) -> None:
         """Set up the engine to explore the player's own ship interior."""
@@ -315,7 +315,7 @@ class TacticalState(State):
 
         Called from ``engine_to_dict`` when this state is on the stack but
         the player is mid-mission (didn't go through ``on_exit``). Refreshes
-        ``engine._saved_player`` so HP/inventory changes since the last clean
+        ``engine.saved_player`` so HP/inventory changes since the last clean
         exit aren't lost on reload — on any mission, or a disconnect would
         hand back the HP the player walked in with. Aboard the ship it also
         returns the floor items that ``on_exit`` would have swept into cargo
@@ -329,7 +329,7 @@ class TacticalState(State):
         from game.player_state import snapshot_player
 
         p = engine.player
-        engine._saved_player = snapshot_player(p)
+        engine.saved_player = snapshot_player(p)
         if not getattr(self, "explore_ship", False) or engine.ship is None:
             return []
         return engine.ship.floor_items(engine.game_map)

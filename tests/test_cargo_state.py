@@ -234,7 +234,7 @@ def test_inventory_stays_with_player_on_exit():
 
     # Items should stay with the player (_saved_player), NOT go to cargo
     assert len(engine.ship.cargo) == 0
-    sp = engine._saved_player
+    sp = engine.saved_player
     inv_names = [e.name for e in sp["inventory"]]
     assert "Med-kit" in inv_names
     assert "Pipe" in inv_names
@@ -255,7 +255,7 @@ def test_cargo_key_opens_cargo_in_strategic_state():
 
     engine = Engine()
     engine.ship = Ship()
-    engine._saved_player = {
+    engine.saved_player = {
         "hp": 10,
         "max_hp": 10,
         "defense": 0,
@@ -293,7 +293,7 @@ def test_cargo_state_from_ship_transfers_saved_inventory():
     cargo_item = Entity(name="Spare", item={"type": "weapon", "value": 1})
     engine.ship.cargo.append(cargo_item)
     engine.mission_loadout = []
-    engine._saved_player = {
+    engine.saved_player = {
         "hp": 10,
         "max_hp": 10,
         "defense": 0,
@@ -309,7 +309,7 @@ def test_cargo_state_from_ship_transfers_saved_inventory():
     state.ev_key(engine, FakeEvent(K.RETURN))
 
     # Item should transfer to saved_player inventory, not mission_loadout
-    assert cargo_item in engine._saved_player["inventory"]
+    assert cargo_item in engine.saved_player["inventory"]
     assert cargo_item not in engine.ship.cargo
 
 
@@ -323,7 +323,7 @@ def test_cargo_state_from_ship_transfer_back():
     engine.ship = Ship()
     engine.mission_loadout = []
     item = Entity(name="Blaster", item={"type": "weapon", "value": 3})
-    engine._saved_player = {
+    engine.saved_player = {
         "hp": 10,
         "max_hp": 10,
         "defense": 0,
@@ -339,7 +339,7 @@ def test_cargo_state_from_ship_transfer_back():
     state.ev_key(engine, FakeEvent(K.RETURN))
 
     assert item in engine.ship.cargo
-    assert item not in engine._saved_player["inventory"]
+    assert item not in engine.saved_player["inventory"]
 
 
 def _make_strategic_engine_with_loadout(inventory_items=None, loadout_slot1=None, loadout_slot2=None, cargo_items=None):
@@ -350,7 +350,7 @@ def _make_strategic_engine_with_loadout(inventory_items=None, loadout_slot1=None
     engine.ship = Ship()
     engine.mission_loadout = []
     lo = Loadout(slot1=loadout_slot1, slot2=loadout_slot2)
-    engine._saved_player = {
+    engine.saved_player = {
         "hp": 10,
         "max_hp": 10,
         "defense": 0,
@@ -392,9 +392,9 @@ def test_equip_from_personal_in_strategic_context():
     state.selected = 0  # weapon in inventory
     state.ev_key(engine, FakeEvent(K.e))
 
-    lo = engine._saved_player["loadout"]
+    lo = engine.saved_player["loadout"]
     assert lo.has_item(weapon)
-    assert weapon in engine._saved_player["inventory"]  # stays in list
+    assert weapon in engine.saved_player["inventory"]  # stays in list
 
 
 def test_unequip_from_personal_in_strategic_context():
@@ -413,9 +413,9 @@ def test_unequip_from_personal_in_strategic_context():
     state.selected = 0  # weapon is equipped, first in combined list
     state.ev_key(engine, FakeEvent(K.e))
 
-    lo = engine._saved_player["loadout"]
+    lo = engine.saved_player["loadout"]
     assert not lo.has_item(weapon)
-    assert weapon in engine._saved_player["inventory"]
+    assert weapon in engine.saved_player["inventory"]
 
 
 def test_equip_works_in_briefing_context():
@@ -433,8 +433,8 @@ def test_equip_works_in_briefing_context():
     state.ev_key(engine, FakeEvent(K.e))
 
     # Weapon should be equipped in the lazily-created _saved_player loadout
-    assert engine._saved_player is not None
-    lo = engine._saved_player["loadout"]
+    assert engine.saved_player is not None
+    lo = engine.saved_player["loadout"]
     assert lo.has_item(weapon)
     assert weapon in engine.mission_loadout  # stays in list, just marked equipped
 
@@ -454,7 +454,7 @@ def test_equip_ignored_in_cargo_section():
 
     # Weapon should still be in cargo, not equipped
     assert weapon in engine.ship.cargo
-    lo = engine._saved_player["loadout"]
+    lo = engine.saved_player["loadout"]
     assert not lo.has_item(weapon)
 
 
@@ -518,7 +518,7 @@ def test_transfer_blocked_counts_equipped_items():
 
     # Transfer should be blocked (10 items in inventory = max)
     assert extra in engine.ship.cargo
-    assert extra not in engine._saved_player["inventory"]
+    assert extra not in engine.saved_player["inventory"]
 
 
 def test_unequip_when_at_capacity_still_works():
@@ -538,9 +538,9 @@ def test_unequip_when_at_capacity_still_works():
     state.selected = 0  # equipped item is first in combined list
     state.ev_key(engine, FakeEvent(K.e))
 
-    lo = engine._saved_player["loadout"]
+    lo = engine.saved_player["loadout"]
     assert not lo.has_item(weapon)
-    assert weapon in engine._saved_player["inventory"]
+    assert weapon in engine.saved_player["inventory"]
 
 
 def test_equip_when_loadout_full():
@@ -563,7 +563,7 @@ def test_equip_when_loadout_full():
     state.ev_key(engine, FakeEvent(K.e))
 
     # w3 should still be in inventory, unequipped
-    assert w3 in engine._saved_player["inventory"]
+    assert w3 in engine.saved_player["inventory"]
     assert any("full" in m[0].lower() for m in engine.message_log.messages)
 
 
@@ -583,9 +583,9 @@ def test_transfer_equipped_item_to_cargo():
     state.selected = 0  # equipped item
     state.ev_key(engine, FakeEvent(K.RETURN))
 
-    lo = engine._saved_player["loadout"]
+    lo = engine.saved_player["loadout"]
     assert not lo.has_item(weapon)
-    assert weapon not in engine._saved_player["inventory"]
+    assert weapon not in engine.saved_player["inventory"]
     assert weapon in engine.ship.cargo
 
 
@@ -598,7 +598,7 @@ def test_equip_creates_loadout_when_none():
     engine.ship = Ship()
     engine.mission_loadout = []
     weapon = Entity(name="Blaster", item={"type": "weapon", "value": 3})
-    engine._saved_player = {
+    engine.saved_player = {
         "hp": 10,
         "max_hp": 10,
         "defense": 0,
@@ -613,10 +613,10 @@ def test_equip_creates_loadout_when_none():
     state.selected = 0
     state.ev_key(engine, FakeEvent(K.e))
 
-    lo = engine._saved_player["loadout"]
+    lo = engine.saved_player["loadout"]
     assert lo is not None
     assert lo.has_item(weapon)
-    assert weapon in engine._saved_player["inventory"]  # stays in list
+    assert weapon in engine.saved_player["inventory"]  # stays in list
 
 
 def test_equip_works_on_fresh_game():
@@ -628,7 +628,7 @@ def test_equip_works_on_fresh_game():
     weapon = Entity(name="Blaster", item={"type": "weapon", "value": 3})
     engine.ship.cargo.append(weapon)
     # No _saved_player set — simulates a fresh game
-    assert engine._saved_player is None
+    assert engine.saved_player is None
 
     state = CargoState()
     # Transfer cargo to personal
@@ -642,8 +642,8 @@ def test_equip_works_on_fresh_game():
     state.ev_key(engine, FakeEvent(K.e))
 
     # Weapon should now be equipped
-    assert engine._saved_player is not None
-    lo = engine._saved_player["loadout"]
+    assert engine.saved_player is not None
+    lo = engine.saved_player["loadout"]
     assert lo is not None
     assert lo.has_item(weapon)
 
@@ -656,7 +656,7 @@ def test_equipped_shown_in_combined_on_fresh_game():
     engine = _make_engine_with_cargo()
     weapon = Entity(name="Blaster", item={"type": "weapon", "value": 3})
     engine.mission_loadout.append(weapon)
-    assert engine._saved_player is None
+    assert engine.saved_player is None
 
     state = CargoState()
     state._section = _PERSONAL
@@ -707,7 +707,7 @@ def test_inventory_persists_across_missions():
 
     # Items should stay with player (in _saved_player), NOT go to cargo
     assert len(engine.ship.cargo) == 0
-    sp = engine._saved_player
+    sp = engine.saved_player
     inv_names = [e.name for e in sp["inventory"]]
     assert "Medkit" in inv_names
 

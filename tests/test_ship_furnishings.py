@@ -29,7 +29,7 @@ def _engine():
     engine.galaxy = Galaxy(seed=SEED)
     engine.ship = Ship()
     engine.ship.generate_interior(engine.galaxy.seed)
-    engine._saved_player = None
+    engine.saved_player = None
     engine.environment = None
     return engine
 

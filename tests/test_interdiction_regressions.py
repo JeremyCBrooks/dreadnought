@@ -68,7 +68,7 @@ def _engine_boarded_in_ship():
     ship, interdiction = _started_interdiction()
     engine.ship = ship
     engine.galaxy.systems[engine.galaxy.home_system].interdiction = interdiction
-    engine._saved_player = None
+    engine.saved_player = None
     engine.environment = None
     with patch("world.game_map.GameMap.update_fov", lambda *a, **k: None):
         engine.push_state(TacticalState(explore_ship=True))

@@ -36,7 +36,7 @@ dx, dy = free_step_from(engine, ex, ey)
 state.ev_key(engine, FakeEvent(key_for((dx, dy))))
 state.ev_key(engine, FakeEvent(key_for((-dx, -dy))))
 assert engine.current_state is strategic, "the mission should have ended at the exit"
-engine._saved_player["hp"] = 7
+engine.saved_player["hp"] = 7
 
 strategic.focus = "navigation"
 direction = next(iter(strategic._connection_by_direction()))

@@ -89,7 +89,7 @@ def test_reactor_core_converts_to_fuel_on_exit():
 
     assert engine.ship.fuel == 8  # 3 + 5
     # Core should be removed from saved inventory
-    saved_inv = engine._saved_player["inventory"]
+    saved_inv = engine.saved_player["inventory"]
     assert all(i.item.get("type") != "reactor_core" for i in saved_inv)
 
 
@@ -140,7 +140,7 @@ def test_reactor_core_no_conversion_without_ship():
     state.on_exit(engine)
 
     # Core stays in inventory, no crash
-    saved_inv = engine._saved_player["inventory"]
+    saved_inv = engine.saved_player["inventory"]
     assert any(i.item.get("type") == "reactor_core" for i in saved_inv)
 
 

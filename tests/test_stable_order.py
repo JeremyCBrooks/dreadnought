@@ -153,7 +153,7 @@ def _make_strategic_engine(inventory_items=None, loadout_slot1=None, loadout_slo
     engine.mission_loadout = []
     lo = Loadout(slot1=loadout_slot1, slot2=loadout_slot2)
     inv = list(inventory_items or [])
-    engine._saved_player = {
+    engine.saved_player = {
         "hp": 10,
         "max_hp": 10,
         "defense": 0,

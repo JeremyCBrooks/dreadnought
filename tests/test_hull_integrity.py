@@ -145,7 +145,7 @@ def test_hull_repair_auto_apply():
     ts.on_exit(engine)
 
     assert engine.ship.hull == 8
-    saved_inv = engine._saved_player["inventory"]
+    saved_inv = engine.saved_player["inventory"]
     assert hull_kit not in saved_inv
 
 

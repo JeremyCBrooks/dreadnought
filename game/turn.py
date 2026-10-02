@@ -66,18 +66,18 @@ def lose_to_space(engine: Engine, entity: Entity) -> None:
 def _process_decompression(engine: Engine) -> None:
     """Start any pending decompression, pull tagged entities, and clear those it crushed."""
     game_map = engine.game_map
-    pending = game_map._pending_decompression
+    pending = game_map.pending_decompression
     if pending:
-        game_map._pull_directions = trigger_decompression(engine, pending["breach_sources"], pending["newly_exposed"])
-        game_map._pending_decompression = None
+        game_map.pull_directions = trigger_decompression(engine, pending["breach_sources"], pending["newly_exposed"])
+        game_map.pending_decompression = None
 
-    pull_dirs = game_map._pull_directions
+    pull_dirs = game_map.pull_directions
     if pull_dirs:
         for entity in list(game_map.entities):
             if entity.decompression_moves > 0:
                 process_decompression_step(game_map, entity, pull_dirs)
         if not any(e.decompression_moves > 0 for e in game_map.entities):
-            game_map._pull_directions = None
+            game_map.pull_directions = None
 
     for entity in list(game_map.entities):
         if entity is engine.player:

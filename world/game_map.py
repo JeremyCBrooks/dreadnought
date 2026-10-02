@@ -34,8 +34,8 @@ class GameMap:
         self._hazards_dirty: bool = True
         self.hull_breaches: list[tuple[int, int]] = []
         self.space_seed: int = 0
-        self._pending_decompression: dict | None = None
-        self._pull_directions: dict[tuple[int, int], tuple[int, int]] | None = None
+        self.pending_decompression: dict | None = None
+        self.pull_directions: dict[tuple[int, int], tuple[int, int]] | None = None
         self._vacuum_baseline_set: bool = False
         self.biome: str | None = None
         self.debug_visible_all: bool = False
@@ -130,7 +130,7 @@ class GameMap:
                     old_vacuum = self._empty_bool_grid()
                 newly_exposed = new_vacuum & ~old_vacuum
                 if np.any(newly_exposed):
-                    self._pending_decompression = {
+                    self.pending_decompression = {
                         "newly_exposed": newly_exposed,
                         "breach_sources": vacuum_sources,
                     }
@@ -189,6 +189,17 @@ class GameMap:
     def invalidate_lights(self) -> None:
         self._light_dirty = True
         self._light_map = None
+
+    def fov_from(self, x: int, y: int, radius: int) -> np.ndarray:
+        """Field of view from (x, y), cached until ``clear_fov_cache`` (once per turn)."""
+        import tcod.map
+
+        key = (x, y, radius)
+        fov = self._fov_cache.get(key)
+        if fov is None:
+            fov = tcod.map.compute_fov(self.tiles["transparent"], (x, y), radius=radius)
+            self._fov_cache[key] = fov
+        return fov
 
     def clear_fov_cache(self) -> None:
         """Clear the turn-scoped AI vision cache."""

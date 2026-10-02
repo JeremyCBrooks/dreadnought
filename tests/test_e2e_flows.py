@@ -45,7 +45,7 @@ def test_mission_round_trip_converts_salvage_and_keeps_the_rest():
 
     assert engine.current_state is strategic
     assert engine.ship.fuel == min(engine.ship.max_fuel, fuel_before + 5)
-    assert engine._saved_player["inventory"] == [medkit]
+    assert engine.saved_player["inventory"] == [medkit]
     assert engine.game_map is None and engine.player is None
 
 
@@ -123,7 +123,7 @@ def test_a_save_written_before_the_refactor_still_loads_and_plays():
     assert isinstance(loaded.current_state, StrategicState)
     assert loaded.galaxy.current_system != loaded.galaxy.home_system
     assert loaded.ship.fuel == 3
-    record = loaded._saved_player
+    record = loaded.saved_player
     assert record["hp"] == 7
     assert [item.name for item in record["inventory"]] == ["Combat Knife", "Medkit"]
 

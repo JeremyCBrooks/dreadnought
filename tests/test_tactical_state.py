@@ -295,7 +295,7 @@ class TestOnExit:
         wpn = make_weapon()
         engine.player.inventory.append(wpn)
         state.on_exit(engine)
-        saved = engine._saved_player
+        saved = engine.saved_player
         assert saved["hp"] == 7
         assert saved["max_hp"] == 10
         assert wpn in saved["inventory"]

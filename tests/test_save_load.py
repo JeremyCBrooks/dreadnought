@@ -412,7 +412,7 @@ def test_engine_to_dict_with_saved_player():
 
     engine = make_engine_with_galaxy()
     weapon = make_weapon()
-    engine._saved_player = {
+    engine.saved_player = {
         "hp": 8,
         "max_hp": 10,
         "defense": 1,
@@ -431,7 +431,7 @@ def test_dict_to_engine_restores_state():
     from web.save_load import dict_to_engine, engine_to_dict
 
     engine = make_engine_with_galaxy(seed=55)
-    engine._saved_player = {
+    engine.saved_player = {
         "hp": 7,
         "max_hp": 10,
         "defense": 0,
@@ -450,8 +450,8 @@ def test_dict_to_engine_restores_state():
     assert new_engine.galaxy.seed == 55
     assert new_engine.ship is not None
     assert new_engine.ship.fuel == engine.ship.fuel
-    assert new_engine._saved_player is not None
-    assert new_engine._saved_player["hp"] == 7
+    assert new_engine.saved_player is not None
+    assert new_engine.saved_player["hp"] == 7
     assert isinstance(new_engine.current_state, StrategicState)
 
 
@@ -492,7 +492,7 @@ def test_dict_to_engine_no_saved_player():
     new_engine = Engine()
     dict_to_engine(d, new_engine)
 
-    assert new_engine._saved_player is None
+    assert new_engine.saved_player is None
 
 
 def test_save_load_preserves_ship_map():

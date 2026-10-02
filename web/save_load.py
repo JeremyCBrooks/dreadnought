@@ -443,7 +443,7 @@ def is_mid_mission(engine: Engine) -> bool:
     """
     from ui.tactical_state import TacticalState
 
-    return any(isinstance(s, TacticalState) for s in engine._state_stack)
+    return engine.has_state(TacticalState)
 
 
 def make_death_save_dict(cause: str = "Mission abandoned") -> dict:
@@ -464,7 +464,7 @@ def _game_over_record(engine: Engine) -> dict | None:
     from ui.game_over_state import GameOverState
     from ui.tactical_state import TacticalState
 
-    for state in engine._state_stack:
+    for state in engine.states:
         if isinstance(state, GameOverState):
             return {**make_death_save_dict(state.cause), "title": state.title, "victory": state.victory}
         if isinstance(state, TacticalState) and getattr(state, "_death_cause", None) is not None:
@@ -488,7 +488,7 @@ def engine_to_dict(engine: Engine) -> dict:
         return game_over
 
     floor_items: list = []
-    for state in engine._state_stack:
+    for state in engine.states:
         if isinstance(state, TacticalState):
             floor_items = state.flush_for_save(engine)
             break
@@ -496,7 +496,7 @@ def engine_to_dict(engine: Engine) -> dict:
     return {
         "galaxy": _galaxy_to_dict(engine.galaxy),
         "ship": _ship_to_dict(engine.ship, floor_items),
-        "saved_player": _saved_player_to_dict(engine._saved_player),
+        "saved_player": _saved_player_to_dict(engine.saved_player),
         "message_log": _log_to_list(engine.message_log),
         "suit": _suit_to_dict(engine.suit),
         "environment": dict(engine.environment) if engine.environment else None,
@@ -534,7 +534,7 @@ def dict_to_engine(data: dict, engine: Engine) -> None:
 
     engine.galaxy = _galaxy_from_dict(data["galaxy"])
     engine.ship = _ship_from_dict(data["ship"])
-    engine._saved_player = _saved_player_from_dict(data.get("saved_player"))
+    engine.saved_player = _saved_player_from_dict(data.get("saved_player"))
     engine.message_log = _log_from_list(data.get("message_log", []))
     engine.suit = _suit_from_dict(data.get("suit"))
     engine.environment = dict(data["environment"]) if data.get("environment") else None

@@ -41,8 +41,9 @@ class ConfirmQuitState(State):
 
     def on_render(self, console: Any, engine: Engine) -> None:
         # Draw previous state underneath
-        if len(engine._state_stack) >= 2:
-            engine._state_stack[-2].on_render(console, engine)
+        below = engine.state_below(self)
+        if below is not None:
+            below.on_render(console, engine)
 
         con_w, con_h = engine.CONSOLE_WIDTH, engine.CONSOLE_HEIGHT
         bw, bh = 27, 6

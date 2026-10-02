@@ -496,10 +496,10 @@ def test_take_reactor_core_blocked_in_explore_ship():
 
 
 def test_explore_ship_on_enter_restores_player_stats():
-    """Saved player stats (hp, inventory) are applied when engine._saved_player exists."""
+    """Saved player stats (hp, inventory) are applied when engine.saved_player exists."""
     engine = make_ship_engine()
     wpn = make_weapon(name="Blaster")
-    engine._saved_player = {
+    engine.saved_player = {
         "hp": 3,
         "max_hp": 12,
         "defense": 2,

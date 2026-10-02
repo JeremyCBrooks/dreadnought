@@ -433,7 +433,7 @@ class TestPendingDecompression:
 
         # First recalculate with closed airlock — no vacuum
         gm.recalculate_hazards()
-        assert gm._pending_decompression is None
+        assert gm.pending_decompression is None
 
         # Open the airlock
         gm.tiles[4, 1] = tile_types.airlock_ext_open
@@ -441,8 +441,8 @@ class TestPendingDecompression:
         gm.recalculate_hazards()
 
         # Should have pending decompression
-        assert gm._pending_decompression is not None
-        assert np.any(gm._pending_decompression["newly_exposed"])
+        assert gm.pending_decompression is not None
+        assert np.any(gm.pending_decompression["newly_exposed"])
 
     def test_no_pending_when_already_exposed(self):
         """Re-recalculating without changes does not create pending decompression."""
@@ -454,15 +454,15 @@ class TestPendingDecompression:
         gm = _make_map(layout)
         gm.recalculate_hazards()
         # First time: no pending (no baseline to compare against)
-        pending1 = gm._pending_decompression
+        pending1 = gm.pending_decompression
         assert pending1 is None
 
         # Clear it and re-dirty
-        gm._pending_decompression = None
+        gm.pending_decompression = None
         gm._hazards_dirty = True
         gm.recalculate_hazards()
         # No new tiles exposed — no pending
-        assert gm._pending_decompression is None
+        assert gm.pending_decompression is None
 
     def test_first_recalculate_with_breach_no_decompression(self):
         """First recalculate on a map with hull breach does NOT trigger decompression."""
@@ -473,7 +473,7 @@ class TestPendingDecompression:
         ]
         gm = _make_map(layout)
         gm.recalculate_hazards()
-        assert gm._pending_decompression is None
+        assert gm.pending_decompression is None
 
     def test_entities_already_in_vacuum_not_affected(self):
         """Entities on tiles that were already vacuum are not tagged."""
@@ -626,7 +626,7 @@ class TestDoorToVacuumRoom:
 
         # Establish baseline vacuum (room is vacuum through breach)
         gm.recalculate_hazards()
-        assert gm._pending_decompression is None  # first call, no decompression
+        assert gm.pending_decompression is None  # first call, no decompression
 
         # Place entity at start of corridor
         entity = Entity(x=1, y=1, name="Drone", fighter=Fighter(10, 10, 0, 1))
@@ -651,7 +651,7 @@ class TestDoorToVacuumRoom:
         gm._hazards_dirty = True
         gm.recalculate_hazards()
 
-        pending = gm._pending_decompression
+        pending = gm.pending_decompression
         assert pending is not None, "Door opening should trigger decompression"
 
         pull_dirs = trigger_decompression(
@@ -687,7 +687,7 @@ class TestDoorToVacuumRoom:
         gm._hazards_dirty = True
         gm.recalculate_hazards()
 
-        pending = gm._pending_decompression
+        pending = gm.pending_decompression
         assert pending is not None
 
         pull_dirs = trigger_decompression(
@@ -727,7 +727,7 @@ class TestDoorToVacuumRoom:
         gm._hazards_dirty = True
         gm.recalculate_hazards()
 
-        pending = gm._pending_decompression
+        pending = gm.pending_decompression
         assert pending is not None
 
         trigger_decompression(

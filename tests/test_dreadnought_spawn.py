@@ -247,7 +247,7 @@ class TestDreadnoughtCore:
         ts.on_exit(engine)
 
         # Core should be in ship cargo, not in saved inventory
-        saved_inv = engine._saved_player["inventory"]
+        saved_inv = engine.saved_player["inventory"]
         assert not any(i.item and i.item.get("type") == "dreadnought_core" for i in saved_inv)
         cargo_cores = [c for c in engine.ship.cargo if c.item and c.item.get("type") == "dreadnought_core"]
         assert len(cargo_cores) == 1
@@ -390,7 +390,7 @@ class TestDreadnoughtCore:
         engine = Engine()
         engine.ship = Ship()
         engine.mission_loadout = []
-        engine._saved_player = {
+        engine.saved_player = {
             "hp": 10,
             "max_hp": 10,
             "defense": 0,

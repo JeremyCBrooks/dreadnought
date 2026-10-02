@@ -46,7 +46,7 @@ class GameOverState(State):
             return True
         from ui.title_state import TitleState
 
-        engine._saved_player = None
+        engine.saved_player = None
         engine.area_cache.clear()
         engine.active_effects.clear()
         engine.suit = None

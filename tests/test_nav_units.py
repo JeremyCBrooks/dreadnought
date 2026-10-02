@@ -109,7 +109,7 @@ class TestNavUnitInstallOnExit:
         state.on_exit(engine)
 
         assert engine.ship.nav_units == 1
-        saved_inv = engine._saved_player["inventory"]
+        saved_inv = engine.saved_player["inventory"]
         assert all(i.item.get("type") != "nav_unit" for i in saved_inv), "Nav unit should be removed from inventory"
 
     def test_multiple_nav_units_installed(self):
@@ -142,7 +142,7 @@ class TestNavUnitInstallOnExit:
         state.depth = 0
         state.on_exit(engine)
 
-        saved_inv = engine._saved_player["inventory"]
+        saved_inv = engine.saved_player["inventory"]
         assert any(i.item.get("type") == "nav_unit" for i in saved_inv)
 
 

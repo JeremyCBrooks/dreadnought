@@ -75,7 +75,7 @@ class MockEngine:
         self.active_effects = []
         self.area_cache = {}
         self._state_stack = []
-        self._saved_player = None
+        self.saved_player = None
         self.ship = None
         self.scan_results = None
         self.scan_glow = None
@@ -87,12 +87,9 @@ class MockEngine:
 
     def rng(self, salt: str):
         """Mirror Engine.rng for parity in tests."""
-        import hashlib
-        import random as _random
+        from engine.game_state import seeded_rng
 
-        seed = self.galaxy.seed if self.galaxy is not None else 0
-        h = hashlib.sha256(f"{seed}:{self.turn_counter}:{salt}".encode()).digest()
-        return _random.Random(int.from_bytes(h[:8], "little"))
+        return seeded_rng(self.galaxy.seed if self.galaxy is not None else 0, self.turn_counter, salt)
 
     def switch_state(self, state):
         self._switched_state = state

@@ -78,7 +78,7 @@ class InventoryState(State):
         """Return True if the inventory is overlaid on a TacticalState."""
         from ui.tactical_state import TacticalState
 
-        return any(isinstance(s, TacticalState) for s in engine._state_stack)
+        return engine.has_state(TacticalState)
 
     def _drop(self, engine: Engine) -> None:
         """Drop the selected item onto the map (tactical state only)."""

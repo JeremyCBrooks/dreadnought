@@ -30,26 +30,26 @@ class CargoState(State):
     def _personal_list(self, engine: Engine) -> list:
         """Return the personal inventory list.
 
-        In strategic mode (between missions), items live in ``_saved_player["inventory"]``.
+        In strategic mode (between missions), items live in ``saved_player["inventory"]``.
         During briefing, items live in ``engine.mission_loadout``.  We distinguish
-        the two contexts by checking whether ``_saved_player`` has an inventory
+        the two contexts by checking whether ``saved_player`` has an inventory
         *and* ``mission_loadout`` is empty (briefing resets it to ``[]``).
         """
-        sp = getattr(engine, "_saved_player", None)
+        sp = engine.saved_player
         if sp and "inventory" in sp and not engine.mission_loadout:
             return sp["inventory"]
         return engine.mission_loadout
 
     def _ensure_loadout(self, engine: Engine) -> Loadout:
-        """Return the Loadout, lazily initializing ``_saved_player`` if needed."""
+        """Return the Loadout, lazily initializing ``saved_player`` if needed."""
         from game.loadout import Loadout
 
-        sp = getattr(engine, "_saved_player", None)
+        sp = engine.saved_player
         if sp is None:
             from game.player_state import fresh_player_snapshot
 
-            engine._saved_player = fresh_player_snapshot()
-            sp = engine._saved_player
+            engine.saved_player = fresh_player_snapshot()
+            sp = engine.saved_player
         lo = sp.get("loadout")
         if lo is None:
             lo = Loadout()

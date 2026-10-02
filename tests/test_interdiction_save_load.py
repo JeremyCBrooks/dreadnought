@@ -30,7 +30,7 @@ def _engine_with_galaxy_and_ship(seed: int = 42):
     ship.exit_pos = exit_pos
     ship.cargo.append(Entity(x=0, y=0, char="!", color=(255, 255, 255), name="placeholder", item={"type": "junk"}))
     engine.ship = ship
-    engine._saved_player = None
+    engine.saved_player = None
     engine.environment = None
     return engine
 
@@ -182,8 +182,8 @@ def test_save_mid_ship_explore_persists_pirates_and_flushes_player():
     # Live engine: pirates still on the map for a reconnecting player.
     assert all(p in engine.game_map.entities for p in interdiction.pirate_entities)
     # _saved_player reflects live engine.player.
-    assert engine._saved_player["hp"] == 3
-    assert "picked-up" in [it.name for it in engine._saved_player["inventory"]]
+    assert engine.saved_player["hp"] == 3
+    assert "picked-up" in [it.name for it in engine.saved_player["inventory"]]
 
     # Reload: composite rebuilds via prepare_ship_entry, pirates re-attach.
     from engine.game_state import Engine
@@ -194,8 +194,8 @@ def test_save_mid_ship_explore_persists_pirates_and_flushes_player():
     assert loaded.started is True and loaded.resolved is False
     assert loaded.pirate_entities
     # Saved player carries HP=3 and the pickup.
-    assert new_engine._saved_player["hp"] == 3
-    assert "picked-up" in [it.name for it in new_engine._saved_player["inventory"]]
+    assert new_engine.saved_player["hp"] == 3
+    assert "picked-up" in [it.name for it in new_engine.saved_player["inventory"]]
 
 
 def test_save_load_no_interdiction_still_works():

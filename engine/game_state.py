@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import random
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from engine.message_log import MessageLog
 
 if TYPE_CHECKING:
-    import random
-
     import tcod.console
     import tcod.context
     import tcod.event
@@ -30,8 +30,16 @@ class QuitToPortal(Exception):
 _ANIM_TIMEOUT = 0.1
 
 
+def seeded_rng(seed: int, turn: int, salt: str) -> random.Random:
+    """A Random seeded from (seed, turn, salt): the same three always give the same stream."""
+    digest = hashlib.sha256(f"{seed}:{turn}:{salt}".encode()).digest()
+    return random.Random(int.from_bytes(digest[:8], "little"))
+
+
 class State:
     """Base class for all game states. Subclass and override methods."""
+
+    needs_animation: bool = False
 
     def on_enter(self, engine: Engine) -> None:
         pass
@@ -79,7 +87,7 @@ class Engine:
         self.active_effects: list[dict] = []
         self.ship: Ship | None = None
         # Persist player stats between areas
-        self._saved_player: dict | None = None
+        self.saved_player: dict | None = None
         # Persisted areas: (location_name, depth) -> {game_map, rooms, exit_pos, seed}
         self.area_cache: dict[tuple[str, int], dict] = {}
         self.scan_results: ScanResults | None = None
@@ -97,12 +105,30 @@ class Engine:
         sharing draws. Same engine state + same salt always reproduces the
         same stream — that's what makes save/load resistant to RNG savescum.
         """
-        import hashlib
-        import random as _random
+        return seeded_rng(self.galaxy.seed if self.galaxy is not None else 0, self.turn_counter, salt)
 
-        seed = self.galaxy.seed if self.galaxy is not None else 0
-        h = hashlib.sha256(f"{seed}:{self.turn_counter}:{salt}".encode()).digest()
-        return _random.Random(int.from_bytes(h[:8], "little"))
+    @property
+    def states(self) -> tuple[State, ...]:
+        """The state stack, bottom to top."""
+        return tuple(self._state_stack)
+
+    def has_state(self, state_type: type[State]) -> bool:
+        """True if a state of *state_type* is anywhere on the stack."""
+        return any(isinstance(state, state_type) for state in self._state_stack)
+
+    def state_below(self, state: State) -> State | None:
+        """The state directly under *state*, or None if it is at the bottom or not on the stack."""
+        if state not in self._state_stack:
+            return None
+        index = self._state_stack.index(state)
+        return self._state_stack[index - 1] if index > 0 else None
+
+    def needs_animation(self) -> bool:
+        """True while something on screen changes without input: starfield, flicker, scan glow, fades."""
+        game_map = self.game_map
+        map_animates = game_map is not None and (game_map.has_space or game_map.has_flickering_lights)
+        state = self.current_state
+        return bool(map_animates or self.scan_glow or (state is not None and state.needs_animation))
 
     @property
     def current_state(self) -> State | None:
@@ -167,13 +193,7 @@ class Engine:
                 prev_tiles = None
                 continue
 
-            gm = self.game_map
-            needs_anim = (
-                (gm and (getattr(gm, "has_space", False) or getattr(gm, "has_flickering_lights", False)))
-                or self.scan_glow
-                or getattr(self.current_state, "needs_animation", False)
-            )
-            timeout = _ANIM_TIMEOUT if needs_anim else None
+            timeout = _ANIM_TIMEOUT if self.needs_animation() else None
 
             try:
                 event = await asyncio.wait_for(input_queue.get(), timeout=timeout)
@@ -218,13 +238,7 @@ class Engine:
                 if self.current_state is not state_before:
                     continue
                 # Short timeout when animation is needed; None (blocking) otherwise
-                gm = self.game_map
-                needs_anim = (
-                    (gm and (getattr(gm, "has_space", False) or getattr(gm, "has_flickering_lights", False)))
-                    or self.scan_glow
-                    or getattr(self.current_state, "needs_animation", False)
-                )
-                timeout = _ANIM_TIMEOUT if needs_anim else None
+                timeout = _ANIM_TIMEOUT if self.needs_animation() else None
                 for event in tcod.event.wait(timeout=timeout):
                     if isinstance(event, tcod.event.Quit):
                         return

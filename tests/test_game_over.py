@@ -19,7 +19,7 @@ def test_game_over_ignores_non_enter_keys():
     import tcod.event
 
     engine = Engine()
-    engine._saved_player = {"hp": 0, "max_hp": 10, "defense": 0, "power": 1, "base_power": 1, "inventory": []}
+    engine.saved_player = {"hp": 0, "max_hp": 10, "defense": 0, "power": 1, "base_power": 1, "inventory": []}
     engine.area_cache = {("test", 1): {"game_map": None}}
 
     state = GameOverState(victory=False)
@@ -28,7 +28,7 @@ def test_game_over_ignores_non_enter_keys():
 
     state.ev_key(engine, FakeEvent(sym=tcod.event.KeySym.SPACE))
 
-    assert engine._saved_player is not None
+    assert engine.saved_player is not None
     assert engine.area_cache != {}
 
 
@@ -37,7 +37,7 @@ def test_game_over_clears_saved_player():
     import tcod.event
 
     engine = Engine()
-    engine._saved_player = {"hp": 0, "max_hp": 10, "defense": 0, "power": 1, "base_power": 1, "inventory": []}
+    engine.saved_player = {"hp": 0, "max_hp": 10, "defense": 0, "power": 1, "base_power": 1, "inventory": []}
     engine.area_cache = {("test", 1): {"game_map": None}}
 
     state = GameOverState(victory=False)
@@ -46,7 +46,7 @@ def test_game_over_clears_saved_player():
 
     state.ev_key(engine, FakeEvent(sym=tcod.event.KeySym.RETURN))
 
-    assert engine._saved_player is None
+    assert engine.saved_player is None
     assert engine.area_cache == {}
 
 
@@ -55,7 +55,7 @@ def test_victory_clears_saved_player():
     import tcod.event
 
     engine = Engine()
-    engine._saved_player = {"hp": 5, "max_hp": 10, "defense": 0, "power": 1, "base_power": 1, "inventory": []}
+    engine.saved_player = {"hp": 5, "max_hp": 10, "defense": 0, "power": 1, "base_power": 1, "inventory": []}
     engine.area_cache = {("test", 1): {"game_map": None}}
 
     state = GameOverState(victory=True)
@@ -64,7 +64,7 @@ def test_victory_clears_saved_player():
 
     state.ev_key(engine, FakeEvent(sym=tcod.event.KeySym.RETURN))
 
-    assert engine._saved_player is None
+    assert engine.saved_player is None
     assert engine.area_cache == {}
 
 
@@ -104,7 +104,7 @@ def test_active_effects_cleared_on_game_over():
 
     engine = Engine()
     engine.active_effects = [{"type": "radiation", "dot": 1, "remaining": 5}]
-    engine._saved_player = {"hp": 0}
+    engine.saved_player = {"hp": 0}
     engine.suit = Suit("Test", {}, 0)
     engine.environment = {"vacuum": 1}
 
@@ -124,7 +124,7 @@ def test_active_effects_cleared_on_game_over():
     go.ev_key(engine, evt)
 
     assert engine.active_effects == []
-    assert engine._saved_player is None
+    assert engine.saved_player is None
     assert engine.suit is None
     assert engine.environment is None
 

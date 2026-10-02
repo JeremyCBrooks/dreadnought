@@ -326,7 +326,7 @@ def test_save_on_the_victory_screen_reloads_as_victory():
 
 def test_mid_mission_save_keeps_current_hp_not_pre_mission_hp():
     engine, _ = new_game(5)
-    engine._saved_player = {
+    engine.saved_player = {
         "hp": 10,
         "max_hp": 10,
         "defense": 0,
@@ -341,7 +341,7 @@ def test_mid_mission_save_keeps_current_hp_not_pre_mission_hp():
     loaded = _reload(engine)
 
     assert isinstance(loaded.current_state, StrategicState)
-    assert loaded._saved_player["hp"] == 1
+    assert loaded.saved_player["hp"] == 1
 
 
 def test_mid_mission_save_leaves_the_live_session_untouched():
