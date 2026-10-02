@@ -121,7 +121,7 @@ class TacticalState(State):
             self._enter_ship(engine)
             return
 
-        from game.entity import Entity, Fighter
+        from game.player_state import new_player
         from game.suit import EVA_SUIT
         from world.dungeon_gen import generate_dungeon, respawn_creatures
 
@@ -174,15 +174,7 @@ class TacticalState(State):
             return
 
         px, py = rooms[0].center
-        player = Entity(
-            x=px,
-            y=py,
-            char="@",
-            color=(255, 255, 255),
-            name="Player",
-            blocks_movement=True,
-            fighter=Fighter(hp=10, max_hp=10, defense=0, power=1),
-        )
+        player = new_player(px, py)
         self._restore_player_from_saved(player, engine)
         game_map.entities.append(player)
 
@@ -241,6 +233,8 @@ class TacticalState(State):
         self._update_ground_underfoot(engine)
 
     def on_exit(self, engine: Engine) -> None:
+        from game.player_state import snapshot_player
+
         if engine.game_map and engine.player:
             p = engine.player
 
@@ -251,15 +245,7 @@ class TacticalState(State):
                 # Collect floor items back into ship cargo; skip all item conversions.
                 if engine.ship is not None:
                     engine.ship.collect_floor_items(engine.game_map)
-                engine._saved_player = {
-                    "hp": p.fighter.hp,
-                    "max_hp": p.fighter.max_hp,
-                    "defense": p.fighter.defense,
-                    "power": p.fighter.base_power,
-                    "base_power": p.fighter.base_power,
-                    "inventory": list(p.inventory),
-                    "loadout": p.loadout,
-                }
+                engine._saved_player = snapshot_player(p)
                 if p in engine.game_map.entities:
                     engine.game_map.entities.remove(p)
                 # Resolved interdiction: now safe to swap composite map back
@@ -273,18 +259,8 @@ class TacticalState(State):
 
                     restore_original_ship_map(interdiction, engine.ship)
             else:
-                saved_inventory = list(p.inventory)
-                saved_loadout = p.loadout
-
-                engine._saved_player = {
-                    "hp": p.fighter.hp,
-                    "max_hp": p.fighter.max_hp,
-                    "defense": p.fighter.defense,
-                    "power": p.fighter.base_power,  # reset to base on exit
-                    "base_power": p.fighter.base_power,
-                    "inventory": saved_inventory,
-                    "loadout": saved_loadout,
-                }
+                engine._saved_player = snapshot_player(p)
+                saved_inventory = engine._saved_player["inventory"]
                 # Convert reactor cores to fuel
                 if engine.ship is not None:
                     cores = [i for i in saved_inventory if i.item and i.item.get("type") == "reactor_core"]
@@ -349,24 +325,15 @@ class TacticalState(State):
 
     def _restore_player_from_saved(self, player: Entity, engine: Engine) -> None:
         """Apply saved player stats and inventory to a freshly created player entity."""
-        from game.loadout import recalc_melee_power
+        from game.player_state import apply_snapshot
 
-        if not engine._saved_player:
-            return
-        sp = engine._saved_player
-        player.fighter.hp = sp["hp"]
-        player.fighter.max_hp = sp["max_hp"]
-        player.fighter.defense = sp["defense"]
-        player.fighter.power = sp["power"]
-        player.fighter.base_power = sp["base_power"]
-        player.inventory = sp.get("inventory", [])
-        player.loadout = sp.get("loadout")
-        recalc_melee_power(player)
+        apply_snapshot(player, engine._saved_player)
 
     def _enter_ship(self, engine: Engine) -> None:
         """Set up the engine to explore the player's own ship interior."""
-        from game.entity import PLAYER_MAX_INVENTORY, Entity, Fighter
+        from game.entity import PLAYER_MAX_INVENTORY
         from game.loadout import Loadout
+        from game.player_state import new_player
         from game.suit import EVA_SUIT
 
         engine.active_effects.clear()
@@ -388,15 +355,7 @@ class TacticalState(State):
 
         # Place / restore player at exit (docking hatch)
         px, py = self.exit_pos
-        player = Entity(
-            x=px,
-            y=py,
-            char="@",
-            color=(255, 255, 255),
-            name="Player",
-            blocks_movement=True,
-            fighter=Fighter(hp=10, max_hp=10, defense=0, power=1),
-        )
+        player = new_player(px, py)
         self._restore_player_from_saved(player, engine)
         if player.loadout is None:
             player.loadout = Loadout()
@@ -499,16 +458,10 @@ class TacticalState(State):
         """
         if engine.game_map is None or engine.player is None:
             return []
+        from game.player_state import snapshot_player
+
         p = engine.player
-        engine._saved_player = {
-            "hp": p.fighter.hp,
-            "max_hp": p.fighter.max_hp,
-            "defense": p.fighter.defense,
-            "power": p.fighter.base_power,
-            "base_power": p.fighter.base_power,
-            "inventory": list(p.inventory),
-            "loadout": p.loadout,
-        }
+        engine._saved_player = snapshot_player(p)
         if not getattr(self, "explore_ship", False) or engine.ship is None:
             return []
         return engine.ship.floor_items(engine.game_map)

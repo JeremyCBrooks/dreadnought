@@ -46,15 +46,9 @@ class CargoState(State):
 
         sp = getattr(engine, "_saved_player", None)
         if sp is None:
-            engine._saved_player = {
-                "hp": 10,
-                "max_hp": 10,
-                "defense": 0,
-                "power": 1,
-                "base_power": 1,
-                "inventory": [],
-                "loadout": Loadout(),
-            }
+            from game.player_state import fresh_player_snapshot
+
+            engine._saved_player = fresh_player_snapshot()
             sp = engine._saved_player
         lo = sp.get("loadout")
         if lo is None:
