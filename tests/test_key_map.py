@@ -1,11 +1,10 @@
 """Tests for web/key_map.py."""
 
-import pytest
-
 
 def test_arrow_keys_mapped():
-    from web.key_map import BROWSER_TO_KEYSYM
     import tcod.event
+
+    from web.key_map import BROWSER_TO_KEYSYM
 
     K = tcod.event.KeySym
     assert BROWSER_TO_KEYSYM["ArrowUp"] == K.UP
@@ -15,8 +14,9 @@ def test_arrow_keys_mapped():
 
 
 def test_confirm_cancel_keys_mapped():
-    from web.key_map import BROWSER_TO_KEYSYM
     import tcod.event
+
+    from web.key_map import BROWSER_TO_KEYSYM
 
     K = tcod.event.KeySym
     assert BROWSER_TO_KEYSYM["Enter"] == K.RETURN
@@ -24,8 +24,9 @@ def test_confirm_cancel_keys_mapped():
 
 
 def test_space_and_period_mapped():
-    from web.key_map import BROWSER_TO_KEYSYM
     import tcod.event
+
+    from web.key_map import BROWSER_TO_KEYSYM
 
     K = tcod.event.KeySym
     assert BROWSER_TO_KEYSYM[" "] == K.SPACE
@@ -34,8 +35,9 @@ def test_space_and_period_mapped():
 
 
 def test_action_keys_mapped():
-    from web.key_map import BROWSER_TO_KEYSYM
     import tcod.event
+
+    from web.key_map import BROWSER_TO_KEYSYM
 
     K = tcod.event.KeySym
     # All keys from ui/keys.py action_keys()
@@ -50,8 +52,9 @@ def test_action_keys_mapped():
 
 
 def test_vi_movement_keys_mapped():
-    from web.key_map import BROWSER_TO_KEYSYM
     import tcod.event
+
+    from web.key_map import BROWSER_TO_KEYSYM
 
     K = tcod.event.KeySym
     assert BROWSER_TO_KEYSYM["h"] == K.h
@@ -65,8 +68,9 @@ def test_vi_movement_keys_mapped():
 
 
 def test_page_scroll_keys_mapped():
-    from web.key_map import BROWSER_TO_KEYSYM
     import tcod.event
+
+    from web.key_map import BROWSER_TO_KEYSYM
 
     K = tcod.event.KeySym
     assert BROWSER_TO_KEYSYM["PageUp"] == K.PAGEUP
@@ -74,8 +78,9 @@ def test_page_scroll_keys_mapped():
 
 
 def test_numpad_keys_mapped():
-    from web.key_map import BROWSER_TO_KEYSYM
     import tcod.event
+
+    from web.key_map import BROWSER_TO_KEYSYM
 
     K = tcod.event.KeySym
     assert BROWSER_TO_KEYSYM["Numpad1"] == K.KP_1

@@ -1,8 +1,5 @@
 """Tests for web/console_serializer.py."""
 
-import numpy as np
-import pytest
-
 
 def make_console(w: int = 4, h: int = 3):
     """Create a minimal tcod-compatible Console stub using a numpy array."""
@@ -60,9 +57,9 @@ def test_changed_cell_appears_in_delta():
     tiles, _ = serialize_delta(console, prev)
     assert len(tiles) == 1
     t = tiles[0]
-    assert t[0] == 1 and t[1] == 2          # x, y
-    assert t[2] == ord("X")                  # ch
-    assert t[3] == 255 and t[4] == 128       # fg r, g
+    assert t[0] == 1 and t[1] == 2  # x, y
+    assert t[2] == ord("X")  # ch
+    assert t[3] == 255 and t[4] == 128  # fg r, g
 
 
 def test_only_changed_cells_in_delta():

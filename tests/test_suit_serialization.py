@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from game.suit import HAZARD_SUIT, Suit
 
-
 # ── Suit ──────────────────────────────────────────────────────────────────────
 
 

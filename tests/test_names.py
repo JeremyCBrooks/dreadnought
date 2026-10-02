@@ -37,9 +37,7 @@ def test_no_duplicate_suffixes():
 def test_no_duplicate_location_words():
     for loc_type, groups in LOCATION_WORDS.items():
         for key, words in groups.items():
-            assert len(words) == len(set(words)), (
-                f"Duplicate in LOCATION_WORDS[{loc_type}][{key}]"
-            )
+            assert len(words) == len(set(words)), f"Duplicate in LOCATION_WORDS[{loc_type}][{key}]"
 
 
 def test_location_word_lists_balanced():

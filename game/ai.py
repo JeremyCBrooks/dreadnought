@@ -576,4 +576,3 @@ class CreatureAI:
                 if current_dist <= 1:
                     self._attack(owner, engine)
                 break
-

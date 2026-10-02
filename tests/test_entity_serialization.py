@@ -11,7 +11,6 @@ from game.ai import CreatureAI
 from game.entity import Entity, Fighter
 from game.loadout import Loadout
 
-
 # ── Position and physics ──────────────────────────────────────────────────────
 
 
@@ -67,8 +66,14 @@ def test_entity_interactable_preserved():
     from web.save_load import _entity_from_dict, _entity_to_dict
 
     e = Entity(
-        x=4, y=5, name="Crate",
-        interactable={"kind": "container", "scanned": True, "loot": {"name": "Coin", "char": "*", "color": [255, 255, 0]}},
+        x=4,
+        y=5,
+        name="Crate",
+        interactable={
+            "kind": "container",
+            "scanned": True,
+            "loot": {"name": "Coin", "char": "*", "color": [255, 255, 0]},
+        },
     )
     restored = _entity_from_dict(_entity_to_dict(e))
     assert restored.interactable == {

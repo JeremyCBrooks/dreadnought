@@ -111,9 +111,7 @@ def scanner_by_name(name: str) -> ScannerDef:
     return _SCANNERS_BY_NAME[name]
 
 
-_ALL_LOOT: list[dict[str, Any]] = [
-    {k: v for k, v in asdict(d).items() if v is not None} for d in [*ITEMS, *SCANNERS]
-]
+_ALL_LOOT: list[dict[str, Any]] = [{k: v for k, v in asdict(d).items() if v is not None} for d in [*ITEMS, *SCANNERS]]
 
 
 def all_loot() -> list[dict[str, Any]]:

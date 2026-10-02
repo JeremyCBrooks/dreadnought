@@ -112,7 +112,9 @@ def test_steal_action_deterministic_under_same_engine_state():
         engine.turn_counter = 12
 
         player = Entity(
-            x=5, y=5, name="Player",
+            x=5,
+            y=5,
+            name="Player",
             fighter=Fighter(hp=10, max_hp=10, defense=0, power=1),
         )
         player.loadout = Loadout()

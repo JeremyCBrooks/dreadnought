@@ -396,4 +396,6 @@ class TestNameUniqueness:
 
     def test_interactable_names_unique(self):
         names = [i.name for i in INTERACTABLES]
-        assert len(names) == len(set(names)), f"Duplicate interactable names: {[n for n in names if names.count(n) > 1]}"
+        assert len(names) == len(set(names)), (
+            f"Duplicate interactable names: {[n for n in names if names.count(n) > 1]}"
+        )

@@ -559,9 +559,7 @@ def scatter_flora(
 
     # Per-type zone fields — determines WHICH flora type appears where.
     # Broader scale than veg patches so regions feel coherent.
-    zone_fields = [
-        fractal_noise(np_rng, w, h, octaves=2, base_radius=12) for _ in range(n_types)
-    ]
+    zone_fields = [fractal_noise(np_rng, w, h, octaves=2, base_radius=12) for _ in range(n_types)]
 
     # Determine where vegetation exists
     veg_mask = ground_mask & (veg_field > veg_threshold)

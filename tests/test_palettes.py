@@ -356,6 +356,4 @@ def test_biome_flavors_cover_all_flora_types():
             continue
         for entry in biome.flora:
             tid = FLORA_CHAR_MAP[entry.char]
-            assert tid in flavors, (
-                f"biome {name!r}: flora char {entry.char!r} (tid={tid}) missing from BIOME_FLAVORS"
-            )
+            assert tid in flavors, f"biome {name!r}: flora char {entry.char!r} (tid={tid}) missing from BIOME_FLAVORS"
