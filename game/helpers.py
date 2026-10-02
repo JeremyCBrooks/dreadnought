@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import zlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from game.entity import Entity
@@ -18,6 +18,13 @@ def stable_seed(text: str) -> int:
 def chebyshev(x1: int, y1: int, x2: int, y2: int) -> int:
     """Chebyshev (chessboard) distance between two points."""
     return max(abs(x1 - x2), abs(y1 - y2))
+
+
+def changed_tiles(pristine_tile_ids: Any, game_map: GameMap) -> list[tuple[int, int, int]]:
+    """Tiles of *game_map* that differ from *pristine_tile_ids*, as (x, y, tile_id)."""
+    current = game_map.tiles["tile_id"]
+    xs, ys = (current != pristine_tile_ids).nonzero()
+    return [(x, y, int(current[x, y])) for x, y in zip(xs.tolist(), ys.tolist(), strict=True)]
 
 
 def missing_entity_indices(pristine: list[Entity], game_map: GameMap) -> list[int]:

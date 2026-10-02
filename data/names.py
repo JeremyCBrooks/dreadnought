@@ -375,3 +375,8 @@ LOCATION_WORDS: dict[str, dict[str, list[str]]] = {
 }
 
 LOCATION_TYPES: list[str] = list(LOCATION_WORDS.keys())
+
+# A boarding craft the player cleared out. Deliberately not in LOCATION_WORDS:
+# wrecks are only ever left behind by a fight, never rolled for a new system.
+WRECK_LOC_TYPE = "wreck"
+WRECK_NAME_FORMAT = "Raider {number}"

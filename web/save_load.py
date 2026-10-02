@@ -231,6 +231,29 @@ def _interdiction_from_dict(d: dict | None):
 # ── Galaxy ────────────────────────────────────────────────────────────────────
 
 
+def _wreck_to_dict(wreck) -> dict | None:
+    """Serialize a pirate wreck's record: its seed and the player's changes to it."""
+    if wreck is None:
+        return None
+    return {
+        "ship_seed": wreck.ship_seed,
+        "tile_changes": [list(change) for change in wreck.tile_changes],
+        "consumed_furnishings": list(wreck.consumed_furnishings),
+    }
+
+
+def _wreck_from_dict(d: dict | None):
+    if d is None:
+        return None
+    from game.wreck import WreckRecord
+
+    return WreckRecord(
+        ship_seed=d["ship_seed"],
+        tile_changes=[tuple(change) for change in d.get("tile_changes", [])],
+        consumed_furnishings=list(d.get("consumed_furnishings", [])),
+    )
+
+
 def _galaxy_to_dict(galaxy) -> dict | None:
     if galaxy is None:
         return None
@@ -252,6 +275,7 @@ def _galaxy_to_dict(galaxy) -> dict | None:
                     "has_nav_unit": loc.has_nav_unit,
                     "is_dreadnought": loc.is_dreadnought,
                     "system_name": loc.system_name,
+                    "wreck": _wreck_to_dict(loc.wreck),
                 }
                 for loc in sys.locations
             ],
@@ -305,6 +329,7 @@ def _galaxy_from_dict(d: dict | None):
             loc.scanned = loc_data.get("scanned", False)
             loc.has_nav_unit = loc_data.get("has_nav_unit", False)
             loc.is_dreadnought = loc_data.get("is_dreadnought", False)
+            loc.wreck = _wreck_from_dict(loc_data.get("wreck"))
             locations.append(loc)
             galaxy._used_names.add(loc_data["name"])
 

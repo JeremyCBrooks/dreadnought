@@ -10,6 +10,7 @@ from data.star_types import pick_star_type
 
 if TYPE_CHECKING:
     from game.interdiction import Interdiction
+    from game.wreck import WreckRecord
 
 _LOW_GRAVITY_TYPES = frozenset({"asteroid", "derelict"})
 
@@ -45,6 +46,8 @@ class Location:
         self.system_name = system_name
         self.has_nav_unit = False
         self.is_dreadnought = False
+        # Set only on a pirate wreck: how to rebuild the ship as the player left it.
+        self.wreck: WreckRecord | None = None
 
 
 class StarSystem:
@@ -166,6 +169,13 @@ class Galaxy:
                 self._nav_unit_rings[ring] = chosen.name
 
         return system
+
+    def claim_name(self, name: str) -> bool:
+        """Reserve *name* for a system or location. Returns False if it is already taken."""
+        if name in self._used_names:
+            return False
+        self._used_names.add(name)
+        return True
 
     def _generate_system_name(self, rng: random.Random) -> str:
         """Generate a unique system name using the given RNG."""

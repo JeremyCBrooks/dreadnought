@@ -119,7 +119,20 @@ class TacticalState(State):
         loc_type = self.location.loc_type if self.location else "derelict"
 
         cached = engine.area_cache.get(key)
-        if cached and cached["game_map"].width == layout.map_w and cached["game_map"].height == layout.map_h:
+        wreck = getattr(self.location, "wreck", None)
+        if wreck is not None:
+            # A pirate wreck is one particular ship, rebuilt as the player left
+            # it. It keeps its own size, and nothing lives aboard to respawn.
+            if cached is None:
+                from game.wreck import build_wreck_map
+
+                game_map, rooms, exit_pos = build_wreck_map(wreck)
+                cached = {"game_map": game_map, "rooms": rooms, "exit_pos": exit_pos, "seed": wreck.ship_seed}
+                engine.area_cache[key] = cached
+            game_map = cached["game_map"]
+            rooms = cached["rooms"]
+            self.exit_pos = cached["exit_pos"]
+        elif cached and cached["game_map"].width == layout.map_w and cached["game_map"].height == layout.map_h:
             game_map = cached["game_map"]
             rooms = cached["rooms"]
             self.exit_pos = cached["exit_pos"]
@@ -215,6 +228,7 @@ class TacticalState(State):
             resolve_if_cleared,
             restore_original_ship_map,
         )
+        from game.wreck import leave_wreck
 
         if engine.game_map and engine.player:
             p = engine.player
@@ -238,9 +252,15 @@ class TacticalState(State):
                 resolve_if_cleared(engine)
                 interdiction = current_interdiction(engine)
                 if interdiction is not None and interdiction.resolved:
+                    # A craft with no crew left stays behind as a wreck; the
+                    # composite is the only record of what was done aboard it.
+                    leave_wreck(engine, interdiction)
                     restore_original_ship_map(interdiction, engine.ship)
             else:
                 self._bring_salvage_home(engine, p)
+                wreck = getattr(self.location, "wreck", None)
+                if wreck is not None:
+                    wreck.refresh(engine.game_map)
                 key = _area_key(self.location, self.depth)
                 if engine.player in engine.game_map.entities:
                     engine.game_map.entities.remove(engine.player)

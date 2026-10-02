@@ -10,6 +10,7 @@ ship-exit/entry to avoid stranding them on a removed tile).
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -92,9 +93,9 @@ class Interdiction:
         """
         if self.composite_map is None or self.pristine_tile_ids is None:
             return list(self.saved_tile_changes)
-        current = self.composite_map.tiles["tile_id"]
-        xs, ys = (current != self.pristine_tile_ids).nonzero()
-        return [(x, y, int(current[x, y])) for x, y in zip(xs.tolist(), ys.tolist(), strict=True)]
+        from game.helpers import changed_tiles
+
+        return changed_tiles(self.pristine_tile_ids, self.composite_map)
 
     def consumed_overlay_indices(self) -> list[int]:
         """Indices of pirate-ship furnishings that are no longer on the composite.
@@ -339,25 +340,29 @@ def _reapply_consumed_overlay(interdiction: Interdiction) -> None:
     interdiction.saved_consumed_overlay = []
 
 
-def _reapply_tile_changes(interdiction: Interdiction) -> None:
-    """Replay saved tile changes onto a freshly rebuilt composite."""
+def apply_tile_changes(game_map, changes: Iterable[tuple[int, int, int]]) -> None:
+    """Replay recorded (x, y, tile_id) changes onto a freshly generated *game_map*."""
     from world import tile_types
 
-    composite = interdiction.composite_map
     core_tid = int(tile_types.reactor_core["tile_id"])
     extracted_cores: set[tuple[int, int]] = set()
-    for x, y, tile_id in interdiction.saved_tile_changes:
-        if not composite.in_bounds(x, y):
+    for x, y, tile_id in changes:
+        if not game_map.in_bounds(x, y):
             continue
-        if int(composite.tiles["tile_id"][x, y]) == core_tid:
+        if int(game_map.tiles["tile_id"][x, y]) == core_tid:
             extracted_cores.add((x, y))
-        composite.tiles[x, y] = tile_types.tile_by_id(tile_id)
-    interdiction.saved_tile_changes = []
+        game_map.tiles[x, y] = tile_types.tile_by_id(tile_id)
     # An extracted core takes its glow with it (see TakeReactorCoreAction).
-    # Mutate in place: the list is shared with the original player map.
+    # Mutate in place: a composite shares this list with the original player map.
     if extracted_cores:
-        composite.light_sources[:] = [ls for ls in composite.light_sources if (ls.x, ls.y) not in extracted_cores]
-    composite.invalidate_hazards()
+        game_map.light_sources[:] = [ls for ls in game_map.light_sources if (ls.x, ls.y) not in extracted_cores]
+    game_map.invalidate_hazards()
+
+
+def _reapply_tile_changes(interdiction: Interdiction) -> None:
+    """Replay saved tile changes onto a freshly rebuilt composite."""
+    apply_tile_changes(interdiction.composite_map, interdiction.saved_tile_changes)
+    interdiction.saved_tile_changes = []
 
 
 def tile_in_player_ship_region(tile_x: int, tile_y: int, engine) -> bool:
