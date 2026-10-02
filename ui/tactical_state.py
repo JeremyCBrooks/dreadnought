@@ -189,7 +189,9 @@ class TacticalState(State):
         # Seed for space starfield — matches strategic viewport when available
         system_name = getattr(self.location, "system_name", "") if self.location else ""
         if system_name:
-            game_map.space_seed = hash(system_name) & 0xFFFFFFFF
+            from game.helpers import stable_seed
+
+            game_map.space_seed = stable_seed(system_name)
 
         engine.game_map = game_map
         engine.player = player
@@ -262,6 +264,9 @@ class TacticalState(State):
                     engine.game_map.entities.remove(p)
                 # Resolved interdiction: now safe to swap composite map back
                 # to the original player ship (player has left ship interior).
+                # Re-check first: the turn that brought the player here never
+                # reached the end-of-turn resolution check.
+                self._check_interdiction_resolution(engine)
                 interdiction = self._current_interdiction(engine)
                 if interdiction is not None and interdiction.resolved:
                     from game.interdiction import restore_original_ship_map
@@ -362,10 +367,10 @@ class TacticalState(State):
         """Set up the engine to explore the player's own ship interior."""
         from game.entity import PLAYER_MAX_INVENTORY, Entity, Fighter
         from game.loadout import Loadout
+        from game.suit import EVA_SUIT
 
         engine.active_effects.clear()
         self._layout = _layout(engine)
-        engine.environment = {}  # pressurized ship interior
 
         # Pirate interdiction: may swap engine.ship.game_map to a composite
         # containing the pirate ship + airtight corridor. Read game_map AFTER.
@@ -373,6 +378,11 @@ class TacticalState(State):
 
         game_map = engine.ship.game_map
         self.exit_pos = engine.ship.exit_pos
+
+        # The interior is pressurized, but vacuum is spatial: it only bites
+        # on tiles an opened airlock has actually vented.
+        engine.environment = {"vacuum": 1} if game_map.airlocks else {}
+        engine.suit = engine.suit or EVA_SUIT.copy()
 
         engine.ship.materialize_cargo(game_map, engine.ship.rooms)
 
@@ -479,14 +489,14 @@ class TacticalState(State):
         Called from ``engine_to_dict`` when this state is on the stack but
         the player is mid-mission (didn't go through ``on_exit``). Refreshes
         ``engine._saved_player`` so HP/inventory changes since the last clean
-        ship exit aren't lost on reload, and returns the floor items that
-        ``on_exit`` would have swept into cargo so the save can include them.
+        exit aren't lost on reload — on any mission, or a disconnect would
+        hand back the HP the player walked in with. Aboard the ship it also
+        returns the floor items that ``on_exit`` would have swept into cargo
+        so the save can include them.
 
         Must NOT mutate the live map: a reconnect within the idle TTL reuses
         this in-memory engine, so pirates and floor items have to stay put.
         """
-        if not getattr(self, "explore_ship", False):
-            return []
         if engine.game_map is None or engine.player is None:
             return []
         p = engine.player
@@ -499,7 +509,9 @@ class TacticalState(State):
             "inventory": list(p.inventory),
             "loadout": p.loadout,
         }
-        return engine.ship.floor_items(engine.game_map) if engine.ship is not None else []
+        if not getattr(self, "explore_ship", False) or engine.ship is None:
+            return []
+        return engine.ship.floor_items(engine.game_map)
 
     def _detach_interdiction_pirates(self, engine: Engine) -> None:
         """Strip pirate entities from game_map.entities; references live on Interdiction.
@@ -627,7 +639,9 @@ class TacticalState(State):
         if not consumed:
             return True
 
-        if self.exit_pos and (engine.player.x, engine.player.y) == self.exit_pos:
+        # Only walking onto the hatch leaves: the player spawns on it, so
+        # scanning or waiting there must not end the mission.
+        if moved and self.exit_pos and (engine.player.x, engine.player.y) == self.exit_pos:
             msg = "You return to the bridge." if self.explore_ship else "You return to your ship."
             engine.message_log.add_message(msg, EQUIP_MSG)
             engine.pop_state()
@@ -657,6 +671,7 @@ class TacticalState(State):
         )
         from game.hazards import apply_dot_effects
 
+        engine.turn_counter += 1
         engine.game_map.invalidate_entity_index()
         engine.game_map.clear_fov_cache()
         apply_environment_tick(engine)
@@ -975,14 +990,16 @@ class TacticalState(State):
                 if not engine.game_map.in_bounds(nx, ny):
                     continue
                 tid = int(engine.game_map.tiles["tile_id"][nx, ny])
-                if tid in door_ids:
+                # A furnishing comes first: generation can put a locker on a
+                # door or switch tile, and it blocks the tile until searched.
+                if engine.game_map.get_interactable_at(nx, ny):
+                    dirs.append((dx, dy, "entity"))
+                elif tid in door_ids:
                     dirs.append((dx, dy, "door"))
                 elif tid in switch_ids:
                     dirs.append((dx, dy, "switch"))
                 elif tid == reactor_core_id:
                     dirs.append((dx, dy, "reactor"))
-                elif engine.game_map.get_interactable_at(nx, ny):
-                    dirs.append((dx, dy, "entity"))
         return dirs
 
     def _handle_interact_input(self, engine: Engine, key: Any) -> bool:
@@ -1008,11 +1025,6 @@ class TacticalState(State):
             consumed = self._perform_interact(engine, dx, dy, kind)
 
             if consumed:
-                if self.exit_pos and (engine.player.x, engine.player.y) == self.exit_pos:
-                    msg = "You return to the bridge." if self.explore_ship else "You return to your ship."
-                    engine.message_log.add_message(msg, EQUIP_MSG)
-                    engine.pop_state()
-                    return True
                 for _ in range(consumed):
                     self._after_player_turn(engine)
                     if engine.current_state is not self:

@@ -397,11 +397,13 @@ def test_explore_ship_on_enter_no_enemies():
     assert fighters == []
 
 
-def test_explore_ship_on_enter_empty_environment():
-    """engine.environment is {} (pressurized ship interior) after on_enter."""
+def test_explore_ship_on_enter_pressurized():
+    """The ship interior is pressurized on entry: vacuum is the only possible hazard and touches no tile."""
     engine = make_ship_engine()
     _enter_ship(engine)
-    assert engine.environment == {}
+    engine.game_map.recalculate_hazards()
+    assert engine.environment == {"vacuum": 1}
+    assert engine.game_map.get_hazards_at(engine.player.x, engine.player.y) == set()
 
 
 def test_explore_ship_on_exit_collects_floor_items():
@@ -441,23 +443,25 @@ def test_explore_ship_exit_tile_message():
     from unittest.mock import patch
 
     from tests.conftest import FakeEvent
-    from ui.keys import action_keys
+    from ui.keys import move_keys
 
     engine = make_ship_engine()
     state = _enter_ship(engine)
 
-    # Move player to exit_pos so the next action triggers the exit tile check
-    exit_pos = engine.ship.exit_pos
-    engine.player.x, engine.player.y = exit_pos
+    # Stand next to exit_pos so the next move walks onto the exit tile
+    ex, ey = engine.ship.exit_pos
+    dx, dy = next(
+        (dx, dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)) if engine.game_map.is_walkable(ex + dx, ey + dy)
+    )
+    engine.player.x, engine.player.y = ex + dx, ey + dy
+    engine.game_map.invalidate_entity_index()
 
     with patch.object(engine.game_map, "update_fov"):
         # Push state onto the real stack so current_state resolves correctly
         engine._state_stack.append(state)
 
-        # action_keys() maps name -> (set_of_syms, label, verb)
-        wait_keys_set, _, _ = action_keys()["wait"]
-        wait_key = next(iter(wait_keys_set))
-        state.ev_key(engine, FakeEvent(wait_key))
+        step_back = next(key for key, move in move_keys().items() if move == (-dx, -dy))
+        state.ev_key(engine, FakeEvent(step_back))
 
     messages = [m[0] for m in engine.message_log.messages]
     assert any("return to the bridge" in m.lower() for m in messages)

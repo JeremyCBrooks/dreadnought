@@ -455,19 +455,41 @@ def make_death_save_dict(cause: str = "Mission abandoned") -> dict:
     return {"dead": True, "cause": cause}
 
 
+def _game_over_record(engine: Engine) -> dict | None:
+    """Save record for a run that has already ended, or None while it is still live.
+
+    Covers the death/victory screen and the death fade leading up to it, so a
+    disconnect at either point cannot bring the player back.
+    """
+    from ui.game_over_state import GameOverState
+    from ui.tactical_state import TacticalState
+
+    for state in engine._state_stack:
+        if isinstance(state, GameOverState):
+            return {**make_death_save_dict(state.cause), "title": state.title, "victory": state.victory}
+        if isinstance(state, TacticalState) and getattr(state, "_death_cause", None) is not None:
+            return make_death_save_dict(state._death_cause)
+    return None
+
+
 def engine_to_dict(engine: Engine) -> dict:
     """Serialize between-mission engine state to a JSON-safe dict.
 
-    For mid-ship-explore disconnects, ask the active TacticalState to flush
-    its in-flight state (refresh _saved_player, report floor items) so the
-    save accurately reflects current player HP/inventory and cargo. The live
-    session is left untouched — a reconnect resumes the same engine.
+    A run that has ended is saved as its game-over record. For mid-mission
+    disconnects, ask the active TacticalState to flush its in-flight state
+    (refresh _saved_player, report floor items) so the save accurately
+    reflects current player HP/inventory and cargo. The live session is left
+    untouched — a reconnect resumes the same engine.
     """
     from ui.tactical_state import TacticalState
 
+    game_over = _game_over_record(engine)
+    if game_over is not None:
+        return game_over
+
     floor_items: list = []
     for state in engine._state_stack:
-        if isinstance(state, TacticalState) and getattr(state, "explore_ship", False):
+        if isinstance(state, TacticalState):
             floor_items = state.flush_for_save(engine)
             break
 
@@ -486,19 +508,26 @@ def engine_to_dict(engine: Engine) -> dict:
 def dict_to_engine(data: dict, engine: Engine) -> None:
     """Restore engine state from a save dict and push the appropriate state.
 
-    Death saves (force-end mid-mission) push GameOverState directly, so the
-    player can't resume the abandoned mission.
+    Game-over saves (death, force-end mid-mission, victory) push
+    GameOverState directly, so the player can't resume a finished run. A save
+    with no galaxy was taken on the title screen after one, and loads there.
     """
     if data.get("dead"):
         from ui.game_over_state import GameOverState
 
         engine.push_state(
             GameOverState(
-                victory=False,
+                victory=data.get("victory", False),
                 cause=data.get("cause", "Mission abandoned"),
-                title="MISSION FAILED",
+                title=data.get("title", "MISSION FAILED"),
             )
         )
+        return
+
+    if data.get("galaxy") is None:
+        from ui.title_state import TitleState
+
+        engine.push_state(TitleState())
         return
 
     from ui.strategic_state import StrategicState

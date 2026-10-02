@@ -36,6 +36,8 @@ router = APIRouter(prefix="/api")
 
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{5,30}$")
 _MIN_PASSWORD = 10
+# bcrypt only reads the first 72 bytes and refuses anything longer.
+_MAX_PASSWORD_BYTES = 72
 
 # Pre-computed bcrypt hash of a random password, used to keep login timing
 # constant when the username does not exist (avoids username-enumeration via timing).
@@ -73,6 +75,8 @@ async def register(request: Request, body: dict):
         raise HTTPException(400, "Username must be 5–30 alphanumeric/underscore characters")
     if len(password) < _MIN_PASSWORD:
         raise HTTPException(400, f"Password must be at least {_MIN_PASSWORD} characters")
+    if len(password.encode()) > _MAX_PASSWORD_BYTES:
+        raise HTTPException(400, f"Password must be at most {_MAX_PASSWORD_BYTES} bytes")
     if password != confirm:
         raise HTTPException(400, "Passwords do not match")
 
@@ -94,8 +98,11 @@ async def login(request: Request, body: dict, response: Response):
     # Always run bcrypt — if the user is missing, check against a dummy hash so
     # response time does not reveal whether the username exists.
     pw_hash = user["pw_hash"] if user is not None else _DUMMY_HASH
-    pw_ok = _bcrypt_lib.checkpw(password.encode(), pw_hash.encode())
-    if user is None or not pw_ok:
+    # An over-long password can match no account (register refuses them), but
+    # still hash its first 72 bytes so the reply takes as long as any other.
+    pw_bytes = password.encode()
+    pw_ok = _bcrypt_lib.checkpw(pw_bytes[:_MAX_PASSWORD_BYTES], pw_hash.encode())
+    if user is None or not pw_ok or len(pw_bytes) > _MAX_PASSWORD_BYTES:
         raise HTTPException(401, "Invalid username or password")
 
     token = await db.create_session(user["id"])

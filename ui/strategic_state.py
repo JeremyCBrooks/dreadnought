@@ -172,27 +172,29 @@ class StrategicState(State):
                     self.galaxy.arrive_at(dest_name, ship=engine.ship, rng=engine.rng(f"interdiction:{dest_name}"))
                     self.selected = 0
                     engine.message_log.add_message(f"Traveling to {dest_name}.", (100, 200, 255))
-                    # Victory: arrive home with Dreadnought core
-                    if dest_name == self.galaxy.home_system:
-                        core_items = [
-                            c for c in engine.ship.cargo if c.item and c.item.get("type") == "dreadnought_core"
-                        ]
-                        if core_items:
-                            from ui.game_over_state import GameOverState
-
-                            engine.switch_state(
-                                GameOverState(
-                                    victory=True,
-                                    title="VICTORY",
-                                    cause="You delivered the Dreadnought's reactor core. Unlimited energy is yours.",
-                                )
-                            )
-                            return True
+                    self._check_victory(engine)
                 return True
             if key in confirm_keys():
                 return True
 
         return False
+
+    def _check_victory(self, engine: Engine) -> bool:
+        """End the game in victory if the ship is home with the Dreadnought core aboard."""
+        if self.galaxy.current_system != self.galaxy.home_system:
+            return False
+        if not any(c.item and c.item.get("type") == "dreadnought_core" for c in engine.ship.cargo):
+            return False
+        from ui.game_over_state import GameOverState
+
+        engine.switch_state(
+            GameOverState(
+                victory=True,
+                title="VICTORY",
+                cause="You delivered the Dreadnought's reactor core. Unlimited energy is yours.",
+            )
+        )
+        return True
 
     def _drift_destination(self) -> str:
         """Pick a weighted-random neighbor, preferring systems with unvisited derelicts."""
@@ -275,9 +277,11 @@ class StrategicState(State):
         self.galaxy.current_system = dest_name
         self.galaxy.arrive_at(dest_name, ship=engine.ship, rng=engine.rng(f"interdiction:{dest_name}"))
         self.selected = 0
+        self._check_victory(engine)
 
     def on_render(self, console: Any, engine: Engine) -> None:
         from data.star_types import STAR_TYPES
+        from game.helpers import stable_seed
         from ui.viewport_renderer import render_viewport
 
         system = self.galaxy.systems[self.galaxy.current_system]
@@ -344,7 +348,7 @@ class StrategicState(State):
         vp_x = left_w
         vp_w = cw - left_w
         vp_h = ctrl_y
-        system_seed = hash(system.name) & 0xFFFFFFFF
+        system_seed = stable_seed(system.name)
         render_viewport(console, vp_x, 0, vp_w, vp_h, system.star_type, system_seed)
 
         # HUD gauges (top of star map viewport, left-justified, rendered after viewport)

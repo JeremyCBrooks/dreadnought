@@ -375,17 +375,23 @@ class CreatureAI:
             owner.ai_energy = 0
             return
 
-        from game.helpers import get_equipped_ranged_weapon
+        if self._can_shoot_player(owner, engine):
+            from game.actions import RangedAction
+
+            RangedAction(target).perform(engine, owner)
+            owner.ai_energy = 0
+
+    def _can_shoot_player(self, owner: Entity, engine: Engine) -> bool:
+        """True if the creature has a loaded ranged weapon, the range and a clear line to the player."""
+        from game.helpers import chebyshev, get_equipped_ranged_weapon, has_clear_shot
 
         weapon = get_equipped_ranged_weapon(owner)
-        if weapon:
-            max_range = weapon.item.get("range", 5)
-            if distance <= max_range:
-                from game.actions import RangedAction
-
-                RangedAction(target).perform(engine, owner)
-                owner.ai_energy = 0
-                return
+        if not weapon:
+            return False
+        target = engine.player
+        if chebyshev(owner.x, owner.y, target.x, target.y) > weapon.item.get("range", 5):
+            return False
+        return has_clear_shot(engine.game_map, owner.x, owner.y, target.x, target.y)
 
     # ---- main perform ----
 
@@ -483,16 +489,12 @@ class CreatureAI:
             self._attack(owner, engine)
             return
 
-        # Ranged attack if we can see the player (not gated by energy)
-        if can_see:
-            from game.helpers import get_equipped_ranged_weapon
-
-            weapon = get_equipped_ranged_weapon(owner)
-            if weapon:
-                max_range = weapon.item.get("range", 5)
-                if real_dist <= max_range:
-                    self._attack(owner, engine)
-                    return
+        # Ranged attack if we can see the player (not gated by energy). Seeing
+        # is not enough: glass is transparent but stops a shot, and then the
+        # creature has to walk round rather than stand there.
+        if can_see and self._can_shoot_player(owner, engine):
+            self._attack(owner, engine)
+            return
 
         # At last-known position but player not here — give up target
         if not can_see and distance == 0:

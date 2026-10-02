@@ -81,6 +81,12 @@ def _attack_message(
     engine.message_log.add_message(msg, color)
 
 
+def _warn_player(engine: Engine, entity: Entity, text: str) -> None:
+    """Log why an action failed, but only for the player: an enemy's failed attempt is not their news."""
+    if entity is engine.player:
+        engine.message_log.add_message(text, WARNING)
+
+
 _STEAL_CHANCE = 0.2
 
 
@@ -444,9 +450,9 @@ class RangedAction(Action):
         weapon = get_equipped_ranged_weapon(entity)
         if not weapon:
             if has_ranged_weapon(entity):
-                engine.message_log.add_message("Out of ammo!", WARNING)
+                _warn_player(engine, entity, "Out of ammo!")
             else:
-                engine.message_log.add_message("No ranged weapon equipped.", WARNING)
+                _warn_player(engine, entity, "No ranged weapon equipped.")
             return 0
 
         # Check range
@@ -455,24 +461,24 @@ class RangedAction(Action):
         distance = chebyshev(entity.x, entity.y, self.target.x, self.target.y)
         max_range = weapon.item.get("range", 5)
         if distance > max_range:
-            engine.message_log.add_message("Target out of range.", WARNING)
+            _warn_player(engine, entity, "Target out of range.")
             return 0
 
         # Check FOV
         if not engine.game_map.visible[self.target.x, self.target.y]:
-            engine.message_log.add_message("Target not visible.", WARNING)
+            _warn_player(engine, entity, "Target not visible.")
             return 0
 
         # Check line-of-sight (no non-walkable tiles in the way)
         from game.helpers import has_clear_shot
 
         if not has_clear_shot(engine.game_map, entity.x, entity.y, self.target.x, self.target.y):
-            engine.message_log.add_message("No clear shot — path blocked.", WARNING)
+            _warn_player(engine, entity, "No clear shot — path blocked.")
             return 0
 
         # Consume ammo (guard against negative)
         if weapon.item.get("ammo", 0) <= 0:
-            engine.message_log.add_message("Out of ammo!", WARNING)
+            _warn_player(engine, entity, "Out of ammo!")
             return 0
         weapon.item["ammo"] = max(0, weapon.item["ammo"] - 1)
 

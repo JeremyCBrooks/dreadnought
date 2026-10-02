@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import zlib
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from game.entity import Entity
     from world.game_map import GameMap
+
+
+def stable_seed(text: str) -> int:
+    """32-bit seed for *text* that is the same in every process (unlike the salted built-in ``hash``)."""
+    return zlib.crc32(text.encode())
 
 
 def chebyshev(x1: int, y1: int, x2: int, y2: int) -> int:

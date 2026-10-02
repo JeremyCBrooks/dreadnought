@@ -333,16 +333,19 @@ def compose_ships(
     path_set = set(path)
     for x, y in path:
         composite.tiles[x, y] = tile_types.airlock_floor
-    # Stamp walls on every space-tile adjacent to the path so the corridor is airtight.
+    # Stamp walls on every space-tile adjacent to the path so the corridor is
+    # airtight. Diagonals count: movement is 8-directional, so a bare outer
+    # corner at a bend would let the player step straight into space.
     for x, y in path:
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            nx, ny = x + dx, y + dy
-            if (nx, ny) in path_set:
-                continue
-            if not composite.in_bounds(nx, ny):
-                continue
-            if int(composite.tiles["tile_id"][nx, ny]) == space_tid:
-                composite.tiles[nx, ny] = tile_types.wall
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                nx, ny = x + dx, y + dy
+                if (nx, ny) in path_set:
+                    continue
+                if not composite.in_bounds(nx, ny):
+                    continue
+                if int(composite.tiles["tile_id"][nx, ny]) == space_tid:
+                    composite.tiles[nx, ny] = tile_types.wall
 
     corridor_tiles = list(path)
 
