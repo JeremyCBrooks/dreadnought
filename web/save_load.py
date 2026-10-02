@@ -326,7 +326,7 @@ def _galaxy_from_dict(d: dict | None):
     return galaxy
 
 
-# ── _saved_player ─────────────────────────────────────────────────────────────
+# ── saved_player ─────────────────────────────────────────────────────────────
 
 
 def _saved_player_to_dict(sp: dict | None) -> dict | None:
@@ -477,7 +477,7 @@ def engine_to_dict(engine: Engine) -> dict:
 
     A run that has ended is saved as its game-over record. For mid-mission
     disconnects, ask the active TacticalState to flush its in-flight state
-    (refresh _saved_player, report floor items) so the save accurately
+    (refresh saved_player, report floor items) so the save accurately
     reflects current player HP/inventory and cargo. The live session is left
     untouched — a reconnect resumes the same engine.
     """
@@ -545,6 +545,6 @@ def dict_to_engine(data: dict, engine: Engine) -> None:
         engine.ship.generate_interior(engine.galaxy.seed)
         engine.ship.remove_furnishings(data["ship"].get("consumed_furnishings", []))
         # Active interdictions: composite map is rebuilt lazily in
-        # _activate_interdiction_if_any when the player next presses [S].
+        # prepare_ship_entry when the player next presses [S].
 
     engine.push_state(StrategicState(engine.galaxy))

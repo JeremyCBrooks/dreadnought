@@ -3,7 +3,16 @@
 import tcod.event
 
 from game.entity import Entity, Fighter
-from tests.conftest import FakeEvent, enter_mission, free_step_from, key_for, make_scanner, make_weapon, new_game
+from tests.conftest import (
+    FakeEvent,
+    enter_mission,
+    free_step_from,
+    key_for,
+    make_heal_item,
+    make_scanner,
+    make_weapon,
+    new_game,
+)
 
 K = tcod.event.KeySym
 
@@ -99,3 +108,21 @@ def test_an_action_that_achieves_nothing_costs_no_turn():
 
     assert engine.turn_counter == turn_before
     assert engine.message_log.messages[-1][0] == "Nothing to pick up."
+
+
+def test_ground_text_refreshes_when_the_world_turn_moves_the_player():
+    engine, state = _mission_off_the_exit()
+    player = engine.player
+    dx, dy = free_step_from(engine, player.x, player.y)
+    medkit = make_heal_item(name="Medkit")
+    medkit.x, medkit.y = player.x + dx, player.y + dy
+    engine.game_map.entities.append(medkit)
+    engine.game_map.invalidate_entity_index()
+    # Waiting does not move the player; the decompression pull in the world turn does.
+    engine.game_map.pull_directions = {(player.x, player.y): (dx, dy)}
+    player.decompression_moves = 1
+
+    state.ev_key(engine, FakeEvent(K.PERIOD))
+
+    assert (player.x, player.y) == (medkit.x, medkit.y)
+    assert any(text == "You see Medkit (+) here." for text, _ in state._ground_lines)

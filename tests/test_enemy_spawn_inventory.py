@@ -3,30 +3,14 @@
 import random
 
 from data.enemies import EnemyDef, enemy_by_name
-from game.ai import CreatureAI
-from game.entity import Entity, Fighter
-from game.factories import build_enemy_inventory
-from game.helpers import get_equipped_ranged_weapon, recalc_melee_power_ai
+from game.entity import Entity
+from game.factories import build_enemy
+from game.helpers import get_equipped_ranged_weapon
 
 
 def _spawn_like_dungeon(defn: EnemyDef, rng: random.Random) -> Entity:
-    """Simulate what dungeon_gen._spawn_enemies does."""
-    entity = Entity(
-        x=3,
-        y=3,
-        char=defn.char,
-        color=defn.color,
-        name=defn.name,
-        blocks_movement=True,
-        fighter=Fighter(hp=defn.hp, max_hp=defn.hp, defense=defn.defense, power=defn.power),
-        ai=CreatureAI(),
-        organic=defn.organic,
-        gore_color=defn.gore_color,
-    )
-    entity.inventory = build_enemy_inventory(defn, rng)
-    entity.max_inventory = defn.max_inventory
-    recalc_melee_power_ai(entity)
-    return entity
+    """Spawn an enemy exactly as the dungeon generator does."""
+    return build_enemy(defn, 3, 3, rng)
 
 
 class TestSpawnIntegration:

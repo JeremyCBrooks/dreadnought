@@ -1,7 +1,7 @@
 """The engine and map expose what other modules need, so nothing reaches into privates."""
 
 from engine.game_state import Engine, State
-from tests.conftest import MockEngine, make_arena
+from tests.conftest import make_arena
 from world import tile_types
 
 
@@ -58,14 +58,15 @@ def test_engine_animates_for_the_state_the_map_or_a_scan_glow():
     assert engine.needs_animation() is True
 
 
-def test_the_test_double_rolls_exactly_what_the_real_engine_rolls():
-    """Tests that use MockEngine are only meaningful if its dice match the engine's."""
+def test_engine_animates_for_a_flickering_light_only():
     engine = Engine()
-    mock = MockEngine(game_map=None, player=None)
-    engine.turn_counter = mock.turn_counter = 4
+    engine.game_map = make_arena()
+    engine.game_map.has_space = False
+    engine.game_map.add_light_source(3, 3, radius=4, color=(255, 200, 100), flicker=False)
+    assert engine.needs_animation() is False
 
-    assert [engine.rng("salt").random() for _ in range(3)] == [mock.rng("salt").random() for _ in range(3)]
-    assert engine.rng("salt").random() != engine.rng("other").random()
+    engine.game_map.add_light_source(5, 5, radius=4, color=(255, 200, 100), flicker=True)
+    assert engine.needs_animation() is True
 
 
 def test_map_fov_respects_walls_and_is_recomputed_after_the_cache_is_cleared():

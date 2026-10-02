@@ -307,7 +307,7 @@ class TacticalState(State):
         self._update_ground_underfoot(engine)
 
     # ------------------------------------------------------------------
-    # Interdiction lifecycle
+    # Saving mid-mission
     # ------------------------------------------------------------------
 
     def flush_for_save(self, engine: Engine) -> list[Entity]:

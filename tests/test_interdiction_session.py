@@ -29,6 +29,7 @@ def test_prepare_ship_entry_starts_a_queued_interdiction_and_attaches_pirates():
 
     assert interdiction.started is True
     assert engine.ship.game_map is interdiction.composite_map
+    assert interdiction.pirate_entities
     assert all(p in engine.ship.game_map.entities for p in interdiction.pirate_entities)
     assert any("clamped onto" in text for text, _ in engine.message_log.messages)
 

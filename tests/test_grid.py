@@ -55,6 +55,25 @@ def test_parent_prefers_the_first_cardinal_that_reaches_a_tile():
     assert parent[(1, 1)] == (1, 0)
 
 
+def test_parent_order_is_east_west_south_north_round_a_ring():
+    # Centre blocked, so the 3x3 grid is a ring of 8 tiles. CARDINALS = E, W, S, N.
+    # Source (1, 0): queue E (2,0) then W (0,0) at distance 1; S is blocked, N is off-grid.
+    #   Expand (2,0): S -> (2,1). Expand (0,0): S -> (0,1).
+    #   Expand (2,1): S -> (2,2) claims it. Expand (0,1): S -> (0,2).
+    #   (1,2) is reached from (2,2) going west, before (0,2) going east is tried:
+    #   (2,2) is expanded first, so its parent is (2,2).
+    _, parent = bfs([(1, 0)], _open(3, 3, {(1, 1)}))
+    assert parent[(1, 2)] == (2, 2)
+
+    # Source (0, 1): E blocked, W off-grid; S (0,2) is queued before N (0,0).
+    #   Expand (0,2): E -> (1,2). Expand (0,0): E -> (1,0).
+    #   Expand (1,2): E -> (2,2). Expand (1,0): E -> (2,0).
+    #   Expand (2,2): S off-grid, N -> (2,1) claims it. Expand (2,0): S would reach it too.
+    #   (2,2) is expanded first, so its parent is (2,2).
+    _, parent = bfs([(0, 1)], _open(3, 3, {(1, 1)}))
+    assert parent[(2, 1)] == (2, 2)
+
+
 def test_path_to_walks_the_parents_back():
     _, parent = bfs([(0, 0)], _open(3, 1))
 

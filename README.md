@@ -135,9 +135,14 @@ game/
   gore.py                        Death gore placement
   helpers.py                     Shared helpers (distance, LOS, doors, drop, melee power)
   ship.py                        Ship data (fuel, hull, cargo, nav units)
+  turn.py                        One world tick after a player action (hazards, decompression, drift, enemies)
+  player_state.py                Player build, snapshot and restore between missions
+  factories.py                   Build item and enemy entities from data definitions
+  salvage.py                     Hand mission salvage over to the ship on return
 world/
   galaxy.py                      Procedural galaxy, star systems, locations
   game_map.py                    GameMap with FOV, lighting, entity tracking
+  grid.py                        Shared BFS, flood fill and neighbour masks
   dungeon_gen/                   Procedural map generation package (ships, asteroids, starbases, colonies)
   tile_types.py                  Tile definitions, flavor text, and describe_tile
   lighting.py                    Light source propagation
@@ -148,6 +153,7 @@ ui/
   title_state.py                 Title screen
   briefing_state.py              Pre-mission briefing + suit selection
   tactical_state.py              Dungeon exploration (core gameplay)
+  tactical_hud.py                Tactical stats panel (vitals, suit, loadout, ground text)
   strategic_state.py             Star system navigation + compass rose
   inventory_state.py             Inventory overlay
   cargo_state.py                 Cargo transfer (personal ↔ ship)

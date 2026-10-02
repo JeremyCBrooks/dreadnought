@@ -2,7 +2,18 @@
 
 Run ONCE, on the code as it stands before the DRY/SOLID refactor. Never
 regenerate it afterwards: its whole value is that older code wrote it.
+
+This script was edited after the refactor (a later rename), so it no longer
+matches the pre-refactor code and running it would replace the fixture with a
+post-refactor save. It therefore exits immediately: it is a historical record.
 """
+
+# ruff: noqa
+# Deliberately unreachable below the guard; kept verbatim as a record.
+raise SystemExit(
+    "Historical record of how save_before_refactor.json was made. "
+    "Do not run: the fixture must stay as the pre-refactor code wrote it."
+)
 
 import json
 import sys
