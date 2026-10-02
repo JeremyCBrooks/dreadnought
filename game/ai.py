@@ -399,15 +399,9 @@ class CreatureAI:
         self._accumulate_energy(owner, engine)
         self._cached_cost = None  # clear per-turn cost cache
 
-        state = owner.ai_state
-        if state == "sleeping":
-            self._do_sleeping(owner, engine)
-        elif state == "wandering":
-            self._do_wandering(owner, engine)
-        elif state == "hunting":
-            self._do_hunting(owner, engine)
-        elif state == "fleeing":
-            self._do_fleeing(owner, engine)
+        handler = self._STATE_HANDLERS.get(owner.ai_state)
+        if handler is not None:
+            handler(self, owner, engine)
 
     def _do_sleeping(self, owner: Entity, engine: Engine) -> None:
         if self._can_see_player(owner, engine):
@@ -578,3 +572,10 @@ class CreatureAI:
                 if current_dist <= 1:
                     self._attack(owner, engine)
                 break
+
+    _STATE_HANDLERS = {
+        "sleeping": _do_sleeping,
+        "wandering": _do_wandering,
+        "hunting": _do_hunting,
+        "fleeing": _do_fleeing,
+    }

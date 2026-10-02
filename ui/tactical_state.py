@@ -241,53 +241,10 @@ class TacticalState(State):
             else:
                 engine._saved_player = snapshot_player(p)
                 saved_inventory = engine._saved_player["inventory"]
-                # Convert reactor cores to fuel
                 if engine.ship is not None:
-                    cores = [i for i in saved_inventory if i.item and i.item.get("type") == "reactor_core"]
-                    for core in cores:
-                        added = engine.ship.add_fuel(core.item["value"])
-                        if added > 0:
-                            engine.message_log.add_message(
-                                f"Reactor core converted to fuel. (+{added} fuel)",
-                                EQUIP_MSG,
-                            )
-                        saved_inventory.remove(core)
-                    # Convert nav units to ship counter
-                    nav_items = [i for i in saved_inventory if i.item and i.item.get("type") == "nav_unit"]
-                    for nav in nav_items:
-                        engine.ship.add_nav_unit()
-                        engine.message_log.add_message("Navigation unit installed.", (0, 255, 200))
-                        saved_inventory.remove(nav)
-                    # Reveal Dreadnought on 6th nav unit
-                    if (
-                        engine.ship.nav_units >= engine.ship.max_nav_units
-                        and engine.galaxy
-                        and not engine.galaxy.dreadnought_system
-                    ):
-                        engine.galaxy.spawn_dreadnought()
-                        engine.message_log.add_message(
-                            "All navigation units installed. The Dreadnought's coordinates are locked in!",
-                            (255, 200, 0),
-                        )
-                    # Convert hull repair kits to hull
-                    hull_kits = [i for i in saved_inventory if i.item and i.item.get("type") == "hull_repair"]
-                    for kit in hull_kits:
-                        repaired = engine.ship.repair_hull(kit.item["value"])
-                        if repaired > 0:
-                            engine.message_log.add_message(
-                                f"Hull patched. (+{repaired} hull integrity)",
-                                EQUIP_MSG,
-                            )
-                        saved_inventory.remove(kit)
-                    # Transfer dreadnought cores to ship cargo
-                    d_cores = [i for i in saved_inventory if i.item and i.item.get("type") == "dreadnought_core"]
-                    for dc in d_cores:
-                        engine.ship.add_cargo(dc)
-                        saved_inventory.remove(dc)
-                        engine.message_log.add_message(
-                            "Dreadnought core secured in cargo hold.",
-                            (255, 50, 50),
-                        )
+                    from game.salvage import unload_mission_salvage
+
+                    unload_mission_salvage(engine, saved_inventory)
                 key = _area_key(self.location, self.depth)
                 if engine.player in engine.game_map.entities:
                     engine.game_map.entities.remove(engine.player)
