@@ -215,7 +215,6 @@ class TacticalState(State):
             resolve_if_cleared,
             restore_original_ship_map,
         )
-        from game.player_state import snapshot_player
 
         if engine.game_map and engine.player:
             p = engine.player
@@ -224,10 +223,12 @@ class TacticalState(State):
                 # Detach surviving pirates from the map so they persist on the
                 # Interdiction object across ship-explore sessions.
                 detach_pirates(engine)
-                # Collect floor items back into ship cargo; skip all item conversions.
+                # Collect floor items back into ship cargo.
                 if engine.ship is not None:
                     engine.ship.collect_floor_items(engine.game_map)
-                engine.saved_player = snapshot_player(p)
+                # What the player carries back to the bridge is salvage like any
+                # other: a boarded pirate ship is a mission that came to them.
+                self._bring_salvage_home(engine, p)
                 if p in engine.game_map.entities:
                     engine.game_map.entities.remove(p)
                 # Resolved interdiction: now safe to swap composite map back
@@ -239,12 +240,7 @@ class TacticalState(State):
                 if interdiction is not None and interdiction.resolved:
                     restore_original_ship_map(interdiction, engine.ship)
             else:
-                engine.saved_player = snapshot_player(p)
-                saved_inventory = engine.saved_player["inventory"]
-                if engine.ship is not None:
-                    from game.salvage import unload_mission_salvage
-
-                    unload_mission_salvage(engine, saved_inventory)
+                self._bring_salvage_home(engine, p)
                 key = _area_key(self.location, self.depth)
                 if engine.player in engine.game_map.entities:
                     engine.game_map.entities.remove(engine.player)
@@ -255,6 +251,16 @@ class TacticalState(State):
         engine.player = None
         engine.scan_results = None
         engine.scan_glow = None
+
+    @staticmethod
+    def _bring_salvage_home(engine: Engine, player: Entity) -> None:
+        """Snapshot *player* for the next outing and hand their salvage to the ship."""
+        from game.player_state import snapshot_player
+        from game.salvage import unload_mission_salvage
+
+        engine.saved_player = snapshot_player(player)
+        if engine.ship is not None:
+            unload_mission_salvage(engine, engine.saved_player["inventory"])
 
     # ------------------------------------------------------------------
     # explore_ship helper

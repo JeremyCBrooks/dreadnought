@@ -418,24 +418,61 @@ def test_explore_ship_on_exit_collects_floor_items():
     assert item in engine.ship.cargo
 
 
-def test_explore_ship_on_exit_skips_fuel_conversion():
-    """Reactor core in player inventory does NOT add fuel to ship on on_exit."""
+def _reactor_core():
     from game.entity import Entity
 
-    engine = make_ship_engine()
-    state = _enter_ship(engine)
-    initial_fuel = engine.ship.fuel
-    # Give player a reactor_core item
-    core = Entity(
-        char="\xea",
+    return Entity(
+        char="ê",
         color=(180, 80, 255),
         name="Reactor Core",
         blocks_movement=False,
         item={"type": "reactor_core", "value": 5},
     )
+
+
+def test_explore_ship_on_exit_converts_reactor_core_to_fuel():
+    """Leaving the ship hands salvage over exactly like returning from a mission."""
+    engine = make_ship_engine()
+    state = _enter_ship(engine)
+    engine.ship.fuel = 2
+    core = _reactor_core()
     engine.player.inventory.append(core)
+
     state.on_exit(engine)
-    assert engine.ship.fuel == initial_fuel
+
+    assert engine.ship.fuel == 7
+    assert core not in engine.saved_player["inventory"]
+    assert "Reactor core converted to fuel. (+5 fuel)" in [m[0] for m in engine.message_log.messages]
+
+
+def test_explore_ship_on_exit_keeps_ordinary_items_in_the_inventory():
+    engine = make_ship_engine()
+    state = _enter_ship(engine)
+    medkit = make_heal_item()
+    engine.player.inventory.append(medkit)
+    fuel = engine.ship.fuel
+
+    state.on_exit(engine)
+
+    assert medkit in engine.saved_player["inventory"]
+    assert medkit not in engine.ship.cargo
+    assert engine.ship.fuel == fuel
+
+
+def test_explore_ship_on_exit_converts_a_core_carried_out_of_the_hold():
+    """A core left in cargo is on the hold floor aboard; carrying it out refuels the ship."""
+    engine = make_ship_engine()
+    core = _reactor_core()
+    engine.ship.cargo.append(core)
+    engine.ship.fuel = 2
+    state = _enter_ship(engine)
+    engine.game_map.entities.remove(core)
+    engine.player.inventory.append(core)
+
+    state.on_exit(engine)
+
+    assert engine.ship.fuel == 7
+    assert core not in engine.ship.cargo
 
 
 def test_explore_ship_exit_tile_message():

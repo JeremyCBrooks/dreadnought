@@ -517,3 +517,21 @@ def test_composite_keeps_player_explored_tiles():
 def test_composite_does_not_reveal_unexplored_pirate_ship():
     _, interdiction = _compose_with_player_map_state()
     assert not interdiction.composite_map.explored.any()
+
+
+# ---- Loot from the pirate ship is salvage like any other ----
+
+
+def test_pirate_reactor_core_refuels_the_ship_on_returning_to_the_bridge():
+    engine, interdiction = _engine_boarded_in_ship()
+    engine.ship.fuel = 1
+    for pirate in interdiction.pirate_entities:
+        pirate.fighter.hp = 0
+    core = Entity(name="Reactor Core", blocks_movement=False, item={"type": "reactor_core", "value": 5})
+    engine.player.inventory.append(core)
+
+    engine.pop_state()
+
+    assert interdiction.resolved is True
+    assert engine.ship.fuel == 6
+    assert core not in engine.saved_player["inventory"]
