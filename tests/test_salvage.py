@@ -36,17 +36,6 @@ def test_reactor_core_at_a_full_tank_is_consumed_silently():
     assert not any("converted to fuel" in t for t in _texts(engine))
 
 
-def test_hull_patch_repairs_the_hull():
-    engine, _ = new_game()
-    engine.ship.hull = 4
-    inventory = [_item("Hull Patch", "hull_repair", 3)]
-
-    unload_mission_salvage(engine, inventory)
-
-    assert engine.ship.hull == 7
-    assert inventory == []
-
-
 def test_dreadnought_core_goes_to_cargo():
     engine, _ = new_game()
     core = _item("Dreadnought Core", "dreadnought_core", 99)

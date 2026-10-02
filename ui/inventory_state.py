@@ -108,6 +108,7 @@ class InventoryState(State):
         bx = (cw - bw) // 2
         by = (ch - bh) // 2
         from data.colors import DIALOG_BG, HEADER_TITLE
+        from game.consumables import charges_left
 
         console.draw_rect(bx, by, bw, bh, ch=32, bg=DIALOG_BG)
 
@@ -129,7 +130,9 @@ class InventoryState(State):
                 prefix = ">" if i == self.selected else " "
                 color = (255, 255, 255) if i == self.selected else GRAY
                 eq_tag = "[E] " if is_equipped else ""
-                line = f"{prefix} {eq_tag}{item.name}"
+                charges = charges_left(item)
+                charge_tag = f" ({charges})" if charges is not None else ""
+                line = f"{prefix} {eq_tag}{item.name}{charge_tag}"
                 if item.item:
                     line += f" [{item.item.get('type', '?')}]"
                 if label_width > 3 and len(line) > label_width:

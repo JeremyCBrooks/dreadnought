@@ -81,6 +81,7 @@ ITEMS: list[ItemDef] = [
     ),
     ItemDef(char="#", color=(180, 140, 80), name="Repair Kit", type="repair", value=5),
     ItemDef(char="O", color=(100, 200, 255), name="O2 Canister", type="o2", value=20),
+    # value: how many breaches it can still seal (see game.consumables).
     ItemDef(char="#", color=(80, 200, 180), name="Hull Patch", type="hull_repair", value=3),
 ]
 

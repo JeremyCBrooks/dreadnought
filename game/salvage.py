@@ -25,12 +25,6 @@ def _install_nav_unit(engine: Engine, unit: Entity) -> None:
     engine.message_log.add_message("Navigation unit installed.", (0, 255, 200))
 
 
-def _patch_hull(engine: Engine, kit: Entity) -> None:
-    repaired = engine.ship.repair_hull(kit.item["value"])
-    if repaired > 0:
-        engine.message_log.add_message(f"Hull patched. (+{repaired} hull integrity)", EQUIP_MSG)
-
-
 def _stow_dreadnought_core(engine: Engine, core: Entity) -> None:
     engine.ship.add_cargo(core)
     engine.message_log.add_message("Dreadnought core secured in cargo hold.", (255, 50, 50))
@@ -54,7 +48,6 @@ def _reveal_dreadnought_if_ready(engine: Engine) -> None:
 _SALVAGE: dict[str, tuple[SalvageHandler, Callable[[Engine], None] | None]] = {
     "reactor_core": (_convert_reactor_core, None),
     "nav_unit": (_install_nav_unit, _reveal_dreadnought_if_ready),
-    "hull_repair": (_patch_hull, None),
     "dreadnought_core": (_stow_dreadnought_core, None),
 }
 

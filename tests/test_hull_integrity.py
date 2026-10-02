@@ -1,4 +1,4 @@
-"""Tests for hull integrity: drift damage, repair kits, clamping."""
+"""Tests for hull integrity: drift damage, hull patches on mission exit, clamping."""
 
 from types import SimpleNamespace
 
@@ -118,8 +118,8 @@ def test_hull_cannot_go_negative():
 # --- Hull repair on mission exit ---
 
 
-def test_hull_repair_auto_apply():
-    """hull_repair items in saved_inventory restore hull and are removed."""
+def test_hull_patch_is_kept_on_mission_exit():
+    """hull_repair items are no longer spent automatically: they stay in the saved inventory."""
     from engine.game_state import Engine
     from game.loadout import Loadout
     from ui.tactical_state import TacticalState
@@ -144,38 +144,9 @@ def test_hull_repair_auto_apply():
     ts.exit_pos = (1, 1)
     ts.on_exit(engine)
 
-    assert engine.ship.hull == 8
-    saved_inv = engine.saved_player["inventory"]
-    assert hull_kit not in saved_inv
-
-
-def test_hull_repair_clamped_at_max():
-    """hull_repair should not exceed max_hull."""
-    from engine.game_state import Engine
-    from game.loadout import Loadout
-    from ui.tactical_state import TacticalState
-
-    engine = Engine()
-    engine.ship = Ship()
-    engine.ship.hull = 9
-
-    gm = make_arena()
-    player = Entity(x=5, y=5, name="Player", fighter=Fighter(10, 10, 0, 1))
-    gm.entities.append(player)
-    engine.game_map = gm
-    engine.player = player
-    engine.player.inventory = []
-    engine.player.loadout = Loadout()
-
-    hull_kit = Entity(name="Hull Patch", char="#", color=(80, 200, 180), item={"type": "hull_repair", "value": 3})
-    engine.player.inventory.append(hull_kit)
-
-    loc = SimpleNamespace(name="TestLoc", loc_type="derelict", visited=False, environment={"vacuum": 1})
-    ts = TacticalState(location=loc, depth=0)
-    ts.exit_pos = (1, 1)
-    ts.on_exit(engine)
-
-    assert engine.ship.hull == 10  # clamped, not 12
+    assert engine.ship.hull == 5
+    assert hull_kit in engine.saved_player["inventory"]
+    assert hull_kit.item["value"] == 3
 
 
 # --- Nav unit clamping ---

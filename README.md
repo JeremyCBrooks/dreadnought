@@ -99,6 +99,8 @@ Collect 6 navigation units from derelicts across the galaxy to reveal the Dreadn
 - **Ship systems** — fuel, hull integrity, cargo hold, nav unit tracker
 - **Procedural galaxy** — on-demand star system generation, multiple locations per system, deterministic seeding
 - **Drift** — when fuel runs out, the ship drifts to a random neighbor, jettisoning cargo
+- **Break-away** — navigating while a pirate ship is hard-docked offers to tear free under power, at the cost of hull damage and possibly cargo
+- **Hull breaches** — every hull point lost opens a real breach in the ship's outer hull, venting the compartment behind it; Hull Patches seal them by hand, one charge per breach
 - **Reactor cores** — extractable tile fixtures that convert to fuel; the Dreadnought's core triggers victory
 - **Gore & debris** — blood splatter (organic) and oil/debris (inorganic) on death, scales with enemy HP
 
