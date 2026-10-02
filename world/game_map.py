@@ -119,9 +119,9 @@ class GameMap:
             vacuum_sources.append((int(xs[i]), int(ys[i])))
 
         if vacuum_sources:
-            from game.environment import _flood_fill_hazard
+            from world.grid import flood_fill_walkable
 
-            new_vacuum = _flood_fill_hazard(self, vacuum_sources)
+            new_vacuum = flood_fill_walkable(self, vacuum_sources)
             self.hazard_overlays["vacuum"] = new_vacuum
 
             # Detect newly-exposed tiles for explosive decompression

@@ -9,6 +9,7 @@ import numpy as np
 from world import tile_types
 from world.dungeon_gen.rooms import RectRoom, _room_wall_positions
 from world.game_map import GameMap
+from world.grid import DIAGONALS, NEIGHBOURS_8, neighbour_any, neighbour_count
 
 
 def _place_airlocks(
@@ -300,17 +301,7 @@ def _convert_hull_to_space(game_map: GameMap, wall_tile: np.ndarray) -> None:
 
     # Check adjacency to interesting tiles in all 8 directions
     # (diagonal checks prevent corner gaps that allow FOV peek-through)
-    adj = np.zeros_like(interesting)
-    # Cardinal
-    adj[1:, :] |= interesting[:-1, :]  # neighbor to the left
-    adj[:-1, :] |= interesting[1:, :]  # neighbor to the right
-    adj[:, 1:] |= interesting[:, :-1]  # neighbor above
-    adj[:, :-1] |= interesting[:, 1:]  # neighbor below
-    # Diagonal
-    adj[1:, 1:] |= interesting[:-1, :-1]
-    adj[1:, :-1] |= interesting[:-1, 1:]
-    adj[:-1, 1:] |= interesting[1:, :-1]
-    adj[:-1, :-1] |= interesting[1:, 1:]
+    adj = neighbour_any(interesting, NEIGHBOURS_8)
 
     # Wall tiles NOT adjacent to anything interesting become space
     to_space = is_wall & ~adj
@@ -322,17 +313,9 @@ def _convert_hull_to_space(game_map: GameMap, wall_tile: np.ndarray) -> None:
     is_wall_now = game_map.tiles["tile_id"] == wall_tid
     is_window_now = game_map.tiles["tile_id"] == window_tid
 
-    adj_walkable = np.zeros_like(is_walkable)
-    adj_walkable[1:, :] |= is_walkable[:-1, :]
-    adj_walkable[:-1, :] |= is_walkable[1:, :]
-    adj_walkable[:, 1:] |= is_walkable[:, :-1]
-    adj_walkable[:, :-1] |= is_walkable[:, 1:]
+    adj_walkable = neighbour_any(is_walkable)
 
-    adj_window = np.zeros_like(is_window_now)
-    adj_window[1:, :] |= is_window_now[:-1, :]
-    adj_window[:-1, :] |= is_window_now[1:, :]
-    adj_window[:, 1:] |= is_window_now[:, :-1]
-    adj_window[:, :-1] |= is_window_now[:, 1:]
+    adj_window = neighbour_any(is_window_now)
 
     hull_filler = is_wall_now & adj_window & ~adj_walkable
     game_map.tiles[hull_filler] = tile_types.space
@@ -342,16 +325,8 @@ def _convert_hull_to_space(game_map: GameMap, wall_tile: np.ndarray) -> None:
     is_wall_now2 = game_map.tiles["tile_id"] == wall_tid
     is_window_now2 = game_map.tiles["tile_id"] == window_tid
     is_walkable2 = game_map.tiles["walkable"].copy()
-    cardinal_interesting = np.zeros_like(is_wall_now2)
-    cardinal_interesting[1:, :] |= (is_walkable2 | is_window_now2)[:-1, :]
-    cardinal_interesting[:-1, :] |= (is_walkable2 | is_window_now2)[1:, :]
-    cardinal_interesting[:, 1:] |= (is_walkable2 | is_window_now2)[:, :-1]
-    cardinal_interesting[:, :-1] |= (is_walkable2 | is_window_now2)[:, 1:]
-    diag_window = np.zeros_like(is_wall_now2)
-    diag_window[1:, 1:] |= is_window_now2[:-1, :-1]
-    diag_window[1:, :-1] |= is_window_now2[:-1, 1:]
-    diag_window[:-1, 1:] |= is_window_now2[1:, :-1]
-    diag_window[:-1, :-1] |= is_window_now2[1:, 1:]
+    cardinal_interesting = neighbour_any(is_walkable2 | is_window_now2)
+    diag_window = neighbour_any(is_window_now2, DIAGONALS)
     corner_ears = is_wall_now2 & diag_window & ~cardinal_interesting
     game_map.tiles[corner_ears] = tile_types.space
 
@@ -361,11 +336,7 @@ def _convert_hull_to_space(game_map: GameMap, wall_tile: np.ndarray) -> None:
     for _ in range(5):
         is_wall_pass = game_map.tiles["tile_id"] == wall_tid
         is_space = game_map.tiles["tile_id"] == space_tid
-        space_neighbors = np.zeros(game_map.tiles.shape, dtype=int)
-        space_neighbors[1:, :] += is_space[:-1, :]
-        space_neighbors[:-1, :] += is_space[1:, :]
-        space_neighbors[:, 1:] += is_space[:, :-1]
-        space_neighbors[:, :-1] += is_space[:, 1:]
+        space_neighbors = neighbour_count(is_space)
         stubs = is_wall_pass & (space_neighbors >= 3)
         if not np.any(stubs):
             break

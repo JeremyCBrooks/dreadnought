@@ -16,12 +16,12 @@ Algorithm:
 from __future__ import annotations
 
 import random
-from collections import deque
 from dataclasses import dataclass
 
 from world import tile_types
 from world.dungeon_gen import RectRoom
 from world.game_map import GameMap
+from world.grid import bfs, path_to
 
 # Tiles between the two ship HULLS along the placement direction. Kept small
 # so the corridor is short — the pirate ship's empty exterior canvas is
@@ -159,37 +159,13 @@ def _bfs_corridor(
     """4-connected BFS through SPACE tiles only. Returns path including endpoints, or None."""
     space_tid = int(tile_types.space["tile_id"])
 
-    def passable(pos: tuple[int, int]) -> bool:
-        if not composite.in_bounds(*pos):
-            return False
-        return int(composite.tiles["tile_id"][pos[0], pos[1]]) == space_tid
+    def passable(x: int, y: int) -> bool:
+        return composite.in_bounds(x, y) and int(composite.tiles["tile_id"][x, y]) == space_tid
 
-    if not passable(start) or not passable(goal):
+    if not passable(*start) or not passable(*goal):
         return None
-    if start == goal:
-        return [start]
-
-    came_from: dict[tuple[int, int], tuple[int, int] | None] = {start: None}
-    queue: deque[tuple[int, int]] = deque([start])
-    while queue:
-        cur = queue.popleft()
-        if cur == goal:
-            path: list[tuple[int, int]] = []
-            node: tuple[int, int] | None = cur
-            while node is not None:
-                path.append(node)
-                node = came_from[node]
-            path.reverse()
-            return path
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            n = (cur[0] + dx, cur[1] + dy)
-            if n in came_from:
-                continue
-            if not passable(n):
-                continue
-            came_from[n] = cur
-            queue.append(n)
-    return None
+    _, parent = bfs([start], passable)
+    return path_to(parent, goal)
 
 
 def compose_ships(

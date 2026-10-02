@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from collections import deque
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 from data.colors import HAZARD_ENV_DAMAGE, NEUTRAL
 from game.hazards import apply_hp_damage
+from world.grid import bfs, walkable
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -35,39 +35,6 @@ def has_low_gravity(engine: Engine) -> bool:
     return env.get("low_gravity", 0) > 0
 
 
-def _flood_fill_hazard(
-    game_map: GameMap,
-    sources: list[tuple[int, int]],
-) -> np.ndarray:
-    """BFS flood fill from *sources* through walkable tiles (4-cardinal).
-
-    Returns a bool array (width, height) marking all reachable tiles.
-    Blocked by non-walkable tiles (walls, closed doors).
-    """
-    result = np.full((game_map.width, game_map.height), fill_value=False, order="F")
-    queue: deque[tuple[int, int]] = deque()
-
-    for x, y in sources:
-        if game_map.in_bounds(x, y):
-            result[x, y] = True
-            queue.append((x, y))
-
-    while queue:
-        cx, cy = queue.popleft()
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            nx, ny = cx + dx, cy + dy
-            if not game_map.in_bounds(nx, ny):
-                continue
-            if result[nx, ny]:
-                continue
-            if not game_map.tiles["walkable"][nx, ny]:
-                continue
-            result[nx, ny] = True
-            queue.append((nx, ny))
-
-    return result
-
-
 # ---------------------------------------------------------------------------
 # Explosive decompression
 # ---------------------------------------------------------------------------
@@ -89,44 +56,13 @@ def _bfs_toward_breach(
       breach source (following walkable corridors).
     - ``distances``: ``{(x, y): int}`` BFS distance from nearest breach source.
     """
-    parent: dict[tuple[int, int], tuple[int, int] | None] = {}
-    dist: dict[tuple[int, int], int] = {}
-    queue: deque[tuple[int, int]] = deque()
-
-    for sx, sy in sources:
-        if game_map.in_bounds(sx, sy):
-            parent[(sx, sy)] = None
-            dist[(sx, sy)] = 0
-            queue.append((sx, sy))
-
-    while queue:
-        cx, cy = queue.popleft()
-        d = dist[(cx, cy)]
-        if max_distance is not None and d >= max_distance:
-            continue
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            nx, ny = cx + dx, cy + dy
-            if not game_map.in_bounds(nx, ny):
-                continue
-            if (nx, ny) in dist:
-                continue
-            if not game_map.tiles["walkable"][nx, ny]:
-                continue
-            parent[(nx, ny)] = (cx, cy)
-            dist[(nx, ny)] = d + 1
-            queue.append((nx, ny))
-
-    # Build pull-direction map: for each tile, trace parent chain back one step
-    # to find the direction toward the breach.
-    pull_dirs: dict[tuple[int, int], tuple[int, int]] = {}
-    for pos in parent:
-        if parent[pos] is None:
-            # Source tile — pull direction doesn't matter (entity is at breach)
-            pull_dirs[pos] = (0, 0)
-            continue
-        p = parent[pos]
-        pull_dirs[pos] = (p[0] - pos[0], p[1] - pos[1])
-
+    starts = [s for s in sources if game_map.in_bounds(*s)]
+    dist, parent = bfs(starts, walkable(game_map), max_distance=max_distance)
+    # Pull direction: one step back along the search, toward the breach.
+    # Source tiles have none (the entity is already at the breach).
+    pull_dirs = {
+        pos: (0, 0) if origin is None else (origin[0] - pos[0], origin[1] - pos[1]) for pos, origin in parent.items()
+    }
     return pull_dirs, dist
 
 
@@ -164,31 +100,9 @@ def _bfs_decompression_reach(
     Returns ``{(x, y): distance}`` for tiles within *max_distance* of the
     boundary, excluding tiles that were already vacuum.
     """
-    dist: dict[tuple[int, int], int] = {}
-    queue: deque[tuple[int, int]] = deque()
-    for bx, by in boundary:
-        if (bx, by) not in dist:
-            dist[(bx, by)] = 0
-            queue.append((bx, by))
-
-    while queue:
-        cx, cy = queue.popleft()
-        d = dist[(cx, cy)]
-        if d >= max_distance:
-            continue
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            nx, ny = cx + dx, cy + dy
-            if not game_map.in_bounds(nx, ny):
-                continue
-            if (nx, ny) in dist:
-                continue
-            if not game_map.tiles["walkable"][nx, ny]:
-                continue
-            # Don't expand into old vacuum (already depressurized)
-            if old_vacuum[nx, ny]:
-                continue
-            dist[(nx, ny)] = d + 1
-            queue.append((nx, ny))
+    pressurised = walkable(game_map)
+    # Don't expand into old vacuum (already depressurized)
+    dist, _ = bfs(boundary, lambda x, y: pressurised(x, y) and not old_vacuum[x, y], max_distance=max_distance)
     return dist
 
 
