@@ -1,0 +1,274 @@
+{
+  "derelict-1": {
+    "structure": "579ca9686ba7c44a",
+    "tiles": "9653435c6bb25a16",
+    "rooms": "2beca689cfe8e0f3",
+    "map": "cadf61baa55cc500",
+    "lights": "4939330293438fd1",
+    "entities": "e3f33beeda19142b"
+  },
+  "derelict-2": {
+    "structure": "1702564b4da764cc",
+    "tiles": "84e9369ea65e8f45",
+    "rooms": "48e42fff0b5163b2",
+    "map": "94c7bc0636f8b1a1",
+    "lights": "17dfbb5762ff14fa",
+    "entities": "80b2467182427fb7"
+  },
+  "derelict-3": {
+    "structure": "a0f9adbcf42ce4d7",
+    "tiles": "e00a86cab04e7e6b",
+    "rooms": "6183e8d338619c38",
+    "map": "94177b847a7f5374",
+    "lights": "a49c8e354c3b20b3",
+    "entities": "05025130e8593e51"
+  },
+  "derelict-4": {
+    "structure": "fa753c602e2e647c",
+    "tiles": "3d612d224f11d760",
+    "rooms": "b5e763c8869c11d3",
+    "map": "2048165a55b88848",
+    "lights": "ed95c4692c418ce9",
+    "entities": "86eefcd36d0b2a70"
+  },
+  "derelict-5": {
+    "structure": "b135bf78f1eff16e",
+    "tiles": "2bf5d2dd82896184",
+    "rooms": "c670d3e963fbe579",
+    "map": "a937b7695aef0683",
+    "lights": "52bdc8a291368c2f",
+    "entities": "c428246c68ce7d5d"
+  },
+  "asteroid-1": {
+    "structure": "bb7e2e1a0e513399",
+    "tiles": "b22c7a316631559f",
+    "rooms": "5506a3945dd1a7aa",
+    "map": "0d0abd0b4f151862",
+    "lights": "0582b69ac81cd427",
+    "entities": "8265186df7824297"
+  },
+  "asteroid-2": {
+    "structure": "183c3eb0741c80cf",
+    "tiles": "94ebf1648710efc3",
+    "rooms": "a6f738435543183a",
+    "map": "0d0abd0b4f151862",
+    "lights": "55a23271afd0bd77",
+    "entities": "0f2ada045f1b7a8b"
+  },
+  "asteroid-3": {
+    "structure": "ed79f7cc16626f8c",
+    "tiles": "b5de98f10f62303c",
+    "rooms": "4fd8723e40350f5c",
+    "map": "6b0ee853a3e6693f",
+    "lights": "b2b97c18faa7267d",
+    "entities": "4d07ef7edd87b8b2"
+  },
+  "asteroid-4": {
+    "structure": "77a25788a6e4051a",
+    "tiles": "b748bd702f98f2c7",
+    "rooms": "f3c2d7be59a9982a",
+    "map": "b0ae0de13ae3501c",
+    "lights": "4a84a229c4b5a419",
+    "entities": "5a24808c2ddd3651"
+  },
+  "asteroid-5": {
+    "structure": "2ffa9e63a4b81823",
+    "tiles": "c1e3822c03f50450",
+    "rooms": "39e95eca57da4f32",
+    "map": "b3b3969efe94a91f",
+    "lights": "952b10d74237862f",
+    "entities": "6fbff928449f17a3"
+  },
+  "starbase-1": {
+    "structure": "a9135c72de4f1a48",
+    "tiles": "7ae026d11ab4e7a2",
+    "rooms": "41722b84b14e5a64",
+    "map": "5de021906340d9d4",
+    "lights": "b9dcd2c21e260e37",
+    "entities": "7cc1ad00722402e5"
+  },
+  "starbase-2": {
+    "structure": "2252fdd443571614",
+    "tiles": "f99a1d5858383998",
+    "rooms": "e5e315e680faa4d7",
+    "map": "9670c3a840133ace",
+    "lights": "da928ad3cdfb1862",
+    "entities": "85d5235dbbb4e897"
+  },
+  "starbase-3": {
+    "structure": "ce3fb42855f4f2b8",
+    "tiles": "17ed97c9a433885b",
+    "rooms": "3cba54f136ca0e8f",
+    "map": "885fa821db85c13d",
+    "lights": "a95eece11b978670",
+    "entities": "62ad419120952a5e"
+  },
+  "starbase-4": {
+    "structure": "b14b1fea2fac2b39",
+    "tiles": "56832f47e95b13a0",
+    "rooms": "ce8f57255d46bc40",
+    "map": "ec6e4581ecc5ca40",
+    "lights": "5d68620375dfa197",
+    "entities": "23e2c3ddfbb388ff"
+  },
+  "starbase-5": {
+    "structure": "63aa0a6045ee22eb",
+    "tiles": "c1ce67743841d768",
+    "rooms": "1671216bf9adb7af",
+    "map": "d0c3efcaedbd82f5",
+    "lights": "4132ba7c1951568d",
+    "entities": "ea7f0b6e511ba91a"
+  },
+  "colony-1": {
+    "structure": "2e6f7528d4e748ae",
+    "tiles": "ff832b2dd375e48c",
+    "rooms": "21a99e03905e8897",
+    "map": "9118462f81d7c2d3",
+    "lights": "172c71a189b38a9c",
+    "entities": "71d43021eb1a6520"
+  },
+  "colony-2": {
+    "structure": "131e8e4bce35dfaf",
+    "tiles": "1d7158df442e709d",
+    "rooms": "63387107cbc4c9f7",
+    "map": "d639d7ae4cf609e9",
+    "lights": "6f78a1df6afd8bc7",
+    "entities": "19a3c6d70584f1c9"
+  },
+  "colony-3": {
+    "structure": "054bfcf5dc2c5deb",
+    "tiles": "da8c2d6a003f0e4c",
+    "rooms": "9400ae38a31e4ae4",
+    "map": "9118462f81d7c2d3",
+    "lights": "76351b45cfaea7cd",
+    "entities": "1dbd24b397b71678"
+  },
+  "colony-4": {
+    "structure": "68cf87e6c53ccff0",
+    "tiles": "a8287679b50ddcac",
+    "rooms": "e617868598059da5",
+    "map": "9118462f81d7c2d3",
+    "lights": "84c6243fca26e940",
+    "entities": "5e8c34fb6dee2976"
+  },
+  "colony-5": {
+    "structure": "37c7c75bc6affbdf",
+    "tiles": "fe64ae3f47e3ba02",
+    "rooms": "df4923edf0d3c330",
+    "map": "da4a4e207e00cd8a",
+    "lights": "1e0d2a985c88d597",
+    "entities": "b5b09f58b5f02e8a"
+  },
+  "player_ship-1": {
+    "structure": "b1de9e1e94355ed9",
+    "tiles": "35f570764e57aa8d",
+    "rooms": "2beca689cfe8e0f3",
+    "map": "3c3fafcd93600d60",
+    "lights": "4939330293438fd1",
+    "entities": "37879be8caca5d4c"
+  },
+  "player_ship-2": {
+    "structure": "b8224d5e6900c911",
+    "tiles": "d48273ebe5788d4b",
+    "rooms": "48e42fff0b5163b2",
+    "map": "346ce8e5afd31b14",
+    "lights": "17dfbb5762ff14fa",
+    "entities": "77e8a02628e785b4"
+  },
+  "player_ship-3": {
+    "structure": "2dcddcb78f2f6f2f",
+    "tiles": "d1b850d3d776dfe5",
+    "rooms": "6183e8d338619c38",
+    "map": "e1beb125ff3c61a0",
+    "lights": "a49c8e354c3b20b3",
+    "entities": "941bd25e67f5b753"
+  },
+  "player_ship-4": {
+    "structure": "cb3e1da264e83276",
+    "tiles": "9a0ed1147cc138fc",
+    "rooms": "b5e763c8869c11d3",
+    "map": "56957ef6ebc30ef2",
+    "lights": "ed95c4692c418ce9",
+    "entities": "4c36e0fe44685eec"
+  },
+  "player_ship-5": {
+    "structure": "bf07fbbcc3ac17af",
+    "tiles": "5f291127bbb6cf0b",
+    "rooms": "c670d3e963fbe579",
+    "map": "ebd5266a38e8f4ca",
+    "lights": "52bdc8a291368c2f",
+    "entities": "cf46796160bb6929"
+  },
+  "derelict-nav_unit": {
+    "structure": "c975e55d79560e4f",
+    "tiles": "0cd65d2ad8fb3447",
+    "rooms": "db3cc3d5417c8d60",
+    "map": "fc666784b59a25f5",
+    "lights": "27a9bfa03d3e6085",
+    "entities": "0703f02ff8c3638d"
+  },
+  "derelict-enemy_cap_2": {
+    "structure": "3904fe09934d01d8",
+    "tiles": "1e61b5c53b95470a",
+    "rooms": "a9cb5db14b0613c3",
+    "map": "95dc002eebcad8bf",
+    "lights": "5edba71a4f568e06",
+    "entities": "325e34c3d4eed3cb"
+  },
+  "starbase-no_enemies": {
+    "structure": "0cc04a9fe56961a9",
+    "tiles": "5f41ee37e7b10bd9",
+    "rooms": "e5b15ca4714e2572",
+    "map": "bd56c7e985ff5eb9",
+    "lights": "f6b46d224cc2c40e",
+    "entities": "e75c92c1df275e2c"
+  },
+  "asteroid-three_items": {
+    "structure": "5b48b49651e4fdd4",
+    "tiles": "a8556cc6be3c036c",
+    "rooms": "c801285f89e11d04",
+    "map": "adfbe62843431470",
+    "lights": "ac649da88a6ded16",
+    "entities": "6388b822c8523afb"
+  },
+  "colony-three_items": {
+    "structure": "ffabddca23fccfd6",
+    "tiles": "afc08e96ebb24ec5",
+    "rooms": "936045b9cc507cea",
+    "map": "9118462f81d7c2d3",
+    "lights": "edba747b4eb9e0e8",
+    "entities": "3573f7078592c49f"
+  },
+  "derelict-small_map": {
+    "structure": "e5f97e14ff93c2d3",
+    "tiles": "e6bd4ad4c7fa0936",
+    "rooms": "878fe6f842f9ff6e",
+    "map": "f2604043f6780257",
+    "lights": "2d4b7b34dd195282",
+    "entities": "3e2f15c7062d20c7"
+  },
+  "asteroid-small_map": {
+    "structure": "56170a6e66af4f16",
+    "tiles": "52a0be3ab0d7c4ca",
+    "rooms": "33702049378c4a63",
+    "map": "a199773bd7196ad1",
+    "lights": "c018de4f9b7ff6f4",
+    "entities": "f0c85b459018db7b"
+  },
+  "derelict-respawned": {
+    "structure": "a0f9adbcf42ce4d7",
+    "tiles": "e00a86cab04e7e6b",
+    "rooms": "6183e8d338619c38",
+    "map": "94177b847a7f5374",
+    "lights": "a49c8e354c3b20b3",
+    "entities": "1e3faf2309063bf7"
+  },
+  "fallback": {
+    "structure": "47d49843efee2a40",
+    "tiles": "da34c2ce876b5dfc",
+    "rooms": "55eba0e031c7bd3e",
+    "map": "4bd77db07c1bc355",
+    "lights": "4f53cda18c2baa0c",
+    "entities": "4f53cda18c2baa0c"
+  }
+}
