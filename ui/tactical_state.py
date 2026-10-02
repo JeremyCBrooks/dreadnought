@@ -589,8 +589,17 @@ class TacticalState(State):
             consumed = action.perform(engine, engine.player)
             moved = (engine.player.x, engine.player.y) != (old_x, old_y)
 
+        self._resolve_player_action(engine, consumed, moved=moved)
+        return True
+
+    def _resolve_player_action(self, engine: Engine, consumed: int, *, moved: bool = False) -> None:
+        """Run everything that follows a player action that took *consumed* ticks.
+
+        Every input mode ends here, so they all agree on the order: leave by
+        the hatch, die, let the world take its turns, refresh what the player sees.
+        """
         if not consumed:
-            return True
+            return
 
         # Only walking onto the hatch leaves: the player spawns on it, so
         # scanning or waiting there must not end the mission.
@@ -598,21 +607,21 @@ class TacticalState(State):
             msg = "You return to the bridge." if self.explore_ship else "You return to your ship."
             engine.message_log.add_message(msg, EQUIP_MSG)
             engine.pop_state()
-            return True
+            return
 
         if engine.player.fighter.hp <= 0:
             self._handle_player_death(engine, "Killed in action.")
-            return True
+            return
 
+        position = (engine.player.x, engine.player.y)
         for _ in range(consumed):
             self._after_player_turn(engine)
             if engine.current_state is not self:
-                return True
+                return
 
         self._update_fov_with_scan(engine)
-        if moved:
+        if moved or (engine.player.x, engine.player.y) != position:
             self._update_ground_underfoot(engine)
-        return True
 
     def _after_player_turn(self, engine: Engine) -> None:
         """Environment tick, radiation, drift, enemy turns. Switch to game over if dead."""
@@ -875,15 +884,9 @@ class TacticalState(State):
 
                 consumed = RangedAction(target).perform(engine, engine.player)
                 self._ranged_cursor = None
-                if consumed:
-                    if engine.player.fighter.hp <= 0:
-                        self._handle_player_death(engine, "Killed in a firefight.")
-                        return True
-                    self._after_player_turn(engine)
-                    if engine.current_state is not self:
-                        return True
-                    self._update_fov_with_scan(engine)
-                self._update_ground_underfoot(engine)
+                self._resolve_player_action(engine, consumed)
+                if engine.current_state is self and self._death_cause is None:
+                    self._update_ground_underfoot(engine)
             else:
                 engine.message_log.add_message("No target at cursor.", GRAY)
             return True
@@ -976,13 +979,7 @@ class TacticalState(State):
                 engine.message_log.add_message("Nothing there.", GRAY)
                 return True
             consumed = self._perform_interact(engine, dx, dy, kind)
-
-            if consumed:
-                for _ in range(consumed):
-                    self._after_player_turn(engine)
-                    if engine.current_state is not self:
-                        return True
-                self._update_fov_with_scan(engine)
+            self._resolve_player_action(engine, consumed)
             return True
 
         self._interact_pending = False
@@ -1010,15 +1007,7 @@ class TacticalState(State):
             from game.actions import ScanAction
 
             consumed = ScanAction(scanner=scanner).perform(engine, engine.player)
-            if consumed:
-                if engine.player.fighter.hp <= 0:
-                    self._handle_player_death(engine, "Killed in action.")
-                    return True
-                for _ in range(consumed):
-                    self._after_player_turn(engine)
-                    if engine.current_state is not self:
-                        return True
-                self._update_fov_with_scan(engine)
+            self._resolve_player_action(engine, consumed)
             return True
 
         self._scan_pending = None
