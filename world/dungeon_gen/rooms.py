@@ -9,6 +9,8 @@ import numpy as np
 from world import tile_types
 from world.loc_profiles import LocationProfile, RoomSpec
 
+type Pos = tuple[int, int]
+
 
 def _safe_randint(rng: random.Random, lo: int, hi: int) -> int | None:
     """Return rng.randint(lo, hi) or None when lo > hi."""
@@ -46,6 +48,21 @@ class RectRoom:
 
     def intersects(self, other: RectRoom) -> bool:
         return self.x1 <= other.x2 and self.x2 >= other.x1 and self.y1 <= other.y2 and self.y2 >= other.y1
+
+
+def _wall_sides(room: RectRoom) -> list[list[tuple[Pos, Pos, Pos]]]:
+    """Return the room's north, south, west and east walls, corners excluded.
+
+    Each wall is a list of (wall position, outside neighbour, inside neighbour).
+    """
+    xs = range(room.x1 + 1, room.x2)
+    ys = range(room.y1 + 1, room.y2)
+    return [
+        [((x, room.y1), (x, room.y1 - 1), (x, room.y1 + 1)) for x in xs],
+        [((x, room.y2), (x, room.y2 + 1), (x, room.y2 - 1)) for x in xs],
+        [((room.x1, y), (room.x1 - 1, y), (room.x1 + 1, y)) for y in ys],
+        [((room.x2, y), (room.x2 + 1, y), (room.x2 - 1, y)) for y in ys],
+    ]
 
 
 def _roll_room(

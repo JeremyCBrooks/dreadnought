@@ -8,10 +8,8 @@ from collections.abc import Iterator
 import numpy as np
 
 from world import tile_types
-from world.dungeon_gen.rooms import RectRoom
+from world.dungeon_gen.rooms import RectRoom, _wall_sides
 from world.game_map import GameMap
-
-type Pos = tuple[int, int]
 
 
 def _hull_facing_walls(game_map: GameMap, wall_tid: int) -> Iterator[tuple[int, int, int, int]]:
@@ -33,21 +31,6 @@ def _hull_facing_walls(game_map: GameMap, wall_tid: int) -> Iterator[tuple[int, 
                     continue
                 if game_map.tiles["walkable"][inside] and int(game_map.tiles["tile_id"][outside]) == wall_tid:
                     yield x, y, dx, dy
-
-
-def _wall_sides(room: RectRoom) -> list[list[tuple[Pos, Pos, Pos]]]:
-    """Return the room's north, south, west and east walls, corners excluded.
-
-    Each wall is a list of (wall position, outside neighbour, inside neighbour).
-    """
-    xs = range(room.x1 + 1, room.x2)
-    ys = range(room.y1 + 1, room.y2)
-    return [
-        [((x, room.y1), (x, room.y1 - 1), (x, room.y1 + 1)) for x in xs],
-        [((x, room.y2), (x, room.y2 + 1), (x, room.y2 - 1)) for x in xs],
-        [((room.x1, y), (room.x1 - 1, y), (room.x1 + 1, y)) for y in ys],
-        [((room.x2, y), (room.x2 + 1, y), (room.x2 - 1, y)) for y in ys],
-    ]
 
 
 def _place_exterior_windows(
