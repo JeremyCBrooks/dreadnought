@@ -442,8 +442,8 @@ def test_explore_ship_exit_tile_message():
     """Stepping on exit_pos logs 'You return to the bridge.' when explore_ship=True."""
     from unittest.mock import patch
 
+    from engine.keys import move_keys
     from tests.conftest import FakeEvent
-    from ui.keys import move_keys
 
     engine = make_ship_engine()
     state = _enter_ship(engine)

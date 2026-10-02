@@ -264,7 +264,7 @@ def enter_ship(engine):
 
 def key_for(direction: tuple[int, int]) -> int:
     """A key that moves in *direction*."""
-    from ui.keys import move_keys
+    from engine.keys import move_keys
 
     return next(key for key, move in move_keys().items() if move == direction)
 

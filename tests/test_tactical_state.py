@@ -112,8 +112,8 @@ class TestGetAction:
         assert isinstance(action, BumpAction)
 
     def test_wait_key_returns_wait_action(self):
+        from engine.keys import action_keys
         from game.actions import WaitAction
-        from ui.keys import action_keys
 
         wait_keyset = action_keys()["wait"][0]
         wait_key = next(iter(wait_keyset))
@@ -186,7 +186,7 @@ class TestEvKeydownRouting:
 
     def test_inventory_key_pushes_state(self):
         engine, state = self._setup()
-        from ui.keys import action_keys
+        from engine.keys import action_keys
 
         inv_keyset = action_keys()["inventory"][0]
         inv_key = next(iter(inv_keyset))
@@ -230,7 +230,7 @@ class TestEvKeydownRouting:
 
     def test_look_mode_entered(self):
         engine, state = self._setup()
-        from ui.keys import action_keys
+        from engine.keys import action_keys
 
         look_keyset = action_keys()["look"][0]
         look_key = next(iter(look_keyset))
@@ -245,7 +245,7 @@ class TestEvKeydownRouting:
 
     def test_ranged_no_weapon_shows_message(self):
         engine, state = self._setup()
-        from ui.keys import action_keys
+        from engine.keys import action_keys
 
         fire_keyset = action_keys()["fire"][0]
         fire_key = next(iter(fire_keyset))
@@ -254,7 +254,7 @@ class TestEvKeydownRouting:
 
     def test_interact_nothing_nearby(self):
         engine, state = self._setup()
-        from ui.keys import action_keys
+        from engine.keys import action_keys
 
         interact_keyset = action_keys()["interact"][0]
         interact_key = next(iter(interact_keyset))
@@ -401,7 +401,7 @@ class TestScanInput:
         engine._state_stack.append(state)
         engine.current_state = state
         engine.game_map.update_fov(engine.player.x, engine.player.y)
-        from ui.keys import action_keys
+        from engine.keys import action_keys
 
         scan_keyset = action_keys()["scan"][0]
         scan_key = next(iter(scan_keyset))

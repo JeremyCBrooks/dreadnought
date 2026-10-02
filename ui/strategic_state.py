@@ -40,7 +40,7 @@ _ROSE_CHARS: dict[tuple[int, int], str] = {
 
 def _gauge_color(ratio: float) -> tuple[int, int, int]:
     """Return green/yellow/red color based on a 0-1 ratio."""
-    from ui.colors import HP_GREEN, HP_RED, HP_YELLOW
+    from data.colors import HP_GREEN, HP_RED, HP_YELLOW
 
     if ratio > 0.5:
         return HP_GREEN
@@ -85,8 +85,8 @@ class StrategicState(State):
     def ev_key(self, engine: Engine, event: Any) -> bool:
         import tcod.event
 
+        from engine.keys import confirm_keys, is_action, move_keys
         from game.interdiction import current_interdiction
-        from ui.keys import confirm_keys, is_action, move_keys
 
         key = event.sym
         system = self.galaxy.systems[self.galaxy.current_system]
@@ -302,7 +302,7 @@ class StrategicState(State):
         home_tag = " (home)" if is_home else ""
         header_color = (100, 255, 100) if is_home else (255, 255, 100)
         console.print(x=2, y=1, string=f"{system.name} ({star_type_name}){home_tag}", fg=header_color)
-        from ui.colors import HEADER_SEP
+        from data.colors import HEADER_SEP
 
         console.print(x=2, y=2, string="=" * text_width, fg=HEADER_SEP)
 

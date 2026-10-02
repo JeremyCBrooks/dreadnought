@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from data.colors import DARK_GRAY, GRAY
 from engine.game_state import State
-from ui.colors import DARK_GRAY, GRAY
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -23,7 +23,7 @@ class InventoryState(State):
         return combined_items(engine.player.inventory, engine.player.loadout)
 
     def ev_key(self, engine: Engine, event: Any) -> bool:
-        from ui.keys import cancel_keys, is_action, move_keys
+        from engine.keys import cancel_keys, is_action, move_keys
 
         key = event.sym
 
@@ -107,7 +107,7 @@ class InventoryState(State):
         bh = min(30, ch - 10)
         bx = (cw - bw) // 2
         by = (ch - bh) // 2
-        from ui.colors import DIALOG_BG, HEADER_TITLE
+        from data.colors import DIALOG_BG, HEADER_TITLE
 
         console.draw_rect(bx, by, bw, bh, ch=32, bg=DIALOG_BG)
 

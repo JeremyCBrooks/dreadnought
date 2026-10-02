@@ -1,6 +1,6 @@
-"""Tests for ui.colors — shared color constants."""
+"""Tests for data.colors — shared color constants."""
 
-from ui import colors
+from data import colors
 
 
 def test_color_type_alias_is_rgb_tuple():
@@ -94,7 +94,7 @@ def test_message_log_hazard_colors():
 
 
 def test_consumers_import_successfully():
-    """Files that depend on ui.colors should import without error."""
+    """Files that depend on data.colors should import without error."""
     from game import (
         actions,  # noqa: F401
         consumables,  # noqa: F401

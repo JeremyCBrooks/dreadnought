@@ -40,7 +40,7 @@ def test_action_keys_mapped():
     from web.key_map import BROWSER_TO_KEYSYM
 
     K = tcod.event.KeySym
-    # All keys from ui/keys.py action_keys()
+    # All keys from engine/keys.py action_keys()
     assert BROWSER_TO_KEYSYM["x"] == K.x
     assert BROWSER_TO_KEYSYM["f"] == K.f
     assert BROWSER_TO_KEYSYM["i"] == K.i

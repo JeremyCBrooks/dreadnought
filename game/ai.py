@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ui.colors import NEUTRAL, PROMPT, WARNING
+from data.colors import NEUTRAL, PROMPT, WARNING
 
 if TYPE_CHECKING:
     import numpy as np

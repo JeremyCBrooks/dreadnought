@@ -327,7 +327,7 @@ class TestDreadnoughtCore:
         direction = ((dx > 0) - (dx < 0), (dy > 0) - (dy < 0))
 
         # Simulate keypress for that direction
-        from ui.keys import move_keys
+        from engine.keys import move_keys
 
         dir_to_key = {v: k for k, v in move_keys().items()}
         key = dir_to_key[direction]
@@ -373,7 +373,7 @@ class TestDreadnoughtCore:
         dy = home_sys.gy - current_sys.gy
         direction = ((dx > 0) - (dx < 0), (dy > 0) - (dy < 0))
 
-        from ui.keys import move_keys
+        from engine.keys import move_keys
 
         dir_to_key = {v: k for k, v in move_keys().items()}
         key = dir_to_key[direction]

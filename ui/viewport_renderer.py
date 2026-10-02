@@ -427,3 +427,53 @@ def render_viewport(
             region += addition
             np.clip(region, 0, 255, out=region)
             bg_slice["bg"][x0:x1, y0:y1, ch] = region.astype(np.uint8)
+
+
+def render_map_starfield(
+    console,
+    game_map,
+    cam_x: int,
+    cam_y: int,
+    vp_x: int,
+    vp_y: int,
+    vp_w: int,
+    vp_h: int,
+) -> None:
+    """Overlay the animated starfield on a map's visible space tiles within the viewport."""
+    if not game_map.has_space:
+        return
+
+    from world import tile_types
+
+    space_tid = int(tile_types.space["tile_id"])
+    rw = min(vp_w, game_map.width - cam_x)
+    rh = min(vp_h, game_map.height - cam_y)
+    if rw <= 0 or rh <= 0:
+        return
+
+    ms = (slice(cam_x, cam_x + rw), slice(cam_y, cam_y + rh))
+    mask = game_map.visible[ms] & (game_map.tiles["tile_id"][ms] == space_tid)
+    if not np.any(mask):
+        return
+
+    # Exclude space tiles occupied by visible entities
+    entity_positions = set()
+    for e in game_map.entities:
+        if game_map.in_bounds(e.x, e.y) and game_map.visible[e.x, e.y]:
+            ex, ey = e.x - cam_x, e.y - cam_y
+            if 0 <= ex < rw and 0 <= ey < rh:
+                entity_positions.add((ex, ey))
+
+    render_starfield_bg(
+        console,
+        vp_x,
+        vp_y,
+        rw,
+        rh,
+        seed=game_map.space_seed,
+        t=time.time(),
+        coord_x=cam_x,
+        coord_y=cam_y,
+        cell_mask=mask,
+        skip_positions=entity_positions,
+    )

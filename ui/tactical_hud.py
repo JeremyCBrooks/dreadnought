@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
-from ui.colors import DARK_GRAY, EQUIP_MSG, GRAY, HEADER_SEP, HP_GREEN, HP_RED, HP_YELLOW, PROMPT
-from ui.keys import action_keys
+from data.colors import DARK_GRAY, EQUIP_MSG, GRAY, HEADER_SEP, HP_GREEN, HP_RED, HP_YELLOW, PROMPT
+from engine.keys import action_keys
 
 if TYPE_CHECKING:
     from engine.game_state import Engine

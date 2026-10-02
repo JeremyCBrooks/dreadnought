@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ui.colors import HP_GREEN, INTERACT_EMPTY, PROMPT, SCAN_MSG
+from data.colors import HP_GREEN, INTERACT_EMPTY, PROMPT, SCAN_MSG
 
 if TYPE_CHECKING:
     from engine.game_state import Engine

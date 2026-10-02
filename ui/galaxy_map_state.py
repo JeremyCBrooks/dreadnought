@@ -32,7 +32,7 @@ class GalaxyMapState(State):
     def ev_key(self, engine: Engine, event: Any) -> bool:
         import tcod.event
 
-        from ui.keys import cancel_keys, move_keys
+        from engine.keys import cancel_keys, move_keys
 
         key = event.sym
 
@@ -68,7 +68,7 @@ class GalaxyMapState(State):
     # ------------------------------------------------------------------
 
     def on_render(self, console: Any, engine: Engine) -> None:
-        from ui.colors import DIALOG_BG
+        from data.colors import DIALOG_BG
 
         cw = engine.CONSOLE_WIDTH
         ch = engine.CONSOLE_HEIGHT

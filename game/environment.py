@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from data.colors import HAZARD_ENV_DAMAGE, NEUTRAL
 from game.hazards import apply_hp_damage
-from ui.colors import HAZARD_ENV_DAMAGE, NEUTRAL
 
 if TYPE_CHECKING:
     from engine.game_state import Engine

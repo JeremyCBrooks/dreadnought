@@ -49,7 +49,7 @@ class ConfirmQuitState(State):
         bx = (con_w - bw) // 2
         by = (con_h - bh) // 2
 
-        from ui.colors import DIALOG_BG, GRAY, HEADER_TITLE
+        from data.colors import DIALOG_BG, GRAY, HEADER_TITLE
 
         console.draw_rect(bx, by, bw, bh, ch=32, bg=DIALOG_BG)
         console.print(x=bx + 2, y=by + 1, string=self.title, fg=HEADER_TITLE)

@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from game.loadout import has_usable_durability
-from ui.colors import (
+from data.colors import (
     HAZARD_ELECTRIC,
     HAZARD_EXPLOSIVE,
     HAZARD_GAS,
     HAZARD_RADIATION,
     HAZARD_STRUCTURAL,
 )
+from game.loadout import has_usable_durability
 
 if TYPE_CHECKING:
     from engine.game_state import Engine

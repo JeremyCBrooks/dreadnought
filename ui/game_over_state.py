@@ -5,8 +5,8 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any
 
+from data.colors import DARK_GRAY, HP_GREEN, HP_RED, NEUTRAL
 from engine.game_state import State
-from ui.colors import DARK_GRAY, HP_GREEN, HP_RED, NEUTRAL
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -40,7 +40,7 @@ class GameOverState(State):
         if self._alpha() < 1.0:
             return True
 
-        from ui.keys import confirm_keys
+        from engine.keys import confirm_keys
 
         if event.sym not in confirm_keys():
             return True

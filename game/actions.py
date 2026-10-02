@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from engine.game_state import Engine
     from game.entity import Entity
 
-from ui.colors import (
+from data.colors import (
     DARK_GRAY,
     DEATH_MSG,
     ENEMY_ATTACK,

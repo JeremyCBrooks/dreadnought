@@ -44,7 +44,7 @@ def _build_map() -> dict[str, int]:
     m["Enter"] = K.RETURN
     m["Escape"] = K.ESCAPE
 
-    # Whitespace / punctuation used in ui/keys.py
+    # Whitespace / punctuation used in engine/keys.py
     m[" "] = K.SPACE
     m["."] = K.PERIOD
     m[","] = K.COMMA

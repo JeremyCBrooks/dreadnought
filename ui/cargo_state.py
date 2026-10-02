@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from data.colors import DARK_GRAY, GRAY, WARNING
 from engine.game_state import State
-from ui.colors import DARK_GRAY, GRAY, WARNING
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -85,7 +85,7 @@ class CargoState(State):
     # ------------------------------------------------------------------
 
     def ev_key(self, engine: Engine, event: Any) -> bool:
-        from ui.keys import cancel_keys, confirm_keys, move_keys
+        from engine.keys import cancel_keys, confirm_keys, move_keys
 
         key = event.sym
 
@@ -224,8 +224,8 @@ class CargoState(State):
             console.print(x=x, y=y + j, string=line, fg=color)
 
     def on_render(self, console: Any, engine: Engine) -> None:
+        from data.colors import DIALOG_BG, HEADER_TITLE, TAB_SELECTED, TAB_UNSELECTED
         from game.entity import PLAYER_MAX_INVENTORY
-        from ui.colors import DIALOG_BG, HEADER_TITLE, TAB_SELECTED, TAB_UNSELECTED
 
         cw, ch = engine.CONSOLE_WIDTH, engine.CONSOLE_HEIGHT
         bw = min(65, cw - 10)

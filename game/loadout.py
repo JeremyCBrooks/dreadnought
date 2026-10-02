@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from game.entity import Entity
 
-from ui.colors import EQUIP_MSG, NEUTRAL, WARNING
+from data.colors import EQUIP_MSG, NEUTRAL, WARNING
 
 
 def has_usable_durability(entity: Entity) -> bool:

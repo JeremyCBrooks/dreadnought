@@ -1,4 +1,4 @@
-"""Tests for web/console_serializer.py."""
+"""Tests for engine/console_serializer.py."""
 
 
 def make_console(w: int = 4, h: int = 3):
@@ -9,7 +9,7 @@ def make_console(w: int = 4, h: int = 3):
 
 
 def test_first_call_returns_full_frame_type():
-    from web.console_serializer import serialize_delta
+    from engine.console_serializer import serialize_delta
 
     console = make_console()
     tiles, _ = serialize_delta(console, None)
@@ -18,7 +18,7 @@ def test_first_call_returns_full_frame_type():
 
 
 def test_first_call_returns_all_cells():
-    from web.console_serializer import serialize_delta
+    from engine.console_serializer import serialize_delta
 
     console = make_console(2, 2)
     console.rgb["ch"][0, 0] = ord("A")
@@ -28,7 +28,7 @@ def test_first_call_returns_all_cells():
 
 
 def test_each_tile_has_nine_fields():
-    from web.console_serializer import serialize_delta
+    from engine.console_serializer import serialize_delta
 
     console = make_console(2, 2)
     tiles, _ = serialize_delta(console, None)
@@ -37,7 +37,7 @@ def test_each_tile_has_nine_fields():
 
 
 def test_unchanged_frame_returns_empty_delta():
-    from web.console_serializer import serialize_delta
+    from engine.console_serializer import serialize_delta
 
     console = make_console(2, 2)
     _, prev = serialize_delta(console, None)
@@ -46,7 +46,7 @@ def test_unchanged_frame_returns_empty_delta():
 
 
 def test_changed_cell_appears_in_delta():
-    from web.console_serializer import serialize_delta
+    from engine.console_serializer import serialize_delta
 
     console = make_console(3, 3)
     _, prev = serialize_delta(console, None)
@@ -63,7 +63,7 @@ def test_changed_cell_appears_in_delta():
 
 
 def test_only_changed_cells_in_delta():
-    from web.console_serializer import serialize_delta
+    from engine.console_serializer import serialize_delta
 
     console = make_console(4, 4)
     _, prev = serialize_delta(console, None)
@@ -78,7 +78,7 @@ def test_only_changed_cells_in_delta():
 
 
 def test_serialize_returns_updated_prev():
-    from web.console_serializer import serialize_delta
+    from engine.console_serializer import serialize_delta
 
     console = make_console(2, 2)
     _, prev1 = serialize_delta(console, None)
@@ -93,7 +93,7 @@ def test_serialize_returns_updated_prev():
 
 def test_tile_values_are_python_ints():
     """JSON serialization requires plain ints, not numpy scalar types."""
-    from web.console_serializer import serialize_delta
+    from engine.console_serializer import serialize_delta
 
     console = make_console(2, 2)
     console.rgb["ch"][0, 0] = ord("@")

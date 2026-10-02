@@ -1,8 +1,8 @@
-"""Tests for ui.keys — centralised key mappings."""
+"""Tests for engine.keys — centralised key mappings."""
 
 import tcod.event
 
-from ui.keys import (
+from engine.keys import (
     action_keys,
     cancel_keys,
     confirm_keys,

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from data.colors import DARK_GRAY
 from engine.game_state import State
-from ui.colors import DARK_GRAY
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -30,7 +30,7 @@ def _center_x(width: int, text: str) -> int:
 
 class TitleState(State):
     def ev_key(self, engine: Engine, event: Any) -> bool:
-        from ui.keys import cancel_keys
+        from engine.keys import cancel_keys
 
         if event.sym in cancel_keys():
             return False

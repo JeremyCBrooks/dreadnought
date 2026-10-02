@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from engine.game_state import State
-from ui.colors import (
+from data.colors import (
     DARK_GRAY,
     DIALOG_BG,
     GRAY,
@@ -19,6 +18,7 @@ from ui.colors import (
     WARNING,
     WHITE,
 )
+from engine.game_state import State
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -69,7 +69,7 @@ class BriefingState(State):
                     break
 
     def ev_key(self, engine: Engine, event: Any) -> bool:
-        from ui.keys import cancel_keys, confirm_keys, move_keys
+        from engine.keys import cancel_keys, confirm_keys, move_keys
 
         key = event.sym
 

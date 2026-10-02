@@ -4,7 +4,7 @@ tcod.event.KeySym exposes BOTH lowercase (K.h) and uppercase (K.H) letter
 attributes on most builds — they alias the same SDL keycode. But some builds
 (notably the Linux wheel deployed to Fly.io) expose only the uppercase
 variants; lowercase access raises AttributeError, crashing the WebSocket
-session as soon as the first key event triggers ui.keys.move_keys().
+session as soon as the first key event triggers engine.keys.move_keys().
 
 Regression guard for the 2026-05-03 deploy crash.
 """

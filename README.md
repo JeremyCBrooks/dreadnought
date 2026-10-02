@@ -115,10 +115,13 @@ data/
   hull_templates.py              Hull layout templates
   names.py                       Name generation tables
   star_types.py                  Star type definitions and weighted selection
+  colors.py                      Shared color constants
 engine/
   game_state.py                  State machine (push/pop/switch) + Engine
   message_log.py                 Scrollable message log
   font.py                        Tileset loading
+  keys.py                        Key binding definitions
+  console_serializer.py          Console-to-JSON frame serialization
 game/
   entity.py                      Entity + Fighter component
   actions.py                     All action classes (move, melee, ranged, interact, scan, etc.)
@@ -152,7 +155,5 @@ ui/
   game_over_state.py             Death / victory screen
   confirm_quit_state.py          Quit confirmation dialog
   viewport_renderer.py           Starfield, nebula, star disc & flare rendering
-  colors.py                      Shared UI color constants
-  keys.py                        Key binding definitions
 tests/                           pytest suite (1550+ tests)
 ```

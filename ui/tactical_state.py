@@ -7,10 +7,10 @@ import time
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
+from data.colors import DARK_GRAY, EQUIP_MSG, GRAY, PROMPT
 from engine.game_state import State
-from ui.colors import DARK_GRAY, EQUIP_MSG, GRAY, PROMPT
-from ui.keys import action_keys, cancel_keys, confirm_keys, is_action
-from ui.keys import move_keys as _move_keys
+from engine.keys import action_keys, cancel_keys, confirm_keys, is_action
+from engine.keys import move_keys as _move_keys
 
 if TYPE_CHECKING:
     from engine.game_state import Engine
@@ -882,8 +882,11 @@ class TacticalState(State):
             scan_glow=engine.scan_glow,
         )
 
-        engine.game_map.animate_space(
+        from ui.viewport_renderer import render_map_starfield
+
+        render_map_starfield(
             console,
+            engine.game_map,
             cam_x,
             cam_y,
             vp_x=0,

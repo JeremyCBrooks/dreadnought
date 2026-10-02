@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from data.colors import HAZARD_ENV_DAMAGE, HP_YELLOW, INTERACT_EMPTY, NEUTRAL, WARNING
 from game.helpers import chebyshev as _chebyshev
-from ui.colors import HAZARD_ENV_DAMAGE, HP_YELLOW, INTERACT_EMPTY, NEUTRAL, WARNING
 
 if TYPE_CHECKING:
     from engine.game_state import Engine

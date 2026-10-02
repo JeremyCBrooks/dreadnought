@@ -142,7 +142,7 @@ class Engine:
         """WebSocket game loop. Renders to an in-memory console and streams frames."""
         import tcod.console
 
-        from web.console_serializer import serialize_delta
+        from engine.console_serializer import serialize_delta
 
         console = tcod.console.Console(self.CONSOLE_WIDTH, self.CONSOLE_HEIGHT, order="F")
         prev_tiles = None
@@ -180,7 +180,7 @@ class Engine:
                 if event is None:  # sentinel: client disconnected
                     return
                 # Mirror run() routing: move keys fire on keydown, all others on keyup.
-                from ui.keys import is_move_key as _is_move
+                from engine.keys import is_move_key as _is_move
 
                 is_move = _is_move(event.sym)
                 is_down = event.type == "keydown"
@@ -197,7 +197,7 @@ class Engine:
         import tcod.event
 
         from engine.font import load_tileset
-        from ui.keys import is_move_key
+        from engine.keys import is_move_key
 
         tileset = load_tileset()
         with tcod.context.new(
