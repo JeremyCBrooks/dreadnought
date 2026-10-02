@@ -96,8 +96,9 @@ class Interdiction:
         """
         if self.composite_map is None:
             return list(self.saved_consumed_overlay)
-        on_map = {id(e) for e in self.composite_map.entities}
-        return [i for i, e in enumerate(self.pirate_entities_overlay) if id(e) not in on_map]
+        from game.helpers import missing_entity_indices
+
+        return missing_entity_indices(self.pirate_entities_overlay, self.composite_map)
 
     def resolve(self) -> None:
         """Mark resolved. The actual ship-map restoration is deferred to the
@@ -327,14 +328,12 @@ def rebuild_composite(interdiction: Interdiction, ship) -> bool:
 
 def _reapply_consumed_overlay(interdiction: Interdiction) -> None:
     """Take already-searched pirate furnishings back off a freshly rebuilt composite."""
-    composite = interdiction.composite_map
-    overlay = interdiction.pirate_entities_overlay
-    consumed = {id(overlay[i]) for i in interdiction.saved_consumed_overlay if i < len(overlay)}
+    from game.helpers import remove_entities_at_indices
+
+    remove_entities_at_indices(
+        interdiction.pirate_entities_overlay, interdiction.saved_consumed_overlay, interdiction.composite_map
+    )
     interdiction.saved_consumed_overlay = []
-    if consumed:
-        # Mutate in place: the list is shared with the original player map.
-        composite.entities[:] = [e for e in composite.entities if id(e) not in consumed]
-        composite.invalidate_entity_index()
 
 
 def _reapply_tile_changes(interdiction: Interdiction) -> None:

@@ -37,15 +37,11 @@ class TitleState(State):
 
         from game.ship import Ship
         from ui.strategic_state import StrategicState
-        from world.dungeon_gen import generate_player_ship
         from world.galaxy import Galaxy
 
         galaxy = Galaxy()
         engine.ship = Ship()
-        gm, rooms, exit_pos = generate_player_ship(seed=galaxy.seed)
-        engine.ship.game_map = gm
-        engine.ship.rooms = rooms
-        engine.ship.exit_pos = exit_pos
+        engine.ship.generate_interior(galaxy.seed)
         engine.galaxy = galaxy
         import debug
 

@@ -40,6 +40,29 @@ class Ship:
         self.game_map: GameMap | None = None
         self.rooms: list | None = None
         self.exit_pos: tuple[int, int] | None = None
+        # Entities the interior was generated with, in generation order.
+        self.furnishings: list[Entity] = []
+
+    def generate_interior(self, seed: int) -> None:
+        """(Re)build the ship interior from *seed* and record its furnishings."""
+        from world.dungeon_gen import generate_player_ship
+
+        self.game_map, self.rooms, self.exit_pos = generate_player_ship(seed=seed)
+        self.furnishings = list(self.game_map.entities)
+
+    def consumed_furnishing_indices(self) -> list[int]:
+        """Indices of generated furnishings the player has used up (searched lockers etc.)."""
+        if self.game_map is None:
+            return []
+        from game.helpers import missing_entity_indices
+
+        return missing_entity_indices(self.furnishings, self.game_map)
+
+    def remove_furnishings(self, indices: list[int]) -> None:
+        """Take already-consumed furnishings back off a freshly generated interior."""
+        from game.helpers import remove_entities_at_indices
+
+        remove_entities_at_indices(self.furnishings, indices, self.game_map)
 
     def add_cargo(self, item: Entity) -> None:
         """Add an item to the cargo hold."""

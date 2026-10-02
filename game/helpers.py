@@ -14,6 +14,25 @@ def chebyshev(x1: int, y1: int, x2: int, y2: int) -> int:
     return max(abs(x1 - x2), abs(y1 - y2))
 
 
+def missing_entity_indices(pristine: list[Entity], game_map: GameMap) -> list[int]:
+    """Indices of *pristine* entities that are no longer on *game_map*.
+
+    Seeded generation recreates entities in the same order, so an index
+    identifies the same furnishing across a save/load regeneration.
+    """
+    on_map = {id(e) for e in game_map.entities}
+    return [i for i, e in enumerate(pristine) if id(e) not in on_map]
+
+
+def remove_entities_at_indices(pristine: list[Entity], indices: list[int], game_map: GameMap) -> None:
+    """Remove the *pristine* entities at *indices* from *game_map* (in place; the list may be shared)."""
+    doomed = {id(pristine[i]) for i in indices if 0 <= i < len(pristine)}
+    if not doomed:
+        return
+    game_map.entities[:] = [e for e in game_map.entities if id(e) not in doomed]
+    game_map.invalidate_entity_index()
+
+
 def get_equipped_ranged_weapon(entity: Entity) -> Entity | None:
     """Return a usable ranged weapon with ammo.
 

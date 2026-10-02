@@ -146,16 +146,12 @@ async def new_game(body: dict, session_token: str | None = Cookie(default=None))
     from engine.game_state import Engine
     from game.ship import Ship
     from web.save_load import engine_to_dict
-    from world.dungeon_gen import generate_player_ship
     from world.galaxy import Galaxy
 
     engine = Engine()
     engine.galaxy = Galaxy(seed=seed)
     engine.ship = Ship()
-    gm, rooms, exit_pos = generate_player_ship(seed=engine.galaxy.seed)
-    engine.ship.game_map = gm
-    engine.ship.rooms = rooms
-    engine.ship.exit_pos = exit_pos
+    engine.ship.generate_interior(engine.galaxy.seed)
     state_json = json.dumps(engine_to_dict(engine))
     await db.save_game(user["id"], state_json)
 

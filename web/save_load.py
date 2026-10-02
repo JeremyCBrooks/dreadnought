@@ -145,6 +145,9 @@ def _ship_to_dict(ship, floor_items: list | None = None) -> dict | None:
         "scanner_quality": ship.scanner_quality,
         "nav_units": ship.nav_units,
         "cargo": [_entity_to_dict(e) for e in [*ship.cargo, *(floor_items or [])]],
+        # The interior is regenerated from the galaxy seed on load; this is
+        # what keeps searched lockers from refilling.
+        "consumed_furnishings": ship.consumed_furnishing_indices(),
     }
 
 
@@ -510,12 +513,8 @@ def dict_to_engine(data: dict, engine: Engine) -> None:
     engine.turn_counter = data.get("turn_counter", 0)
 
     if engine.ship is not None:
-        from world.dungeon_gen import generate_player_ship
-
-        gm, rooms, exit_pos = generate_player_ship(seed=engine.galaxy.seed)
-        engine.ship.game_map = gm
-        engine.ship.rooms = rooms
-        engine.ship.exit_pos = exit_pos
+        engine.ship.generate_interior(engine.galaxy.seed)
+        engine.ship.remove_furnishings(data["ship"].get("consumed_furnishings", []))
         # Active interdictions: composite map is rebuilt lazily in
         # _activate_interdiction_if_any when the player next presses [S].
 
