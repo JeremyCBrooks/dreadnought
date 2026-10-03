@@ -33,6 +33,8 @@ class GameMap:
         self.hazard_overlays: dict[str, np.ndarray] = {}
         self._hazards_dirty: bool = True
         self.hull_breaches: list[tuple[int, int]] = []
+        # What the hull is built from (and patched with); None where there is no hull.
+        self.hull_tile: np.ndarray | None = None
         self.space_seed: int = 0
         self.pending_decompression: dict | None = None
         self.pull_directions: dict[tuple[int, int], tuple[int, int]] | None = None
@@ -170,6 +172,13 @@ class GameMap:
         """Close the breach at (x, y) with *hull_tile*; the air returns once no breach feeds the room."""
         self.tiles[x, y] = hull_tile
         self.hull_breaches.remove((x, y))
+        self.invalidate_hazards()
+
+    def forget_sealed_hull_breaches(self) -> None:
+        """Drop breaches whose tile is no longer a hole, after tiles were rewritten directly."""
+        breach_tid = int(tile_types.hull_breach["tile_id"])
+        # Mutate in place: a composite shares this list with the maps it was built from.
+        self.hull_breaches[:] = [pos for pos in self.hull_breaches if int(self.tiles["tile_id"][pos]) == breach_tid]
         self.invalidate_hazards()
 
     def get_hazards_at(self, x: int, y: int) -> set[str]:

@@ -364,7 +364,8 @@ def apply_tile_changes(game_map, changes: Iterable[tuple[int, int, int]]) -> Non
     # Mutate in place: a composite shares this list with the original player map.
     if extracted_cores:
         game_map.light_sources[:] = [ls for ls in game_map.light_sources if (ls.x, ls.y) not in extracted_cores]
-    game_map.invalidate_hazards()
+    # A breach patched last time is hull again, not a hole that still vents.
+    game_map.forget_sealed_hull_breaches()
 
 
 def _reapply_tile_changes(interdiction: Interdiction) -> None:

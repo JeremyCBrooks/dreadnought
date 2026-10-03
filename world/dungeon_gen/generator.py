@@ -122,6 +122,7 @@ def generate_dungeon(
 
     # Place airlocks before hull conversion (need wall tiles to identify hull)
     if profile.has_hull:
+        game_map.hull_tile = wall_tile
         _place_airlocks(game_map, rng, rooms, wall_tile, floor_tile)
 
         # Convert outer hull walls to space tiles for ship/starbase maps

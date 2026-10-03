@@ -96,19 +96,26 @@ def _breach_in_reach(game_map: GameMap, player: Entity, reach: int) -> tuple[int
 
 
 def _use_hull_patch(engine: Engine, player: Entity, item: Entity) -> bool:
+    """Seal the nearest breach in reach: on the player's ship (mending its hull), a derelict or a starbase."""
+    game_map = engine.game_map
     ship = getattr(engine, "ship", None)
-    if ship is None or ship.game_map is None or engine.game_map is not ship.game_map:
-        engine.message_log.add_message("A hull patch only bonds to your own ship's hull.", INTERACT_EMPTY)
+    aboard_own_ship = ship is not None and ship.game_map is game_map
+    if not aboard_own_ship and game_map.hull_tile is None:
+        engine.message_log.add_message("There is no hull here for a patch to bond to.", INTERACT_EMPTY)
         return False
-    if not ship.game_map.hull_breaches:
+    if not game_map.hull_breaches:
         engine.message_log.add_message("No breaches to seal.", INTERACT_EMPTY)
         return False
-    breach = _breach_in_reach(ship.game_map, player, HULL_PATCH_RANGE)
+    breach = _breach_in_reach(game_map, player, HULL_PATCH_RANGE)
     if breach is None:
         engine.message_log.add_message("No clear breach within reach.", INTERACT_EMPTY)
         return False
-    ship.seal_hull_breach(*breach)
-    engine.message_log.add_message(f"Breach sealed. (hull {ship.hull}/{ship.max_hull})", PROMPT)
+    if aboard_own_ship:
+        ship.seal_hull_breach(*breach)
+        engine.message_log.add_message(f"Breach sealed. (hull {ship.hull}/{ship.max_hull})", PROMPT)
+    else:
+        game_map.seal_hull_breach(*breach, game_map.hull_tile)
+        engine.message_log.add_message("Breach sealed.", PROMPT)
     return True
 
 
