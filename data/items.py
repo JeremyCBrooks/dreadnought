@@ -163,6 +163,28 @@ def item_by_name(name: str) -> ItemDef:
     return _ITEMS_BY_NAME[name]
 
 
+# What a trader gives (and asks) for each item, in credit.
+TRADE_VALUES: dict[str, int] = {
+    "Med-kit": 2,
+    "Bent Pipe": 1,
+    "Stun Baton": 2,
+    "Low-power Blaster": 3,
+    "Shotgun": 4,
+    "Repair Kit": 2,
+    "O2 Canister": 1,
+    "Hull Patch": 3,
+    "Basic Scanner": 2,
+    "Advanced Scanner": 4,
+    "Military Scanner": 6,
+    "Sentry Blaster": 6,
+}
+
+
+def item_definition(name: str) -> ItemDef | ScannerDef:
+    """Any item or scanner the player can hold, by name. Raises KeyError if there is none."""
+    return _ITEMS_BY_NAME[name] if name in _ITEMS_BY_NAME else _SCANNERS_BY_NAME[name]
+
+
 def natural_weapon_by_name(name: str) -> ItemDef:
     """Look up a creature's built-in weapon by name. Raises KeyError if not found."""
     return _NATURAL_WEAPONS_BY_NAME[name]

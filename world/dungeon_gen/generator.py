@@ -246,7 +246,7 @@ def _populate_rooms(
     """
     from data.enemies import community_named, pick_community
 
-    chosen = community_named(loc_type, community) if community else pick_community(loc_type, rng)
+    chosen = community_named(community) if community else pick_community(loc_type, rng)
     pool = chosen.creatures(depth) if chosen else []
     total_spawned = 0
     for room in rooms:

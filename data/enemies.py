@@ -17,8 +17,9 @@ import random
 from dataclasses import dataclass, replace
 from typing import Literal
 
-# Not a location type: the crews of pirate boarding craft.
+# Not location types: the crews of pirate boarding craft, and the Dreadnought itself.
 BOARDING = "boarding"
+DREADNOUGHT = "dreadnought"
 
 # Upkeep a creature may keep doing while it wanders (see game.creatures).
 CHORES: frozenset[str] = frozenset({"close_doors", "seal_breaches", "scavenge"})
@@ -78,6 +79,15 @@ class DeathEffect:
 
 
 @dataclass(frozen=True, slots=True)
+class Service:
+    """Something a creature does for the player who interacts with it (see game.creatures)."""
+
+    kind: str  # "heal", "nav_hint" or "trade"
+    uses: int | None = None  # how many times, or None for as often as asked
+    strength: int = 0  # e.g. HP restored per heal
+
+
+@dataclass(frozen=True, slots=True)
 class Brood:
     """Young a stationary mother keeps birthing while she is awake."""
 
@@ -129,6 +139,8 @@ class EnemyDef:
     detonates: bool = False  # blows itself up instead of attacking
     splits: bool = False  # splits in two when hurt
     realm: str = "floor"  # "space": lives and moves only in open space
+    service: Service | None = None
+    stock: tuple[str, ...] = ()  # what a trader sells (item names)
 
     def to_ai_config(self) -> dict[str, object]:
         """The per-creature behaviour config, as plain JSON data (it is saved with the entity)."""
@@ -154,8 +166,15 @@ class EnemyDef:
             "detonates": self.detonates,
             "splits": self.splits,
             "realm": self.realm if self.realm != "floor" else None,
+            "service": self.service.kind if self.service else None,
+            "service_strength": self.service.strength if self.service else None,
+            "stock": list(self.stock),
         }
         cfg.update({key: value for key, value in optional.items() if value})
+        if self.service and self.service.uses is not None:
+            cfg["charges"] = self.service.uses
+        if self.service and self.service.kind == "trade":
+            cfg["credit"] = 0
         return cfg
 
 
@@ -777,6 +796,76 @@ ENEMIES: list[EnemyDef] = [
         max_inventory=6,
         chores=("scavenge",),
     ),
+    # ---- Additions: the Dreadnought's own, and creatures you can deal with ----
+    EnemyDef(
+        char="\u263c",
+        color=(180, 255, 140),
+        name="Reactor Wisp",
+        hp=4,
+        defense=0,
+        power=3,
+        organic=False,
+        gore_color=(90, 140, 70),
+        description="A mote of the Dreadnought's reactor that came loose and learned to hunt. It burns on the way out.",
+        aggro_distance=9,
+        vision_radius=9,
+        move_speed=6,
+        spawn_weight=4,
+        hazard_immunities=("radiation", "electric"),
+        death_effect=DeathEffect(hazard="radiation", message="The {name} bursts in a wash of radiation!"),
+        light=(3, (180, 255, 140)),
+    ),
+    EnemyDef(
+        char="\u2665",
+        color=(255, 120, 130),
+        name="Medic Drone",
+        max_per_place=1,
+        hp=4,
+        defense=0,
+        power=0,
+        organic=False,
+        gore_color=_MACHINE_OIL,
+        description=(
+            "A first-aid drone still making its rounds. It will patch up anyone who asks politely, while it lasts."
+        ),
+        temperament="docile",
+        move_speed=3,
+        spawn_weight=3,
+        service=Service(kind="heal", uses=3, strength=5),
+    ),
+    EnemyDef(
+        char="@",
+        color=(180, 180, 230),
+        name="Hermit",
+        max_per_place=1,
+        hp=6,
+        defense=0,
+        power=2,
+        organic=True,
+        gore_color=_ORGANIC_RED,
+        description="Someone who came out here to be left alone. Leave them alone and they might tell you something.",
+        temperament="territorial",
+        move_speed=3,
+        spawn_weight=2,
+        service=Service(kind="nav_hint"),
+    ),
+    EnemyDef(
+        char="$",
+        color=(255, 215, 0),
+        name="Trader Bot",
+        max_per_place=1,
+        hp=8,
+        defense=2,
+        power=0,
+        organic=False,
+        gore_color=_MACHINE_OIL,
+        description="A bolted-down vending unit that still barters. Sell it what you don't need, buy what you do.",
+        temperament="docile",
+        move_speed=0,
+        spawn_weight=3,
+        service=Service(kind="trade"),
+        stock=("Med-kit", "Repair Kit", "O2 Canister", "Hull Patch", "Low-power Blaster", "Advanced Scanner"),
+    ),
 ]
 
 _ENEMIES_BY_NAME: dict[str, EnemyDef] = {e.name: e for e in ENEMIES}
@@ -857,7 +946,7 @@ COMMUNITIES: dict[str, tuple[Community, ...]] = {
         Community(
             "Skeleton crew",
             "The station is quiet. A few maintenance systems are still running.",
-            ("Custodian", "Ship's Cat", "Rival Scavenger"),
+            ("Custodian", "Ship's Cat", "Rival Scavenger", "Medic Drone", "Trader Bot"),
             weight=30,
         ),
         Community(
@@ -883,7 +972,7 @@ COMMUNITIES: dict[str, tuple[Community, ...]] = {
         Community(
             "Holdouts",
             "Settlers still live here. They are wary of strangers, but not hostile.",
-            ("Colonist", "Bloat Grazer", "Ship's Cat", "Spore Drifter"),
+            ("Colonist", "Bloat Grazer", "Ship's Cat", "Spore Drifter", "Medic Drone"),
             weight=35,
         ),
         Community(
@@ -903,7 +992,7 @@ COMMUNITIES: dict[str, tuple[Community, ...]] = {
         Community(
             "Quiet rock",
             "Mineral readings only. Native grazers, nothing larger.",
-            ("Lithovore", "Glowmoth", "Spore Drifter", "Echo Flitter"),
+            ("Lithovore", "Glowmoth", "Spore Drifter", "Echo Flitter", "Hermit"),
             weight=30,
         ),
         Community(
@@ -920,15 +1009,23 @@ COMMUNITIES: dict[str, tuple[Community, ...]] = {
         ),
     ),
     BOARDING: (Community("Boarding crew", "", (*_PIRATE_CREWS, "Breacher")),),
+    DREADNOUGHT: (
+        Community(
+            "Dreadnought guardians",
+            "The Dreadnought's defences are awake, and its reactor has bred things that should not exist.",
+            ("Warden", "Sentry Turret", "Security Drone", "Reactor Wisp"),
+        ),
+    ),
 }
 
 
-def community_named(loc_type: str, name: str) -> Community:
-    """The community *name* of *loc_type*. Raises KeyError if there is none."""
-    for community in COMMUNITIES.get(loc_type, ()):
-        if community.name == name:
-            return community
-    raise KeyError(f"{loc_type} has no community {name!r}")
+def community_named(name: str) -> Community:
+    """The community called *name* (names are unique). Raises KeyError if there is none."""
+    for communities in COMMUNITIES.values():
+        for community in communities:
+            if community.name == name:
+                return community
+    raise KeyError(f"no community {name!r}")
 
 
 def pick_community(

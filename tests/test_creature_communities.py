@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from data.enemies import BOARDING, COMMUNITIES, TEMPERAMENTS, enemy_by_name, pick_community
+from data.enemies import BOARDING, COMMUNITIES, DREADNOUGHT, TEMPERAMENTS, enemy_by_name, pick_community
 from world.dungeon_gen import generate_dungeon, respawn_creatures
 from world.loc_profiles import PROFILES
 
@@ -27,7 +27,7 @@ def _community(loc_type: str, name: str):
 
 
 def test_every_location_type_has_communities():
-    assert set(COMMUNITIES) == {*LOCATION_TYPES, BOARDING}
+    assert set(COMMUNITIES) == {*LOCATION_TYPES, BOARDING, DREADNOUGHT}
 
 
 @pytest.mark.parametrize(("loc_type", "community"), _ALL, ids=[f"{lt}:{c.name}" for lt, c in _ALL])

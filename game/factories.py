@@ -75,6 +75,9 @@ def build_enemy(defn: EnemyDef, x: int, y: int, rng: random.Random) -> Entity:
         enemy.inventory.insert(0, build_natural_weapon(defn.natural_weapon))
         enemy.max_inventory += 1
     recalc_melee_power_ai(enemy)
+    if defn.service:
+        # Something to interact with: found by [e] like a furnishing, but still a creature.
+        enemy.interactable = {"kind": "service", "hazard": None, "loot": None}
     if defn.disguise:
         from data.interactables import interactable_by_name
         from game.creatures import disguise_as

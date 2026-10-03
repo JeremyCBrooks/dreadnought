@@ -93,6 +93,8 @@ class Engine:
         self.scan_results: ScanResults | None = None
         self.scan_glow: dict | None = None
         self.mission_loadout: list[Entity] = []
+        # (screen name, subject) the game asked the UI to open after the current action.
+        self.screen_request: tuple[str, object] | None = None
         self.galaxy: Galaxy | None = None
         # Monotonic counter for deterministic RNG: bumped per game-time tick.
         self.turn_counter: int = 0

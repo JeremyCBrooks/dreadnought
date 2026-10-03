@@ -311,12 +311,16 @@ class GameMap:
                 continue
             if (entity.ai_config or {}).get("hidden"):
                 continue  # a dark-dweller nobody can see
-            # A disguised creature carries an interactable and reads as the furnishing it mimics.
-            if entity.fighter and entity.blocks_movement and not entity.interactable:
+            # A disguised creature carries an interactable and reads as the furnishing it mimics;
+            # a creature that offers a service is still plainly a creature.
+            offers = bool((entity.interactable or {}).get("kind") == "service")
+            if entity.fighter and entity.blocks_movement and (not entity.interactable or offers):
                 lines.append((f"{entity.name} ({entity.char}) is here.", (255, 180, 180)))
                 description = _creature_description(entity)
                 if description:
                     lines.append((description, (190, 170, 170)))
+                if offers:
+                    lines.append(("[e] to interact.", (200, 220, 150)))
             elif entity.item:
                 lines.append((f"You see {entity.name} ({entity.char}) lying here.", (180, 200, 255)))
             elif getattr(entity, "interactable", None):

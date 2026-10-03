@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import asdict
 from typing import TYPE_CHECKING
 
-from data.colors import NEUTRAL, WARNING
+from data.colors import INTERACT_SAFE, NEUTRAL, WARNING
 from data.enemies import TEMPERAMENTS, Temperament
 
 if TYPE_CHECKING:
@@ -33,11 +33,11 @@ def community_of(location) -> Community | None:
 
     The Dreadnought is never a peaceful place.
     """
-    from data.enemies import pick_community
+    from data.enemies import COMMUNITIES, DREADNOUGHT, pick_community
 
-    return pick_community(
-        location.loc_type, location.name, allow_peaceful=not getattr(location, "is_dreadnought", False)
-    )
+    if getattr(location, "is_dreadnought", False):
+        return pick_community(DREADNOUGHT, location.name) or COMMUNITIES[DREADNOUGHT][0]
+    return pick_community(location.loc_type, location.name)
 
 
 # ---- Temperament ----
@@ -67,6 +67,7 @@ def provoke(engine: Engine, creature: Entity) -> None:
     if creature.ai is None or creature.fighter is None or creature.fighter.hp <= 0:
         return
     reveal(engine, creature)
+    creature.ai_config["wronged"] = True  # it will not deal with the player again
     became = temperament_of(creature).when_hurt
     if became is not None:
         creature.ai_config["temperament"] = became
@@ -94,6 +95,69 @@ def alarm_defenders(engine: Engine, victim: Entity) -> None:
             continue
         engine.message_log.add_message(f"The {defender.name} shouts in alarm!", WARNING)
         provoke(engine, defender)
+
+
+# ---- Services: what a creature does for a player who interacts with it ----
+
+
+def offer_service(engine: Engine, creature: Entity) -> int:
+    """Interact with a creature that offers something. Returns the turns it took."""
+    if creature.ai_config.get("wronged"):
+        engine.message_log.add_message(f"The {creature.name} won't deal with you now.", WARNING)
+        return 0
+    return _SERVICES[creature.ai_config["service"]](engine, creature)
+
+
+def _heal(engine: Engine, medic: Entity) -> int:
+    fighter = engine.player.fighter
+    if fighter.hp >= fighter.max_hp:
+        engine.message_log.add_message(f"The {medic.name} scans you and finds nothing to fix.", NEUTRAL)
+        return 0
+    if medic.ai_config.get("charges", 0) <= 0:
+        engine.message_log.add_message(f"The {medic.name}'s supplies are spent.", NEUTRAL)
+        return 0
+    healed = min(medic.ai_config.get("service_strength", 5), fighter.max_hp - fighter.hp)
+    fighter.hp += healed
+    medic.ai_config["charges"] -= 1
+    engine.message_log.add_message(f"The {medic.name} patches you up. (+{healed} HP)", INTERACT_SAFE)
+    return 1
+
+
+def _nav_hint(engine: Engine, hermit: Entity) -> int:
+    galaxy = engine.galaxy
+    here = galaxy.systems[galaxy.current_system] if galaxy else None
+    leads = [
+        (system, loc)
+        for system in (galaxy.systems.values() if galaxy else ())
+        for loc in system.locations
+        if loc.has_nav_unit and not loc.visited
+    ]
+    if not leads or here is None:
+        engine.message_log.add_message(f'The {hermit.name} shrugs. "Nothing left out there worth the trip."', NEUTRAL)
+        return 1
+    system, loc = min(leads, key=lambda lead: abs(lead[0].gx - here.gx) + abs(lead[0].gy - here.gy))
+    engine.message_log.add_message(
+        f'The {hermit.name} says: "There\'s a navigation unit aboard {loc.name}, in the {system.name} system."',
+        INTERACT_SAFE,
+    )
+    return 1
+
+
+def _trade(engine: Engine, trader: Entity) -> int:
+    # The UI opens the trade screen once the action is done (ui.screens).
+    engine.screen_request = ("trade", trader)
+    return 0
+
+
+_SERVICES: dict[str, Callable[[Engine, Entity], int]] = {
+    "heal": _heal,
+    "nav_hint": _nav_hint,
+    "trade": _trade,
+}
+
+
+def offers_service(entity: Entity) -> bool:
+    return entity.ai is not None and bool((entity.ai_config or {}).get("service"))
 
 
 # ---- Disguise ----

@@ -330,11 +330,13 @@ class InteractAction(Action):
             engine.message_log.add_message("Nothing to interact with here.", DARK_GRAY)
             return 0
 
-        from game.creatures import is_disguised, spring_ambush
+        from game.creatures import is_disguised, offer_service, offers_service, spring_ambush
 
         if is_disguised(target):
             spring_ambush(engine, target)
             return 1
+        if offers_service(target):
+            return offer_service(engine, target)
 
         ih = target.interactable
         name = target.name

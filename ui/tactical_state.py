@@ -480,7 +480,14 @@ class TacticalState(State):
             moved = (engine.player.x, engine.player.y) != (old_x, old_y)
 
         self._resolve_player_action(engine, consumed, moved=moved)
+        self._open_requested_screen(engine)
         return True
+
+    @staticmethod
+    def _open_requested_screen(engine: Engine) -> None:
+        from ui.screens import open_requested_screen
+
+        open_requested_screen(engine)
 
     def _resolve_player_action(self, engine: Engine, consumed: int, *, moved: bool = False) -> None:
         """Run everything that follows a player action that took *consumed* ticks.

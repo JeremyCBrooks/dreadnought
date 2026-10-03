@@ -82,6 +82,7 @@ class MockEngine:
         self.scan_results = None
         self.scan_glow = None
         self.mission_loadout = []
+        self.screen_request = None
         self.galaxy = None
         self._switched_state = None
         self.current_state = None
