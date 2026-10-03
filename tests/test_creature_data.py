@@ -82,6 +82,12 @@ class TestColonistsLookLikePeople:
         assert {c.name for c in ENEMIES if c.char == "@"} <= {"Colonist", "Rival Scavenger", "Hermit"}
 
 
+def test_no_creature_looks_like_a_light_or_reactor_core():
+    """The sun glyph and the asterisk both read as the reactor cores and lights drawn on maps."""
+    look_alikes = {"*", chr(0x263C)}
+    assert not [c.name for c in ENEMIES if c.char in look_alikes]
+
+
 class TestRosterShape:
     def test_both_flesh_and_machine(self):
         assert any(c.organic for c in ENEMIES)

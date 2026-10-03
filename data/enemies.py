@@ -821,7 +821,7 @@ ENEMIES: list[EnemyDef] = [
     ),
     # ---- Additions: the Dreadnought's own, and creatures you can deal with ----
     EnemyDef(
-        char="\u263c",
+        char="\u03a6",  # an orb with a burning core
         color=(180, 255, 140),
         name="Reactor Wisp",
         hp=4,
