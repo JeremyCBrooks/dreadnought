@@ -456,7 +456,9 @@ ENEMIES: list[EnemyDef] = [
         power=2,
         organic=True,
         gore_color=_ORGANIC_RED,
-        description="A settler who stayed on after the evacuation. Wary of strangers, but no threat unless you start one.",
+        description=(
+            "A settler who stayed on after the evacuation. Wary of strangers, but no threat unless you start one."
+        ),
         temperament="territorial",
         aggro_distance=6,
         can_open_doors=True,
@@ -496,7 +498,9 @@ ENEMIES: list[EnemyDef] = [
         power=1,
         organic=True,
         gore_color=(120, 80, 50),
-        description="A slow rock-grazer that cracks ice for its oxygen. Its gut sacs are full of it, if you can catch one.",
+        description=(
+            "A slow rock-grazer that cracks ice for its oxygen. Its gut sacs are full of it, if you can catch one."
+        ),
         temperament="skittish",
         aggro_distance=6,
         memory_turns=8,
