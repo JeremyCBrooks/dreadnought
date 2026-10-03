@@ -57,8 +57,11 @@ def lose_to_space(engine: Engine, entity: Entity) -> None:
     It must end up dead, not merely off the map: rosters that outlive the
     map (boarding pirates) decide who is still a threat by HP.
     """
+    from game.helpers import drop_belongings
+
     if entity.fighter is not None:
         entity.fighter.hp = 0
+    drop_belongings(entity, engine.game_map)
     if entity in engine.game_map.entities:
         engine.game_map.entities.remove(entity)
 
@@ -83,7 +86,10 @@ def _process_decompression(engine: Engine) -> None:
         if entity is engine.player:
             continue
         if entity.fighter and entity.fighter.hp <= 0:
+            from game.helpers import drop_belongings
+
             engine.message_log.add_message(f"The {entity.name} is crushed by the decompression!", _GREY)
+            drop_belongings(entity, game_map)
             game_map.entities.remove(entity)
 
 

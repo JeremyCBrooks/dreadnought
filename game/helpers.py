@@ -66,6 +66,13 @@ def get_equipped_ranged_weapon(entity: Entity) -> Entity | None:
     return None
 
 
+def ranged_weapon_problem(entity: Entity) -> str | None:
+    """Why *entity* can't fire right now, as the player would be told; None if it can."""
+    if get_equipped_ranged_weapon(entity):
+        return None
+    return "Out of ammo!" if has_ranged_weapon(entity) else "No ranged weapon equipped."
+
+
 def has_ranged_weapon(entity: Entity) -> bool:
     """Return True if entity has any ranged weapon (regardless of ammo).
 
@@ -167,6 +174,42 @@ def drop_all_inventory(entity: Entity, game_map: GameMap) -> None:
             break
         entity.inventory.remove(item)
         item.x, item.y = tile
+        game_map.entities.append(item)
+
+
+def is_mission_item(item: Entity) -> bool:
+    from data.items import MISSION_ITEM_TYPES
+
+    return bool(item.item) and item.item.get("type") in MISSION_ITEM_TYPES
+
+
+def nearest_walkable(game_map: GameMap, x: int, y: int) -> tuple[int, int] | None:
+    """The walkable tile closest to (x, y), which may lie off the map or in space."""
+    x = max(0, min(x, game_map.width - 1))
+    y = max(0, min(y, game_map.height - 1))
+    for radius in range(max(game_map.width, game_map.height)):
+        for dx in range(-radius, radius + 1):
+            for dy in range(-radius, radius + 1):
+                if max(abs(dx), abs(dy)) == radius and game_map.is_walkable(x + dx, y + dy):
+                    return x + dx, y + dy
+    return None
+
+
+def drop_belongings(entity: Entity, game_map: GameMap) -> None:
+    """Drop everything a dying creature carried, wherever it died.
+
+    Ordinary items fall where it stood if that is solid ground. Mission items
+    always end up somewhere the player can reach, even if their carrier
+    drifted off into space.
+    """
+    if game_map.in_bounds(entity.x, entity.y) and game_map.is_walkable(entity.x, entity.y):
+        drop_all_inventory(entity, game_map)
+    for item in [i for i in entity.inventory if is_mission_item(i)]:
+        spot = nearest_walkable(game_map, entity.x, entity.y)
+        if spot is None:
+            break
+        entity.inventory.remove(item)
+        item.x, item.y = spot
         game_map.entities.append(item)
 
 

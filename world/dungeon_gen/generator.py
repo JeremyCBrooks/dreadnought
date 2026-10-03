@@ -222,10 +222,29 @@ def respawn_creatures(
     """Remove all entities with AI (creatures) and spawn new ones in rooms[1:].
     Does not touch items or the map. Uses seed for deterministic placement if given.
     """
+    for creature in [e for e in game_map.entities if e.ai]:
+        _leave_behind_what_matters(creature, game_map)
     game_map.entities[:] = [e for e in game_map.entities if not e.ai]
     _populate_rooms(
         game_map, rooms[1:], random.Random(seed), max_enemies, max_total_enemies, None, loc_type, depth, community
     )
+
+
+def _leave_behind_what_matters(creature, game_map: GameMap) -> None:
+    """Before a creature is replaced, put down mission items and anything it stole from the player.
+
+    Its own kit goes with it, so re-entering a place can't farm creatures' loot.
+    """
+    from game.helpers import find_drop_tile, is_mission_item, nearest_walkable
+
+    stolen = list(getattr(creature, "stolen_loot", None) or [])
+    for item in [i for i in creature.inventory if is_mission_item(i) or i in stolen]:
+        spot = find_drop_tile(game_map, creature.x, creature.y) or nearest_walkable(game_map, creature.x, creature.y)
+        if spot is None:
+            continue
+        creature.inventory.remove(item)
+        item.x, item.y = spot
+        game_map.entities.append(item)
 
 
 def _populate_rooms(

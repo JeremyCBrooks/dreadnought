@@ -47,7 +47,7 @@ def test_transfer_cargo_to_personal():
     K = tcod.event.KeySym
     engine = _make_engine_with_cargo("Wrench", "Medkit")
 
-    state = CargoState()
+    state = CargoState(during_briefing=True)
     state.selected = 0
     state.ev_key(engine, FakeEvent(K.RETURN))
 
@@ -64,7 +64,7 @@ def test_transfer_personal_to_cargo():
     item = Entity(name="Pipe", item={"type": "weapon", "value": 1})
     engine.mission_loadout.append(item)
 
-    state = CargoState()
+    state = CargoState(during_briefing=True)
     state._section = _PERSONAL
     state.selected = 0
     state.ev_key(engine, FakeEvent(K.RETURN))
@@ -81,7 +81,7 @@ def test_transfer_blocked_at_max_capacity():
     for i in range(PLAYER_MAX_INVENTORY):
         engine.mission_loadout.append(Entity(name=f"Item{i}"))
 
-    state = CargoState()
+    state = CargoState(during_briefing=True)
     state._section = _CARGO
     state.selected = 0
     state.ev_key(engine, FakeEvent(K.RETURN))
@@ -427,7 +427,7 @@ def test_equip_works_in_briefing_context():
     weapon = Entity(name="Blaster", item={"type": "weapon", "value": 3})
     engine.mission_loadout.append(weapon)
 
-    state = CargoState()
+    state = CargoState(during_briefing=True)
     state._section = _PERSONAL
     state.selected = 0
     state.ev_key(engine, FakeEvent(K.e))
@@ -658,7 +658,7 @@ def test_equipped_shown_in_combined_on_fresh_game():
     engine.mission_loadout.append(weapon)
     assert engine.saved_player is None
 
-    state = CargoState()
+    state = CargoState(during_briefing=True)
     state._section = _PERSONAL
     state.selected = 0
     state.ev_key(engine, FakeEvent(K.e))

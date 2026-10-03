@@ -48,6 +48,11 @@ class Location:
         self.is_dreadnought = False
         # Set only on a pirate wreck: how to rebuild the ship as the player left it.
         self.wreck: WreckRecord | None = None
+        # What the player changed here (x, y, tile_id) and which generated entities
+        # are gone (indices in generation order): replayed when the map is rebuilt
+        # from its seed, so a reload doesn't restock a looted place.
+        self.tile_changes: list[tuple[int, int, int]] = []
+        self.consumed_entities: list[int] = []
 
 
 class StarSystem:
@@ -287,6 +292,8 @@ class Galaxy:
         Both are optional for backwards compatibility with existing callers
         and tests that exercise the galaxy in isolation.
         """
+        # Arriving explores a system, even one generated as a dead end (the Dreadnought's).
+        self._unexplored_frontier.discard(system_name)
         changed = self._expand_frontier(system_name)
         if not self._unexplored_frontier:
             # Graph would close - force at least one new exit from this system

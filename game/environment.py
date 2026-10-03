@@ -361,7 +361,9 @@ def apply_environment_tick_entity(engine: Engine, entity: Entity) -> None:
             NEUTRAL,
         )
         from game.gore import place_death_gore
+        from game.helpers import drop_belongings
 
+        drop_belongings(entity, engine.game_map)
         place_death_gore(engine.game_map, entity)
         if entity in engine.game_map.entities:
             engine.game_map.entities.remove(entity)

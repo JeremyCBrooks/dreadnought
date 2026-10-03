@@ -19,9 +19,11 @@ _CARGO = 1
 class CargoState(State):
     """Two-column UI for choosing which cargo items to bring on a mission."""
 
-    def __init__(self) -> None:
+    def __init__(self, during_briefing: bool = False) -> None:
         self.selected = 0
         self._section = _CARGO
+        # In a briefing, picks go into the mission loadout; at the helm, into the player's pack.
+        self.during_briefing = during_briefing
 
     # ------------------------------------------------------------------
     # Data helpers
@@ -30,15 +32,14 @@ class CargoState(State):
     def _personal_list(self, engine: Engine) -> list:
         """Return the personal inventory list.
 
-        In strategic mode (between missions), items live in ``saved_player["inventory"]``.
-        During briefing, items live in ``engine.mission_loadout``.  We distinguish
-        the two contexts by checking whether ``saved_player`` has an inventory
-        *and* ``mission_loadout`` is empty (briefing resets it to ``[]``).
+        During a briefing, picks live in ``engine.mission_loadout`` until the
+        mission starts. At the helm they go straight into the player's pack
+        (``saved_player["inventory"]``), created on a fresh run if need be.
         """
-        sp = engine.saved_player
-        if sp and "inventory" in sp and not engine.mission_loadout:
-            return sp["inventory"]
-        return engine.mission_loadout
+        if self.during_briefing:
+            return engine.mission_loadout
+        self._ensure_loadout(engine)
+        return engine.saved_player.setdefault("inventory", [])
 
     def _ensure_loadout(self, engine: Engine) -> Loadout:
         """Return the Loadout, lazily initializing ``saved_player`` if needed."""

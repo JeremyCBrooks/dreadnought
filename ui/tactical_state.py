@@ -180,7 +180,11 @@ class TacticalState(State):
                 "rooms": rooms,
                 "exit_pos": exit_pos,
                 "seed": seed,
+                # The place as generated, to tell what the player has changed since.
+                "pristine_tiles": game_map.tiles["tile_id"].copy(),
+                "pristine_entities": list(game_map.entities),
             }
+            self._replay_changes(game_map, engine.area_cache[key])
 
         if not rooms:
             engine.game_map = game_map
@@ -296,6 +300,8 @@ class TacticalState(State):
                 wreck = getattr(self.location, "wreck", None)
                 if wreck is not None:
                     wreck.refresh(engine.game_map)
+                else:
+                    self._remember_changes(engine)
                 key = _area_key(self.location, self.depth)
                 if engine.player in engine.game_map.entities:
                     engine.game_map.entities.remove(engine.player)
@@ -306,6 +312,30 @@ class TacticalState(State):
         engine.player = None
         engine.scan_results = None
         engine.scan_glow = None
+
+    def _replay_changes(self, game_map, entry: dict) -> None:
+        """Put back what the player already did here on an earlier visit (before a reload)."""
+        from game.helpers import remove_entities_at_indices
+        from game.interdiction import apply_tile_changes
+
+        tile_changes = getattr(self.location, "tile_changes", None)
+        consumed = getattr(self.location, "consumed_entities", None)
+        if tile_changes:
+            apply_tile_changes(game_map, tile_changes)
+        if consumed:
+            remove_entities_at_indices(entry["pristine_entities"], consumed, game_map)
+
+    def _remember_changes(self, engine: Engine) -> None:
+        """Record on the location what the player changed here, so a save keeps it."""
+        if self.location is None or not hasattr(self.location, "tile_changes"):
+            return
+        entry = engine.area_cache.get(_area_key(self.location, self.depth))
+        if not entry or "pristine_tiles" not in entry or entry["game_map"] is not engine.game_map:
+            return
+        from game.helpers import changed_tiles, missing_entity_indices
+
+        self.location.tile_changes = changed_tiles(entry["pristine_tiles"], engine.game_map)
+        self.location.consumed_entities = missing_entity_indices(entry["pristine_entities"], engine.game_map)
 
     @staticmethod
     def _bring_salvage_home(engine: Engine, player: Entity) -> None:
@@ -394,6 +424,8 @@ class TacticalState(State):
 
         p = engine.player
         engine.saved_player = snapshot_player(p)
+        if not getattr(self, "explore_ship", False):
+            self._remember_changes(engine)
         if not getattr(self, "explore_ship", False) or engine.ship is None:
             return []
         return engine.ship.floor_items(engine.game_map)
@@ -594,14 +626,11 @@ class TacticalState(State):
     # ------------------------------------------------------------------
 
     def _enter_ranged(self, engine: Engine) -> None:
-        from game.helpers import get_equipped_ranged_weapon, has_ranged_weapon
+        from game.helpers import ranged_weapon_problem
 
-        weapon = get_equipped_ranged_weapon(engine.player)
-        if not weapon:
-            if has_ranged_weapon(engine.player):
-                engine.message_log.add_message("Out of ammo!", (255, 100, 100))
-            else:
-                engine.message_log.add_message("No ranged weapon equipped.", (255, 100, 100))
+        problem = ranged_weapon_problem(engine.player)
+        if problem:
+            engine.message_log.add_message(problem, (255, 100, 100))
             return
         from game.creatures import is_target
 
@@ -649,17 +678,12 @@ class TacticalState(State):
             return True
 
         if key in confirm_keys():
-            # Re-check ammo before firing (weapon may have been depleted)
-            from game.helpers import get_equipped_ranged_weapon
+            # Re-check before firing (the weapon may have run dry)
+            from game.helpers import ranged_weapon_problem
 
-            weapon = get_equipped_ranged_weapon(engine.player)
-            if not weapon:
-                from game.helpers import has_ranged_weapon
-
-                if has_ranged_weapon(engine.player):
-                    engine.message_log.add_message("Out of ammo!", (255, 100, 100))
-                else:
-                    engine.message_log.add_message("No ranged weapon equipped.", (255, 100, 100))
+            problem = ranged_weapon_problem(engine.player)
+            if problem:
+                engine.message_log.add_message(problem, (255, 100, 100))
                 self._ranged_cursor = None
                 self._update_ground_underfoot(engine)
                 return True

@@ -280,6 +280,8 @@ def _galaxy_to_dict(galaxy) -> dict | None:
                     "scanned": loc.scanned,
                     "has_nav_unit": loc.has_nav_unit,
                     "is_dreadnought": loc.is_dreadnought,
+                    "tile_changes": [list(change) for change in loc.tile_changes],
+                    "consumed_entities": list(loc.consumed_entities),
                     "system_name": loc.system_name,
                     "wreck": _wreck_to_dict(loc.wreck),
                 }
@@ -338,6 +340,8 @@ def _galaxy_from_dict(d: dict | None):
             loc.has_nav_unit = loc_data.get("has_nav_unit", False)
             loc.is_dreadnought = loc_data.get("is_dreadnought", False)
             loc.wreck = _wreck_from_dict(loc_data.get("wreck"))
+            loc.tile_changes = [tuple(change) for change in loc_data.get("tile_changes", [])]
+            loc.consumed_entities = list(loc_data.get("consumed_entities", []))
             locations.append(loc)
             galaxy._used_names.add(loc_data["name"])
 

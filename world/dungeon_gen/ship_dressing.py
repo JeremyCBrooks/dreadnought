@@ -228,3 +228,50 @@ def _dress_ship_room(
             loot = rng.choice(loot_pool) if rng.random() < loot_chance else None
         occupied.add(pos)
         game_map.entities.append(_make_interactable(pos[0], pos[1], ch, color, name, hazard, loot))
+
+    if has_nav_unit and not nav_placed:
+        _place_nav_terminal(room, game_map, dressing, occupied, exit_pos)
+
+
+# Where the Navigation Unit is kept when the bridge's own furnishings found no room for it.
+_NAV_TERMINAL = ("&", (0, 255, 200), "Nav Terminal")
+
+
+def _place_nav_terminal(
+    room: RectRoom,
+    game_map: GameMap,
+    dressing: dict,
+    occupied: set[tuple[int, int]],
+    exit_pos: tuple[int, int] | None,
+) -> None:
+    """Make room for the Navigation Unit on a cramped bridge: it must never fail to appear.
+
+    Takes, in order: a free floor tile away from the hatch, any free floor tile
+    but the hatch itself, then a decoration's spot. Draws no randomness, so maps
+    that already placed their unit are unchanged.
+    """
+    tiles = [
+        (x, y)
+        for x in range(room.x1 + 1, room.x2)
+        for y in range(room.y1 + 1, room.y2)
+        if game_map.in_bounds(x, y) and game_map.tiles["walkable"][x, y] and (x, y) != exit_pos
+    ]
+    free = [t for t in tiles if t not in occupied]
+    spot = next((t for t in free if not _near_exit(*t, exit_pos)), None) or next(iter(free), None)
+    if spot is None:
+        decoration = next(
+            (
+                e
+                for e in game_map.entities
+                if (e.x, e.y) in tiles and e.item is None and e.interactable is None and e.fighter is None
+            ),
+            None,
+        )
+        if decoration is None:
+            return
+        game_map.entities.remove(decoration)
+        spot = (decoration.x, decoration.y)
+    loot = {"char": "\u2302", "color": [0, 255, 200], "name": "Navigation Unit", "type": "nav_unit", "value": 1}
+    ch, color, name = _NAV_TERMINAL
+    occupied.add(spot)
+    game_map.entities.append(_make_interactable(spot[0], spot[1], ch, color, name, None, loot))

@@ -61,6 +61,9 @@ class BriefingState(State):
         from game.suit import EVA_SUIT, HAZARD_SUIT
 
         self._suits = [EVA_SUIT, HAZARD_SUIT]
+        # Picks left over from a briefing the player backed out of go back to the hold.
+        if engine.ship is not None:
+            engine.ship.cargo.extend(engine.mission_loadout)
         engine.mission_loadout = []
         if engine.suit:
             for i, s in enumerate(self._suits):
@@ -99,7 +102,7 @@ class BriefingState(State):
         if key == tcod.event.KeySym.C:
             from ui.cargo_state import CargoState
 
-            engine.push_state(CargoState())
+            engine.push_state(CargoState(during_briefing=True))
             return True
 
         return True

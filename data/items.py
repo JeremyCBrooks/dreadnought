@@ -163,6 +163,9 @@ def item_by_name(name: str) -> ItemDef:
     return _ITEMS_BY_NAME[name]
 
 
+# Items a run cannot be won without: never destroyed with whoever carries them.
+MISSION_ITEM_TYPES: frozenset[str] = frozenset({"nav_unit", "dreadnought_core"})
+
 # What a trader gives (and asks) for each item, in credit.
 TRADE_VALUES: dict[str, int] = {
     "Med-kit": 2,

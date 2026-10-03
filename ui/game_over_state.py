@@ -46,14 +46,18 @@ class GameOverState(State):
             return True
         from ui.title_state import TitleState
 
+        # Unwind the stack first: states beneath this one (a mission left open
+        # under an "abandon" dialog) still run their exit code, and that would
+        # write the old run's player back over a reset done beforehand.
+        engine.reset_to_state(TitleState())
         engine.saved_player = None
+        engine.mission_loadout = []
         engine.area_cache.clear()
         engine.active_effects.clear()
         engine.suit = None
         engine.environment = None
         engine.ship = None
         engine.galaxy = None
-        engine.reset_to_state(TitleState())
         return True
 
     def on_render(self, console: Any, engine: Engine) -> None:

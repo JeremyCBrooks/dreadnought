@@ -466,15 +466,13 @@ class RangedAction(Action):
         if not entity.fighter or not self.target.fighter:
             return 0
 
-        from game.helpers import get_equipped_ranged_weapon, has_ranged_weapon
+        from game.helpers import get_equipped_ranged_weapon, ranged_weapon_problem
 
-        weapon = get_equipped_ranged_weapon(entity)
-        if not weapon:
-            if has_ranged_weapon(entity):
-                _warn_player(engine, entity, "Out of ammo!")
-            else:
-                _warn_player(engine, entity, "No ranged weapon equipped.")
+        problem = ranged_weapon_problem(entity)
+        if problem:
+            _warn_player(engine, entity, problem)
             return 0
+        weapon = get_equipped_ranged_weapon(entity)
 
         # Check range
         from game.helpers import chebyshev

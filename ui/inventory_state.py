@@ -66,13 +66,33 @@ class InventoryState(State):
         item, is_equipped = combined[self.selected]
 
         if is_equipped or is_equippable(item):
+            loadout = engine.player.loadout
+            before = bool(loadout and loadout.has_item(item))
             toggle_equip(engine, engine.player, item)
+            acted = bool(loadout and loadout.has_item(item)) != before
         else:
             from game.consumables import use_consumable
 
-            use_consumable(engine, engine.player, item)
+            acted = use_consumable(engine, engine.player, item)
 
         self._clamp_selected(engine)
+        if acted:
+            self._spend_turn(engine)
+
+    def _spend_turn(self, engine: Engine) -> bool:
+        """On a mission, an inventory action takes a turn: close the pack and let the world move.
+
+        Returns False (and changes nothing) when there is no mission to advance, such as at the helm.
+        """
+        from ui.tactical_state import TacticalState
+
+        mission = next((s for s in reversed(engine.states) if isinstance(s, TacticalState)), None)
+        if mission is None:
+            return False
+        while engine.current_state is not mission:
+            engine.pop_state()
+        mission._resolve_player_action(engine, 1)
+        return True
 
     def _in_tactical(self, engine: Engine) -> bool:
         """Return True if the inventory is overlaid on a TacticalState."""
@@ -91,8 +111,10 @@ class InventoryState(State):
         idx = engine.player.inventory.index(item)
         from game.actions import DropAction
 
-        DropAction(idx).perform(engine, engine.player)
+        dropped = DropAction(idx).perform(engine, engine.player)
         self._clamp_selected(engine)
+        if dropped:
+            self._spend_turn(engine)
 
     def _clamp_selected(self, engine: Engine) -> None:
         combined = self._combined_items(engine)
