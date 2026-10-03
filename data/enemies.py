@@ -21,7 +21,7 @@ from typing import Literal
 BOARDING = "boarding"
 
 # Upkeep a creature may keep doing while it wanders (see game.creatures).
-CHORES: frozenset[str] = frozenset({"close_doors", "seal_breaches"})
+CHORES: frozenset[str] = frozenset({"close_doors", "seal_breaches", "scavenge"})
 
 _AI_CONFIG_KEYS: tuple[str, ...] = (
     "ai_initial_state",
@@ -78,6 +78,15 @@ class DeathEffect:
 
 
 @dataclass(frozen=True, slots=True)
+class Brood:
+    """Young a stationary mother keeps birthing while she is awake."""
+
+    species: str
+    every: int  # turns between births
+    max: int  # most of *species* she lets live in one place
+
+
+@dataclass(frozen=True, slots=True)
 class EnemyDef:
     char: str
     color: tuple[int, int, int]
@@ -114,6 +123,12 @@ class EnemyDef:
     light: tuple[int, tuple[int, int, int]] | None = None  # (radius, colour) it glows with
     disguise: str | None = None  # a floor furnishing it passes for until found out
     chores: tuple[str, ...] = ()
+    defends: tuple[str, ...] = ()  # species it turns on you for harming
+    unseen_in_dark: bool = False  # only visible when lit or right beside you
+    spawns: Brood | None = None
+    detonates: bool = False  # blows itself up instead of attacking
+    splits: bool = False  # splits in two when hurt
+    realm: str = "floor"  # "space": lives and moves only in open space
 
     def to_ai_config(self) -> dict[str, object]:
         """The per-creature behaviour config, as plain JSON data (it is saved with the entity)."""
@@ -130,6 +145,15 @@ class EnemyDef:
                 else None
             ),
             "light": [self.light[0], list(self.light[1])] if self.light else None,
+            "defends": list(self.defends),
+            "unseen_in_dark": self.unseen_in_dark,
+            "hidden": self.unseen_in_dark,
+            "spawns": {"species": self.spawns.species, "every": self.spawns.every, "max": self.spawns.max}
+            if self.spawns
+            else None,
+            "detonates": self.detonates,
+            "splits": self.splits,
+            "realm": self.realm if self.realm != "floor" else None,
         }
         cfg.update({key: value for key, value in optional.items() if value})
         return cfg
@@ -464,6 +488,7 @@ ENEMIES: list[EnemyDef] = [
         spawn_weight=6,
         group=(1, 2),
         loot_table=(("Med-kit", 0.3), ("O2 Canister", 0.2)),
+        defends=("Colonist", "Bloat Grazer", "Ship's Cat"),
     ),
     EnemyDef(
         char="∞",  # wings; the sun glyph reads as a light or reactor core
@@ -540,6 +565,218 @@ ENEMIES: list[EnemyDef] = [
         move_speed=5,
         spawn_weight=2,
     ),
+    # ---- Additions: the heavy, the harmless and the hard-shelled ----
+    EnemyDef(
+        char="W",
+        color=(170, 170, 210),
+        name="Warden",
+        max_per_place=1,
+        hp=12,
+        defense=3,
+        power=4,
+        organic=False,
+        gore_color=_MACHINE_OIL,
+        description=(
+            "A security mech built to hold a corridor on its own. Slow, armoured, and its stun cannon hits like a door."
+        ),
+        ai_initial_state="sleeping",
+        sleep_aggro_distance=5,
+        can_open_doors=True,
+        memory_turns=25,
+        move_speed=2,
+        min_depth=2,
+        spawn_weight=2,
+        natural_weapon="Stun Cannon",
+        loot_table=(("Repair Kit", 0.6), ("Hull Patch", 0.3)),
+    ),
+    EnemyDef(
+        char="\u03b5",
+        color=(170, 160, 210),
+        name="Echo Flitter",
+        hp=1,
+        defense=0,
+        power=0,
+        organic=True,
+        gore_color=(110, 90, 140),
+        description="A flock of cave flyers that navigate by clicks. They scatter at the first sound of boots.",
+        temperament="skittish",
+        aggro_distance=6,
+        memory_turns=5,
+        move_speed=7,
+        spawn_weight=3,
+        group=(3, 5),
+    ),
+    EnemyDef(
+        char="B",
+        color=(150, 90, 50),
+        name="Rust Beetle",
+        hp=6,
+        defense=3,
+        power=1,
+        organic=True,
+        gore_color=(110, 70, 40),
+        description="A beetle with a shell of rust and oxidised plating. Hard to hurt, slow to hurt you.",
+        aggro_distance=5,
+        memory_turns=10,
+        vision_radius=6,
+        move_speed=2,
+        spawn_weight=3,
+        group=(1, 2),
+    ),
+    EnemyDef(
+        char="q",
+        color=(210, 170, 150),
+        name="Bloat Grazer",
+        max_per_place=4,
+        hp=5,
+        defense=0,
+        power=0,
+        organic=True,
+        gore_color=_ORGANIC_RED,
+        description=(
+            "Colony livestock, round as a barrel and about as quick. Its meat would patch you up, "
+            "but the settlers are fond of it."
+        ),
+        temperament="docile",
+        aggro_distance=4,
+        move_speed=2,
+        spawn_weight=5,
+        group=(2, 3),
+        loot_table=(("Med-kit", 0.8),),
+    ),
+    EnemyDef(
+        char="p",
+        color=(255, 200, 60),
+        name="Pirate Captain",
+        max_per_place=1,
+        hp=10,
+        defense=2,
+        power=4,
+        organic=True,
+        gore_color=_ORGANIC_RED,
+        description="The one the others answer to: a long coat, a short temper, and the crew's best shotgun.",
+        sleep_aggro_distance=4,
+        can_open_doors=True,
+        flee_threshold=0.2,
+        memory_turns=20,
+        min_depth=1,
+        spawn_weight=1,
+        loot_table=(("Shotgun", 1.0), ("Med-kit", 0.5)),
+        max_inventory=3,
+        can_steal=True,
+    ),
+    # ---- Additions: things with tricks ----
+    EnemyDef(
+        char="S",
+        color=(90, 90, 150),
+        name="Shade",
+        hp=5,
+        defense=0,
+        power=3,
+        organic=True,
+        gore_color=(40, 40, 60),
+        description=(
+            "Something that only exists at the edge of the light. You see it when it is lit, or when it touches you."
+        ),
+        aggro_distance=6,
+        memory_turns=12,
+        move_speed=5,
+        spawn_weight=3,
+        unseen_in_dark=True,
+    ),
+    EnemyDef(
+        char="\u03a9",
+        color=(200, 120, 160),
+        name="Brood Mother",
+        max_per_place=1,
+        hp=14,
+        defense=1,
+        power=2,
+        organic=True,
+        gore_color=_INSECT_GREEN,
+        description=(
+            "A bloated queen fused to the deck, birthing hull mites from a sac the size of a crate. Kill her first."
+        ),
+        ai_initial_state="sleeping",
+        sleep_aggro_distance=7,
+        memory_turns=10,
+        move_speed=0,
+        min_depth=2,
+        spawn_weight=1,
+        spawns=Brood(species="Hull Mite", every=4, max=6),
+    ),
+    EnemyDef(
+        char="\u03b4",
+        color=(230, 120, 80),
+        name="Demolition Drone",
+        hp=2,
+        defense=0,
+        power=0,
+        organic=False,
+        gore_color=_MACHINE_OIL,
+        description="A mining charge with rotors. It flies at you and goes off. Shoot it before it gets close.",
+        aggro_distance=9,
+        vision_radius=9,
+        move_speed=6,
+        min_depth=1,
+        spawn_weight=3,
+        detonates=True,
+        death_effect=DeathEffect(hazard="explosive", message="The {name} detonates!"),
+    ),
+    EnemyDef(
+        char="J",
+        color=(120, 220, 120),
+        name="Acid Slime",
+        max_per_place=8,
+        hp=8,
+        defense=0,
+        power=2,
+        organic=True,
+        gore_color=(90, 160, 40),
+        description="A sloshing mass of acid. Every blow just makes more of it.",
+        aggro_distance=6,
+        memory_turns=10,
+        vision_radius=6,
+        move_speed=3,
+        min_depth=1,
+        spawn_weight=3,
+        splits=True,
+    ),
+    EnemyDef(
+        char="\u00a7",
+        color=(160, 70, 110),
+        name="Hull Leech",
+        hp=3,
+        defense=0,
+        power=2,
+        organic=True,
+        gore_color=(110, 40, 70),
+        description="A leech that grazes on hull plating in hard vacuum. It never comes inside, but outside is its.",
+        memory_turns=12,
+        move_speed=4,
+        spawn_weight=3,
+        hazard_immunities=("vacuum",),
+        realm="space",
+    ),
+    EnemyDef(
+        char="@",
+        color=(230, 150, 60),
+        name="Rival Scavenger",
+        max_per_place=1,
+        hp=6,
+        defense=1,
+        power=3,
+        organic=True,
+        gore_color=_ORGANIC_RED,
+        description="Another salvager working the same wreck. They'll empty every crate before you if you let them.",
+        temperament="territorial",
+        can_open_doors=True,
+        flee_threshold=0.4,
+        spawn_weight=3,
+        loot_table=(("Repair Kit", 0.4), ("Med-kit", 0.3)),
+        max_inventory=6,
+        chores=("scavenge",),
+    ),
 ]
 
 _ENEMIES_BY_NAME: dict[str, EnemyDef] = {e.name: e for e in ENEMIES}
@@ -584,25 +821,35 @@ COMMUNITIES: dict[str, tuple[Community, ...]] = {
         Community(
             "Silent wreck",
             "Power is out and nothing answers our hails. Readings show only small life.",
-            ("Glowmoth", "Custodian", "Ship's Cat"),
+            ("Glowmoth", "Custodian", "Ship's Cat", "Rival Scavenger"),
             weight=15,
         ),
         Community(
             "Rogue systems",
             "Automated defences are still live, and something is running the machines.",
-            ("Bot", "Security Drone", "Sentry Turret", "Custodian", "Arc Wraith"),
+            ("Bot", "Security Drone", "Sentry Turret", "Custodian", "Arc Wraith", "Demolition Drone"),
             weight=25,
         ),
         Community(
             "Pirate hideout",
             "Pirate transponder codes. Someone is using this hulk as a hideout.",
-            (*_PIRATE_CREWS, "Mech Pirate", "Rat"),
+            (*_PIRATE_CREWS, "Mech Pirate", "Pirate Captain", "Rat"),
             weight=25,
         ),
         Community(
             "Infested hulk",
             "Hull integrity is poor and bio-readings are high. Something has nested aboard.",
-            ("Hull Mite", "Vent Lurker", "Scrap Mimic", "Rat", "Glowmoth"),
+            (
+                "Hull Mite",
+                "Vent Lurker",
+                "Scrap Mimic",
+                "Rat",
+                "Glowmoth",
+                "Rust Beetle",
+                "Shade",
+                "Brood Mother",
+                "Hull Leech",
+            ),
             weight=35,
         ),
     ),
@@ -610,19 +857,19 @@ COMMUNITIES: dict[str, tuple[Community, ...]] = {
         Community(
             "Skeleton crew",
             "The station is quiet. A few maintenance systems are still running.",
-            ("Custodian", "Ship's Cat"),
+            ("Custodian", "Ship's Cat", "Rival Scavenger"),
             weight=30,
         ),
         Community(
             "Security lockdown",
             "The station is in lockdown and its security systems are armed.",
-            ("Security Drone", "Sentry Turret", "Bot", "Custodian"),
+            ("Security Drone", "Sentry Turret", "Bot", "Custodian", "Warden"),
             weight=25,
         ),
         Community(
             "Raided",
             "A distress beacon went silent here. Pirates boarded the station.",
-            (*_PIRATE_CREWS, "Mech Pirate", "Rat"),
+            (*_PIRATE_CREWS, "Mech Pirate", "Pirate Captain", "Rat"),
             weight=25,
         ),
         Community(
@@ -636,7 +883,7 @@ COMMUNITIES: dict[str, tuple[Community, ...]] = {
         Community(
             "Holdouts",
             "Settlers still live here. They are wary of strangers, but not hostile.",
-            ("Colonist", "Ship's Cat", "Spore Drifter"),
+            ("Colonist", "Bloat Grazer", "Ship's Cat", "Spore Drifter"),
             weight=35,
         ),
         Community(
@@ -648,7 +895,7 @@ COMMUNITIES: dict[str, tuple[Community, ...]] = {
         Community(
             "Overrun",
             "Cave fauna have moved into the settlement.",
-            ("Acid Spitter", "Feral Hound", "Rat", "Spore Drifter"),
+            ("Acid Spitter", "Feral Hound", "Rat", "Spore Drifter", "Acid Slime"),
             weight=30,
         ),
     ),
@@ -656,13 +903,13 @@ COMMUNITIES: dict[str, tuple[Community, ...]] = {
         Community(
             "Quiet rock",
             "Mineral readings only. Native grazers, nothing larger.",
-            ("Lithovore", "Glowmoth", "Spore Drifter"),
+            ("Lithovore", "Glowmoth", "Spore Drifter", "Echo Flitter"),
             weight=30,
         ),
         Community(
             "Pirate den",
             "Pirate traffic logged here. The tunnels make a good hideout.",
-            (*_PIRATE_CREWS, "Hull Mite"),
+            (*_PIRATE_CREWS, "Pirate Captain", "Hull Mite"),
             weight=30,
         ),
         Community(

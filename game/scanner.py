@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from data.colors import HAZARD_ENV_DAMAGE, HP_YELLOW, INTERACT_EMPTY, NEUTRAL, WARNING
-from game.creatures import is_disguised, reveal
+from game.creatures import is_disguised, is_hidden, reveal
 from game.helpers import chebyshev as _chebyshev
 
 if TYPE_CHECKING:
@@ -297,7 +297,7 @@ def build_nearby_entries(engine: Engine) -> list[NearbyEntry]:
 
     # 1. Visible entities get full detail (takes priority over scan)
     for e in gm.entities:
-        if e is p:
+        if e is p or is_hidden(e):
             continue
         if not gm.in_bounds(e.x, e.y) or not gm.visible[e.x, e.y]:
             continue

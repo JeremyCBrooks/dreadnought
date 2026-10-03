@@ -79,7 +79,7 @@ class TestColonistsLookLikePeople:
         assert sum(abs(a - b) for a, b in zip(colonist.color, player.color, strict=True)) >= 150
 
     def test_only_people_share_the_player_s_glyph(self):
-        assert [c.name for c in ENEMIES if c.char == "@"] == ["Colonist"]
+        assert {c.name for c in ENEMIES if c.char == "@"} <= {"Colonist", "Rival Scavenger", "Hermit"}
 
 
 class TestRosterShape:

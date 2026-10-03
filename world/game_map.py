@@ -197,6 +197,13 @@ class GameMap:
         self._light_dirty = True
 
     @property
+    def has_lights(self) -> bool:
+        """True if anything here gives off light: a fixed source or a glowing creature."""
+        from world.lighting import entity_lights
+
+        return bool(self.light_sources) or bool(entity_lights(self.entities))
+
+    @property
     def has_flickering_lights(self) -> bool:
         return any(ls.flicker for ls in self.light_sources)
 
@@ -302,6 +309,8 @@ class GameMap:
         for entity in self._get_entities_at(x, y):
             if not self.visible[entity.x, entity.y] and visible_only:
                 continue
+            if (entity.ai_config or {}).get("hidden"):
+                continue  # a dark-dweller nobody can see
             # A disguised creature carries an interactable and reads as the furnishing it mimics.
             if entity.fighter and entity.blocks_movement and not entity.interactable:
                 lines.append((f"{entity.name} ({entity.char}) is here.", (255, 180, 180)))
@@ -418,8 +427,8 @@ class GameMap:
             bg[glow_mask, 1] = np.minimum(bg[glow_mask, 1].astype(np.int16) + bg_boost, 255).astype(np.uint8)
             bg[glow_mask, 2] = (bg[glow_mask, 2] * dim).astype(np.uint8)
 
-        # Apply colored light source tinting
-        if self.light_sources:
+        # Apply colored light source tinting (fixed lights and glowing creatures)
+        if self.has_lights:
             light_map = self.get_light_map()
             light_slice = light_map[ms]  # (rw, rh, 3)
             fg = console.rgb["fg"][cs]
@@ -441,7 +450,7 @@ class GameMap:
         def _draw_entity(entity):
             if not self.in_bounds(entity.x, entity.y):
                 return
-            if not self.visible[entity.x, entity.y]:
+            if not self.visible[entity.x, entity.y] or (entity.ai_config or {}).get("hidden"):
                 return
             sx = vp_x + entity.x - cam_x
             sy = vp_y + entity.y - cam_y
@@ -486,7 +495,7 @@ class GameMap:
         ey: int,
     ) -> tuple[int, int, int]:
         """Apply light source tint to an entity's foreground color."""
-        if not self.light_sources:
+        if not self.has_lights:
             return color
         lm = self.get_light_map()
         tint = lm[ex, ey]

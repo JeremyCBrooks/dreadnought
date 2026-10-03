@@ -95,9 +95,48 @@ def _spawn_enemies(
         if not available:
             break
         defn = rng.choices(available, weights=[c.spawn_weight for c in available])[0]
+        if defn.realm == "space":
+            # Space dwellers cling to the outside of the hull rather than the room.
+            edge = _hull_edge(game_map)
+            if not edge:
+                continue
+            x, y = rng.choice(edge)
         size = min(rng.randint(*defn.group), budget - spawned, room_for(defn, present))
         spawned += _spawn_group(defn, size, (x, y), game_map, rng, exit_pos)
     return spawned
+
+
+def _fits_on_floor(game_map: GameMap, spot: tuple[int, int], exit_pos: tuple[int, int] | None) -> bool:
+    return _can_spawn_at(game_map, *spot, exit_pos, allow_non_blocking=True)
+
+
+def _fits_in_space(game_map: GameMap, spot: tuple[int, int], exit_pos: tuple[int, int] | None) -> bool:
+    from world import tile_types
+
+    x, y = spot
+    return (
+        game_map.in_bounds(x, y)
+        and int(game_map.tiles["tile_id"][x, y]) == int(tile_types.space["tile_id"])
+        and not game_map.get_blocking_entity(x, y)
+    )
+
+
+def _hull_edge(game_map: GameMap) -> list[tuple[int, int]]:
+    """Open-space tiles touching the outside of the hull."""
+    import numpy as np
+
+    from world import tile_types
+
+    space = game_map.tiles["tile_id"] == int(tile_types.space["tile_id"])
+    solid = np.pad(~space, 1, constant_values=False)
+    w, h = space.shape
+    touching = np.zeros_like(space)
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            if dx or dy:
+                touching |= solid[1 + dx : 1 + dx + w, 1 + dy : 1 + dy + h]
+    xs, ys = np.nonzero(space & touching)
+    return list(zip(xs.tolist(), ys.tolist(), strict=True))
 
 
 def _species_count(game_map: GameMap) -> Counter:
@@ -129,9 +168,10 @@ def _spawn_group(
     ]
     rng.shuffle(nearby)
     spots = iter([leader_at, *nearby])
+    fits = _fits_in_space if defn.realm == "space" else _fits_on_floor
     placed = 0
     while placed < size:
-        spot = next((p for p in spots if _can_spawn_at(game_map, *p, exit_pos, allow_non_blocking=True)), None)
+        spot = next((p for p in spots if fits(game_map, p, exit_pos)), None)
         if spot is None:
             break
         game_map.entities.append(build_enemy(defn, *spot, rng))

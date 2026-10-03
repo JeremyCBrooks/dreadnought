@@ -120,6 +120,17 @@ NATURAL_WEAPONS: list[ItemDef] = [
         ammo=1,
         max_ammo=1,
     ),
+    ItemDef(
+        char="'",
+        color=(170, 170, 255),
+        name="Stun Cannon",
+        type="weapon",
+        value=3,
+        weapon_class="ranged",
+        range=5,
+        ammo=1,
+        max_ammo=1,
+    ),
 ]
 
 # Gear that only comes off a particular creature when it is destroyed (see

@@ -46,11 +46,17 @@ def _calc_damage(engine: Engine, attacker: Entity, target: Entity, base_power: i
 def _apply_damage_and_death(engine: Engine, attacker: Entity, target: Entity, damage: int) -> None:
     """Apply damage to target and handle death/removal."""
     target.fighter.hp = max(0, target.fighter.hp - damage)
-    if target.fighter.hp > 0:
-        if attacker is engine.player and target.ai is not None:
-            from game.creatures import provoke
+    if attacker is engine.player and target.ai is not None:
+        from game.creatures import alarm_defenders
 
-            provoke(engine, target)
+        alarm_defenders(engine, target)
+    if target.fighter.hp > 0:
+        if target.ai is not None:
+            from game.creatures import provoke, split
+
+            split(engine, target)
+            if attacker is engine.player:
+                provoke(engine, target)
         return
     if target.fighter.hp <= 0:
         if target is engine.player:

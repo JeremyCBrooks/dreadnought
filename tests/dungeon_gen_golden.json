@@ -5,7 +5,7 @@
     "rooms": "2beca689cfe8e0f3",
     "map": "449b69203d431458",
     "lights": "4939330293438fd1",
-    "entities": "0f765d87d7e9d56b"
+    "entities": "f447af94e9e59b0c"
   },
   "derelict-2": {
     "structure": "7dac600b4f791472",
@@ -29,7 +29,7 @@
     "rooms": "b5e763c8869c11d3",
     "map": "1a2dd81df2b51fbe",
     "lights": "ed95c4692c418ce9",
-    "entities": "d90bacaf0d6852a8"
+    "entities": "0d8d9531e4446094"
   },
   "derelict-5": {
     "structure": "56f01a0947605cd9",
@@ -77,7 +77,7 @@
     "rooms": "39e95eca57da4f32",
     "map": "5058cc14d5d63717",
     "lights": "952b10d74237862f",
-    "entities": "09984bd062dd35e4"
+    "entities": "1c2cc59e20cbf10a"
   },
   "starbase-1": {
     "structure": "0d24f095b1b9115c",
@@ -117,7 +117,7 @@
     "rooms": "1671216bf9adb7af",
     "map": "26b780c376fb8333",
     "lights": "4132ba7c1951568d",
-    "entities": "8e325b85db263b97"
+    "entities": "a46c1d0f85f4ec63"
   },
   "colony-1": {
     "structure": "2e6f7528d4e748ae",
@@ -157,7 +157,7 @@
     "rooms": "df4923edf0d3c330",
     "map": "da4a4e207e00cd8a",
     "lights": "1e0d2a985c88d597",
-    "entities": "0b97ba5188ada3a9"
+    "entities": "b73821d656b8b085"
   },
   "player_ship-1": {
     "structure": "b1de9e1e94355ed9",
@@ -237,7 +237,7 @@
     "rooms": "936045b9cc507cea",
     "map": "9118462f81d7c2d3",
     "lights": "edba747b4eb9e0e8",
-    "entities": "8d0ab6aad83ffa3a"
+    "entities": "42b7c4cb26431c06"
   },
   "derelict-small_map": {
     "structure": "569d85249ce98807",

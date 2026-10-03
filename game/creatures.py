@@ -78,6 +78,24 @@ def provoke(engine: Engine, creature: Entity) -> None:
         creature.ai_wander_goal = None
 
 
+def alarm_defenders(engine: Engine, victim: Entity) -> None:
+    """Whoever looks after *victim*'s kind and saw the player harm it turns on the player."""
+    species = (victim.ai_config or {}).get("species")
+    if not species:
+        return
+    player = engine.player
+    for defender in list(engine.game_map.entities):
+        if defender is victim or defender.ai is None or defender.fighter is None or defender.fighter.hp <= 0:
+            continue
+        if species not in defender.ai_config.get("defends", ()) or temperament_of(defender).attacks_on_sight:
+            continue
+        sight = defender.ai_config.get("vision_radius", 8)
+        if not engine.game_map.fov_from(defender.x, defender.y, sight)[player.x, player.y]:
+            continue
+        engine.message_log.add_message(f"The {defender.name} shouts in alarm!", WARNING)
+        provoke(engine, defender)
+
+
 # ---- Disguise ----
 
 
@@ -88,7 +106,105 @@ def is_disguised(entity: Entity) -> bool:
 
 def is_target(entity: Entity) -> bool:
     """True for a living creature the player would know to aim at."""
-    return entity.fighter is not None and entity.fighter.hp > 0 and not is_disguised(entity)
+    return entity.fighter is not None and entity.fighter.hp > 0 and not is_disguised(entity) and not is_hidden(entity)
+
+
+# ---- Darkness ----
+
+# Light-map brightness above which a tile counts as lit.
+_LIT = 0.08
+
+
+def is_hidden(entity: Entity) -> bool:
+    """True while a dark-dwelling creature is out of the light and out of reach."""
+    return bool(entity.ai_config) and bool(entity.ai_config.get("hidden"))
+
+
+def update_concealment(engine: Engine, creature: Entity) -> None:
+    """A dark-dweller is seen only when its tile is lit, or when it is right beside the player."""
+    if not creature.ai_config.get("unseen_in_dark"):
+        return
+    from game.helpers import chebyshev
+
+    game_map = engine.game_map
+    lit = game_map.fully_lit or float(game_map.get_light_map()[creature.x, creature.y].max()) > _LIT
+    close = chebyshev(creature.x, creature.y, engine.player.x, engine.player.y) <= 1
+    creature.ai_config["hidden"] = not (lit or close)
+
+
+# ---- Brood, detonation, splitting ----
+
+
+def _free_tile_beside(engine: Engine, x: int, y: int) -> tuple[int, int] | None:
+    game_map = engine.game_map
+    for nx, ny in _neighbours(x, y):
+        if game_map.is_walkable(nx, ny) and not game_map.get_blocking_entity(nx, ny):
+            return nx, ny
+    return None
+
+
+def _count_species(engine: Engine, species: str) -> int:
+    return sum(
+        1
+        for e in engine.game_map.entities
+        if e.ai is not None and e.fighter and e.fighter.hp > 0 and e.ai_config.get("species") == species
+    )
+
+
+def tend_brood(engine: Engine, mother: Entity) -> None:
+    """While awake, a mother births one of her young every few turns, up to her brood's size."""
+    brood = mother.ai_config.get("spawns")
+    if not brood or mother.ai_state != "hunting":
+        return
+    timer = mother.ai_config.get("brood_timer", 0) + 1
+    mother.ai_config["brood_timer"] = timer
+    if timer % brood["every"] or _count_species(engine, brood["species"]) >= brood["max"]:
+        return
+    spot = _free_tile_beside(engine, mother.x, mother.y)
+    if spot is None:
+        return
+    from data.enemies import enemy_by_name
+    from game.factories import build_enemy
+
+    young = build_enemy(enemy_by_name(brood["species"]), *spot, engine.rng(f"brood:{mother.x},{mother.y}"))
+    engine.game_map.entities.append(young)
+    engine.game_map.invalidate_entity_index()
+    start_hunting(engine, young)
+    _announce(engine, *spot, f"The {mother.name} births a {young.name}!")
+
+
+def detonate(engine: Engine, creature: Entity) -> None:
+    """Blow the creature up where it stands, taking everything beside it along."""
+    creature.fighter.hp = 0
+    if creature in engine.game_map.entities:
+        engine.game_map.entities.remove(creature)
+    engine.game_map.invalidate_entity_index()
+    release_death_effect(engine, creature)
+
+
+def split(engine: Engine, creature: Entity) -> None:
+    """A wounded splitter divides its remaining strength with a new copy of itself beside it."""
+    if not creature.ai_config.get("splits") or creature.fighter.hp < 2:
+        return
+    from data.enemies import enemy_by_name
+    from game.factories import build_enemy
+
+    defn = enemy_by_name(creature.ai_config["species"])
+    if defn.max_per_place is not None and _count_species(engine, defn.name) >= defn.max_per_place:
+        return
+    spot = _free_tile_beside(engine, creature.x, creature.y)
+    if spot is None:
+        return
+    offspring = build_enemy(defn, *spot, engine.rng(f"split:{creature.x},{creature.y}"))
+    offspring.inventory = []
+    shed = creature.fighter.hp // 2
+    creature.fighter.hp -= shed
+    creature.fighter.max_hp = creature.fighter.hp
+    offspring.fighter.hp = offspring.fighter.max_hp = shed
+    engine.game_map.entities.append(offspring)
+    engine.game_map.invalidate_entity_index()
+    start_hunting(engine, offspring)
+    engine.message_log.add_message(f"The {creature.name} splits in two!", WARNING)
 
 
 def disguise_as(creature: Entity, furnishing: InteractableDef) -> None:
@@ -222,7 +338,45 @@ def _close_doors(engine: Engine, creature: Entity) -> bool:
     return False
 
 
+def _scavenge(engine: Engine, creature: Entity) -> bool:
+    """Pick up a loose item, or empty a container, within reach."""
+    game_map = engine.game_map
+    reach = {(creature.x, creature.y), *_neighbours(creature.x, creature.y)}
+    for thing in list(game_map.entities):
+        if (thing.x, thing.y) not in reach or thing.fighter is not None:
+            continue
+        if thing.item is not None and creature.can_carry():
+            game_map.entities.remove(thing)
+            creature.inventory.append(thing)
+            _announce(engine, thing.x, thing.y, f"The {creature.name} pockets the {thing.name}.")
+            return True
+        if thing.interactable and thing.interactable.get("kind") != "service":
+            from game.factories import build_item_entity
+
+            loot = thing.interactable.get("loot")
+            if loot and not creature.can_carry():
+                continue
+            if loot:
+                creature.inventory.append(build_item_entity(loot))
+            game_map.entities.remove(thing)
+            _announce(engine, thing.x, thing.y, f"The {creature.name} empties the {thing.name}.")
+            return True
+    return False
+
+
+def scavenging_targets(engine: Engine, creature: Entity) -> list[tuple[int, int]]:
+    """Where a scavenger would like to be: on every loose item and container it can reach."""
+    if "scavenge" not in creature.ai_config.get("chores", ()):
+        return []
+    return [
+        (e.x, e.y)
+        for e in engine.game_map.entities
+        if e.fighter is None and (e.item is not None or (e.interactable and e.interactable.get("kind") != "service"))
+    ]
+
+
 _CHORES: dict[str, Callable[[Engine, Entity], bool]] = {
     "seal_breaches": _seal_breaches,
     "close_doors": _close_doors,
+    "scavenge": _scavenge,
 }

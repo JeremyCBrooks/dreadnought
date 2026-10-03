@@ -45,7 +45,7 @@ class TestPirateEntitiesExist:
     def test_all_pirates_share_char(self):
         """All pirate types use the same display character."""
         pirates = [e for e in ENEMIES if "Pirate" in e.name or "pirate" in e.name]
-        assert len(pirates) == 4
+        assert len(pirates) == 5  # four crews and their captain
         assert all(p.char == "p" for p in pirates)
 
 

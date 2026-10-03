@@ -164,7 +164,7 @@ class CreatureAI:
         if is_diagonal_blocked(gm, owner.x, owner.y, nx - owner.x, ny - owner.y):
             return False
 
-        if gm.is_walkable(nx, ny) and not gm.get_blocking_entity(nx, ny):
+        if self._can_enter(owner, engine, nx, ny):
             owner.x = nx
             owner.y = ny
             gm.invalidate_entity_index()
@@ -179,8 +179,13 @@ class CreatureAI:
         import numpy as np
 
         gm = engine.game_map
-        cost = np.array(gm.tiles["walkable"], dtype=np.int8)
-        if self._cfg(owner, "can_open_doors"):
+        if self._in_space(owner):
+            from world import tile_types
+
+            cost = (gm.tiles["tile_id"] == int(tile_types.space["tile_id"])).astype(np.int8)
+        else:
+            cost = np.array(gm.tiles["walkable"], dtype=np.int8)
+        if self._cfg(owner, "can_open_doors") and not self._in_space(owner):
             from game.helpers import get_door_tile_ids
 
             closed_id, _ = get_door_tile_ids()
@@ -275,6 +280,13 @@ class CreatureAI:
         reachable = dist < 0x7FFF_FFFF
         reachable[owner.x, owner.y] = False
 
+        # A scavenger heads for the nearest loot it can reach.
+        from game.creatures import scavenging_targets
+
+        loot = [p for p in scavenging_targets(engine, owner) if dist[p] < 0x7FFF_FFFF and p != (owner.x, owner.y)]
+        if loot:
+            return min(loot, key=lambda p: dist[p])
+
         # Prefer non-hazardous tiles
         gm = engine.game_map
         safe = reachable.copy()
@@ -366,6 +378,11 @@ class CreatureAI:
         if not temperament_of(owner).attacks:
             return
         target = engine.player
+        if owner.ai_config.get("detonates") and chebyshev(owner.x, owner.y, target.x, target.y) <= 1:
+            from game.creatures import detonate
+
+            detonate(engine, owner)
+            return
         distance = chebyshev(owner.x, owner.y, target.x, target.y)
 
         if distance <= 1:
@@ -396,12 +413,32 @@ class CreatureAI:
     # ---- main perform ----
 
     def perform(self, owner: Entity, engine: Engine) -> None:
+        from game.creatures import tend_brood, update_concealment
+
         self._accumulate_energy(owner, engine)
         self._cached_cost = None  # clear per-turn cost cache
 
         handler = self._STATE_HANDLERS.get(owner.ai_state)
         if handler is not None:
             handler(self, owner, engine)
+        if owner.fighter and owner.fighter.hp > 0 and owner in engine.game_map.entities:
+            tend_brood(engine, owner)
+            update_concealment(engine, owner)
+
+    # ---- realm: where a creature can stand ----
+
+    def _in_space(self, owner: Entity) -> bool:
+        return owner.ai_config.get("realm") == "space"
+
+    def _can_enter(self, owner: Entity, engine: Engine, x: int, y: int) -> bool:
+        gm = engine.game_map
+        if not gm.in_bounds(x, y) or gm.get_blocking_entity(x, y):
+            return False
+        if self._in_space(owner):
+            from world import tile_types
+
+            return int(gm.tiles["tile_id"][x, y]) == int(tile_types.space["tile_id"])
+        return gm.is_walkable(x, y)
 
     def _do_sleeping(self, owner: Entity, engine: Engine) -> None:
         from game.creatures import temperament_of
@@ -577,7 +614,7 @@ class CreatureAI:
             if is_diagonal_blocked(gm, owner.x, owner.y, sx, sy):
                 continue
             nx, ny = owner.x + sx, owner.y + sy
-            if gm.is_walkable(nx, ny) and not gm.get_blocking_entity(nx, ny):
+            if self._can_enter(owner, engine, nx, ny):
                 owner.x = nx
                 owner.y = ny
                 gm.invalidate_entity_index()
