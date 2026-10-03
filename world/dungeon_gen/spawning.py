@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+from collections import Counter
 from dataclasses import asdict
 
 from data.enemies import EnemyDef
@@ -81,7 +82,6 @@ def _spawn_enemies(
     """
     if not pool:
         return 0
-    weights = [c.spawn_weight for c in pool]
     budget = MAX_ENEMIES_PER_ROOM if remaining is None else min(MAX_ENEMIES_PER_ROOM, remaining)
     spawned = 0
     for _ in range(rng.randint(0, min(max_enemies, budget))):
@@ -90,10 +90,25 @@ def _spawn_enemies(
         x, y = _random_room_pos(room, rng)
         if not _can_spawn_at(game_map, x, y, exit_pos, allow_non_blocking=True):
             continue
-        defn = rng.choices(pool, weights=weights)[0]
-        size = min(rng.randint(*defn.group), budget - spawned)
+        present = _species_count(game_map)
+        available = [c for c in pool if room_for(c, present) > 0]
+        if not available:
+            break
+        defn = rng.choices(available, weights=[c.spawn_weight for c in available])[0]
+        size = min(rng.randint(*defn.group), budget - spawned, room_for(defn, present))
         spawned += _spawn_group(defn, size, (x, y), game_map, rng, exit_pos)
     return spawned
+
+
+def _species_count(game_map: GameMap) -> Counter:
+    return Counter(e.ai_config.get("species") for e in game_map.entities if e.ai is not None)
+
+
+def room_for(defn: EnemyDef, present: Counter) -> int:
+    """How many more of *defn* a place can take, given who is *present* already."""
+    if defn.max_per_place is None:
+        return MAX_ENEMIES_PER_LEVEL
+    return max(0, defn.max_per_place - present[defn.name])
 
 
 def _spawn_group(

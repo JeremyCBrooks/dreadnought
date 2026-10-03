@@ -178,10 +178,17 @@ def _spawn_pirates_in_room(craft_room, game_map, rng, count) -> list:
     count = min(count, len(interior_tiles))
     positions = rng.sample(interior_tiles, count)
 
+    from collections import Counter
+
+    from world.dungeon_gen.spawning import room_for
+
     pirates: list[Entity] = []
+    aboard: Counter = Counter()
     for x, y in positions:
-        defn = rng.choices(defns, weights=[d.spawn_weight for d in defns])[0]
+        available = [d for d in defns if room_for(d, aboard) > 0]
+        defn = rng.choices(available, weights=[d.spawn_weight for d in available])[0]
         pirates.append(build_enemy(defn, x, y, rng))
+        aboard[defn.name] += 1
     return pirates
 
 

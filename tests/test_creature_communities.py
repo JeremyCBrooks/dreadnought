@@ -155,3 +155,53 @@ class TestMissions:
         BriefingState(location=location, depth=0).on_render(console, engine)
         report = pick_community("starbase", "Steadfast Platform").report
         assert report.split()[0] in " ".join(printed)
+
+
+class TestThreatLevel:
+    def test_depth_alone_does_not_make_a_peaceful_place_dangerous(self):
+        from ui.briefing_state import _threat_level
+
+        assert _threat_level(None, depth=4, hostiles=False) == "LOW"
+        assert _threat_level(None, depth=4) == "HIGH"
+
+    def test_hazards_still_count_where_nobody_is_hostile(self):
+        from ui.briefing_state import _threat_level
+
+        assert _threat_level({"vacuum": 1, "radiation": 2}, depth=4, hostiles=False) == "MODERATE"
+
+
+class TestCaps:
+    @pytest.mark.parametrize(
+        ("loc_type", "community", "species"),
+        [
+            ("starbase", "Skeleton crew", "Custodian"),
+            ("starbase", "Skeleton crew", "Ship's Cat"),
+            ("derelict", "Infested hulk", "Scrap Mimic"),
+        ],
+    )
+    def test_a_place_holds_no_more_than_its_share(self, loc_type, community, species):
+        cap = enemy_by_name(species).max_per_place
+        assert cap is not None
+        for seed in range(1, 31):
+            game_map, _, _ = generate_dungeon(seed=seed, loc_type=loc_type, depth=5, max_enemies=3, community=community)
+            count = sum(1 for e in game_map.entities if e.ai is not None and e.ai_config.get("species") == species)
+            assert count <= cap, f"seed {seed}: {count} x {species}"
+
+    def test_a_boarding_crew_brings_one_breacher_at_most(self):
+        import random
+
+        from game.interdiction import _spawn_pirates_in_room
+        from world import tile_types
+        from world.dungeon_gen.rooms import RectRoom
+        from world.game_map import GameMap
+
+        game_map = GameMap(20, 20, fill_tile=tile_types.floor)
+        for seed in range(40):
+            crew = _spawn_pirates_in_room(RectRoom(1, 1, 12, 12), game_map, random.Random(seed), 4)
+            assert sum(1 for p in crew if p.name == "Breacher") <= 1
+
+    def test_caps_are_positive(self):
+        from data.enemies import ENEMIES
+
+        for creature in ENEMIES:
+            assert creature.max_per_place is None or creature.max_per_place >= 1

@@ -26,21 +26,21 @@ if TYPE_CHECKING:
     from world.galaxy import Location
 
 
-def _threat_score(env: dict | None, depth: int) -> int:
+def _threat_score(env: dict | None, depth: int, hostiles: bool = True) -> int:
     """Compute a numeric threat score from environment hazards and depth.
 
-    Scores each hazard's severity, adds depth-based enemy pressure,
-    and returns the total.
+    Scores each hazard's severity, adds depth-based enemy pressure (only
+    where something hostile lives), and returns the total.
     """
-    score = depth  # deeper systems have tougher enemies
+    score = depth if hostiles else 0  # deeper systems have tougher enemies
     if env:
         score += sum(env.values())
     return score
 
 
-def _threat_level(env: dict | None, depth: int) -> str:
+def _threat_level(env: dict | None, depth: int, hostiles: bool = True) -> str:
     """Return threat level label from location properties."""
-    score = _threat_score(env, depth)
+    score = _threat_score(env, depth, hostiles)
     if score <= 1:
         return "LOW"
     if score <= 3:
@@ -120,11 +120,11 @@ class BriefingState(State):
         console.print(x=bx + 2, y=y, string=f"Location: {self.location.name}", fg=PICKUP)
         y += 1
         console.print(x=bx + 2, y=y, string=f"Type: {self.location.loc_type}", fg=HEADER_TEXT)
-
-        # What scans say lives there: hostile, or a place at peace.
         from game.creatures import community_of
 
         community = community_of(self.location)
+
+        # What scans say lives there: hostile, or a place at peace.
         if community is not None:
             import textwrap
 
@@ -138,7 +138,7 @@ class BriefingState(State):
         env = dict(self.location.environment or {})
 
         y += 2
-        threat = _threat_level(env, self.depth)
+        threat = _threat_level(env, self.depth, hostiles=community is None or not community.peaceful)
         threat_color = {"LOW": THREAT_LOW, "MODERATE": THREAT_MODERATE, "HIGH": THREAT_HIGH}
         console.print(x=bx + 2, y=y, string=f"Threat Level: {threat}", fg=threat_color.get(threat, NEUTRAL))
 
