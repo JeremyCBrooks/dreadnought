@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 from typing import TYPE_CHECKING, Any
 
-from data.items import ItemDef, ScannerDef, build_item_data, item_by_name
+from data.items import ItemDef, ScannerDef, build_item_data, item_by_name, natural_weapon_by_name
 from game.ai import CreatureAI
 from game.entity import Entity, Fighter
 from game.helpers import recalc_melee_power_ai
@@ -71,5 +71,20 @@ def build_enemy(defn: EnemyDef, x: int, y: int, rng: random.Random) -> Entity:
     enemy.ai_state = enemy.ai_config.get("ai_initial_state", "wandering")
     enemy.inventory = build_enemy_inventory(defn, rng)
     enemy.max_inventory = defn.max_inventory
+    if defn.natural_weapon:
+        enemy.inventory.insert(0, build_natural_weapon(defn.natural_weapon))
+        enemy.max_inventory += 1
     recalc_melee_power_ai(enemy)
+    if defn.disguise:
+        from data.interactables import interactable_by_name
+        from game.creatures import disguise_as
+
+        disguise_as(enemy, interactable_by_name(defn.disguise))
     return enemy
+
+
+def build_natural_weapon(name: str) -> Entity:
+    """A creature's built-in weapon: never dropped, never out of ammo."""
+    weapon = build_item_entity(natural_weapon_by_name(name))
+    weapon.item["natural"] = True
+    return weapon

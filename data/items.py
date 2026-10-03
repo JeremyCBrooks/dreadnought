@@ -95,7 +95,35 @@ SCANNERS: list[ScannerDef] = [
     ),
 ]
 
+# Weapons that are part of a creature (a turret's gun, a spitter's glands).
+# Never loot: kept out of ITEMS, never dropped, and they never run dry.
+NATURAL_WEAPONS: list[ItemDef] = [
+    ItemDef(
+        char="'",
+        color=(220, 200, 90),
+        name="Turret Blaster",
+        type="weapon",
+        value=3,
+        weapon_class="ranged",
+        range=7,
+        ammo=1,
+        max_ammo=1,
+    ),
+    ItemDef(
+        char="'",
+        color=(150, 220, 60),
+        name="Acid Spit",
+        type="weapon",
+        value=2,
+        weapon_class="ranged",
+        range=4,
+        ammo=1,
+        max_ammo=1,
+    ),
+]
+
 _ITEMS_BY_NAME: dict[str, ItemDef] = {i.name: i for i in ITEMS}
+_NATURAL_WEAPONS_BY_NAME: dict[str, ItemDef] = {w.name: w for w in NATURAL_WEAPONS}
 _SCANNERS_BY_NAME: dict[str, ScannerDef] = {s.name: s for s in SCANNERS}
 
 assert len(_ITEMS_BY_NAME) == len(ITEMS), "Duplicate item name detected"
@@ -105,6 +133,11 @@ assert len(_SCANNERS_BY_NAME) == len(SCANNERS), "Duplicate scanner name detected
 def item_by_name(name: str) -> ItemDef:
     """Look up an ItemDef by its name. Raises KeyError if not found."""
     return _ITEMS_BY_NAME[name]
+
+
+def natural_weapon_by_name(name: str) -> ItemDef:
+    """Look up a creature's built-in weapon by name. Raises KeyError if not found."""
+    return _NATURAL_WEAPONS_BY_NAME[name]
 
 
 def scanner_by_name(name: str) -> ScannerDef:

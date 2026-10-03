@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from dataclasses import asdict
 
-from data.enemies import ENEMIES
+from data.enemies import EnemyDef, creatures_for
 from data.hazards import HAZARDS
 from data.interactables import FLOOR_INTERACTABLES, interactable_by_name
 from data.items import ITEMS, all_loot
@@ -60,6 +60,10 @@ def _make_interactable(
     )
 
 
+# How far from the first member of a group the rest may spawn.
+_GROUP_SPREAD = 2
+
+
 def _spawn_enemies(
     room: RectRoom,
     game_map: GameMap,
@@ -67,20 +71,62 @@ def _spawn_enemies(
     max_enemies: int = 2,
     exit_pos: tuple[int, int] | None = None,
     remaining: int | None = None,
+    loc_type: str = "derelict",
+    depth: int = 0,
 ) -> int:
-    capped = min(max_enemies, MAX_ENEMIES_PER_ROOM)
+    """Spawn native creatures of *loc_type* at *depth* into *room*; returns how many.
+
+    Each encounter is one creature or a whole group (a swarm, a pack). The
+    room holds at most ``max_enemies`` creatures (and never more than
+    ``MAX_ENEMIES_PER_ROOM``, or *remaining* for the level), so groups grow
+    with depth.
+    """
+    pool = creatures_for(loc_type, depth)
+    if not pool:
+        return 0
+    weights = [c.spawn_weight for c in pool]
+    budget = min(max_enemies, MAX_ENEMIES_PER_ROOM)
     if remaining is not None:
-        capped = min(capped, remaining)
+        budget = min(budget, remaining)
     spawned = 0
-    for _ in range(rng.randint(0, capped)):
+    for _ in range(rng.randint(0, budget)):
+        if spawned >= budget:
+            break
         x, y = _random_room_pos(room, rng)
         if not _can_spawn_at(game_map, x, y, exit_pos, allow_non_blocking=True):
             continue
-        defn = rng.choice(ENEMIES)
-        entity = build_enemy(defn, x, y, rng)
-        game_map.entities.append(entity)
-        spawned += 1
+        defn = rng.choices(pool, weights=weights)[0]
+        size = min(rng.randint(*defn.group), budget - spawned)
+        spawned += _spawn_group(defn, size, (x, y), game_map, rng, exit_pos)
     return spawned
+
+
+def _spawn_group(
+    defn: EnemyDef,
+    size: int,
+    leader_at: tuple[int, int],
+    game_map: GameMap,
+    rng: random.Random,
+    exit_pos: tuple[int, int] | None,
+) -> int:
+    """Place *size* creatures of *defn*: the first at *leader_at*, the rest close by."""
+    lx, ly = leader_at
+    nearby = [
+        (lx + dx, ly + dy)
+        for dx in range(-_GROUP_SPREAD, _GROUP_SPREAD + 1)
+        for dy in range(-_GROUP_SPREAD, _GROUP_SPREAD + 1)
+        if (dx, dy) != (0, 0)
+    ]
+    rng.shuffle(nearby)
+    spots = iter([leader_at, *nearby])
+    placed = 0
+    while placed < size:
+        spot = next((p for p in spots if _can_spawn_at(game_map, *p, exit_pos, allow_non_blocking=True)), None)
+        if spot is None:
+            break
+        game_map.entities.append(build_enemy(defn, *spot, rng))
+        placed += 1
+    return placed
 
 
 def _spawn_items(

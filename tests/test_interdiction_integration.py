@@ -70,6 +70,9 @@ def test_full_interdiction_round_trip():
         def choice(self, seq):
             return self._real.choice(seq)
 
+        def choices(self, seq, weights=None):
+            return self._real.choices(seq, weights=weights)
+
         def sample(self, seq, k):
             return self._real.sample(seq, k)
 

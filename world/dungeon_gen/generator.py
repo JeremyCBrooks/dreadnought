@@ -53,9 +53,15 @@ def generate_dungeon(
     max_total_enemies: int = MAX_ENEMIES_PER_LEVEL,
     has_nav_unit: bool = False,
     player_ship: bool = False,
+    depth: int = 0,
 ) -> tuple[GameMap, list[RectRoom], tuple[int, int] | None]:
-    """Returns (game_map, rooms, exit_pos)."""
+    """Returns (game_map, rooms, exit_pos).
+
+    Creatures draw from their own random stream, so the same seed always
+    builds the same place whatever lives in it.
+    """
     rng = random.Random(seed)
+    creature_rng = _creature_rng(seed)
     profile = get_profile(loc_type)
     wall_tile = _resolve_tile(profile.wall_tile)
     floor_tile = _resolve_tile(profile.floor_tile)
@@ -91,18 +97,7 @@ def generate_dungeon(
             game_map.tiles[exit_pos[0], exit_pos[1]] = tile_types.exit_tile
 
     if not player_ship:
-        total_spawned = 0
         for room in rooms[1:]:
-            remaining = max_total_enemies - total_spawned
-            if remaining > 0:
-                total_spawned += _spawn_enemies(
-                    room,
-                    game_map,
-                    rng,
-                    max_enemies,
-                    exit_pos=exit_pos,
-                    remaining=remaining,
-                )
             _spawn_items(room, game_map, rng, max_items, exit_pos=exit_pos)
 
     # 1–3 interactables in random rooms. Ship rooms already have themed
@@ -155,6 +150,10 @@ def generate_dungeon(
     if player_ship:
         # Strip any loot items placed by room dressing (loot_chance dressing paths)
         game_map.entities = [e for e in game_map.entities if e.item is None]
+    else:
+        # Last, so the place is finished before anything moves in: what
+        # lives here never changes how it is built.
+        _populate_rooms(game_map, rooms[1:], creature_rng, max_enemies, max_total_enemies, exit_pos, loc_type, depth)
 
     game_map.invalidate_hazards()
     return game_map, rooms, exit_pos
@@ -201,21 +200,50 @@ def player_ship_breach_candidates(game_map: GameMap) -> list[tuple[int, int]]:
     return hull_breach_candidates(game_map, player_ship_hull_tile(), airlock_chambers=False)
 
 
+def _creature_rng(seed: int | None) -> random.Random:
+    """The random stream creatures are drawn from, kept apart from the layout's."""
+    return random.Random(f"creatures:{seed}" if seed is not None else None)
+
+
 def respawn_creatures(
     game_map: GameMap,
     rooms: list[RectRoom],
     max_enemies: int = 2,
     seed: int | None = None,
     max_total_enemies: int = MAX_ENEMIES_PER_LEVEL,
+    loc_type: str = "derelict",
+    depth: int = 0,
 ) -> None:
     """Remove all entities with AI (creatures) and spawn new ones in rooms[1:].
     Does not touch items or the map. Uses seed for deterministic placement if given.
     """
     game_map.entities[:] = [e for e in game_map.entities if not e.ai]
-    rng = random.Random(seed)
+    _populate_rooms(game_map, rooms[1:], random.Random(seed), max_enemies, max_total_enemies, None, loc_type, depth)
+
+
+def _populate_rooms(
+    game_map: GameMap,
+    rooms: list[RectRoom],
+    rng: random.Random,
+    max_enemies: int,
+    max_total_enemies: int,
+    exit_pos: tuple[int, int] | None,
+    loc_type: str,
+    depth: int,
+) -> None:
+    """Fill *rooms* with the creatures native to *loc_type* at *depth*, up to the level cap."""
     total_spawned = 0
-    for room in rooms[1:]:
+    for room in rooms:
         remaining = max_total_enemies - total_spawned
         if remaining <= 0:
             break
-        total_spawned += _spawn_enemies(room, game_map, rng, max_enemies, remaining=remaining)
+        total_spawned += _spawn_enemies(
+            room,
+            game_map,
+            rng,
+            max_enemies,
+            exit_pos=exit_pos,
+            remaining=remaining,
+            loc_type=loc_type,
+            depth=depth,
+        )

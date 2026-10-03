@@ -16,7 +16,7 @@ from data.items import ITEMS, SCANNERS, all_loot, build_item_data, item_by_name,
 class TestLoadCategories:
     def test_enemies_returns_list(self):
         assert isinstance(ENEMIES, list)
-        assert len(ENEMIES) == 7
+        assert len(ENEMIES) == 21
 
     def test_items_returns_list(self):
         assert isinstance(ITEMS, list)
@@ -173,6 +173,8 @@ class TestEnemyAiConfig:
             "vision_radius",
             "move_speed",
             "can_steal",
+            "temperament",
+            "species",
         }
         assert set(cfg.keys()) == expected_keys
 

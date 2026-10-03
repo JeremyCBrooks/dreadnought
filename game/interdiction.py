@@ -151,10 +151,10 @@ def should_attempt_interdiction(system, ship, galaxy, rng) -> bool:
 
 
 def _pirate_definitions() -> list:
-    """All enemy defs eligible to crew a boarding ship (any pirate variant)."""
-    from data.enemies import ENEMIES
+    """The creatures that crew boarding craft."""
+    from data.enemies import BOARDING, creatures_for
 
-    return [d for d in ENEMIES if getattr(d, "can_steal", False)]
+    return creatures_for(BOARDING, depth=0)
 
 
 def _spawn_pirates_in_room(craft_room, game_map, rng, count) -> list:
@@ -179,7 +179,7 @@ def _spawn_pirates_in_room(craft_room, game_map, rng, count) -> list:
 
     pirates: list[Entity] = []
     for x, y in positions:
-        defn = rng.choice(defns)
+        defn = rng.choices(defns, weights=[d.spawn_weight for d in defns])[0]
         pirates.append(build_enemy(defn, x, y, rng))
     return pirates
 

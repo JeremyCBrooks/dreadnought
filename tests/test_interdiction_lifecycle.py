@@ -111,10 +111,13 @@ def test_start_interdiction_spawns_between_one_and_four_pirates():
     assert found > 0, "no successful starts to count pirates from"
 
 
-def test_start_interdiction_spawns_only_pirate_variants():
+def test_start_interdiction_spawns_only_boarding_crew():
+    from data.enemies import BOARDING, creatures_for
+
+    crew = {c.name for c in creatures_for(BOARDING, depth=0)}
     ship, interdiction, _ = _start_with_compatible_seed()
     for p in interdiction.pirate_entities:
-        assert p.ai_config.get("can_steal") is True, f"non-pirate variant spawned: {p.name}"
+        assert p.name in crew, f"{p.name} does not crew boarding craft"
 
 
 def test_start_interdiction_pirates_inside_spawn_room():

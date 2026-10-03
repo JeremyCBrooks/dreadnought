@@ -1,43 +1,43 @@
 {
   "derelict-1": {
-    "structure": "579ca9686ba7c44a",
-    "tiles": "9653435c6bb25a16",
+    "structure": "bf49d080f8dfcb05",
+    "tiles": "2af25b7048142d18",
     "rooms": "2beca689cfe8e0f3",
-    "map": "cadf61baa55cc500",
+    "map": "449b69203d431458",
     "lights": "4939330293438fd1",
-    "entities": "e3f33beeda19142b"
+    "entities": "e6bcfcf935f463d9"
   },
   "derelict-2": {
-    "structure": "1702564b4da764cc",
-    "tiles": "84e9369ea65e8f45",
+    "structure": "7dac600b4f791472",
+    "tiles": "2f154ffd0fd709e2",
     "rooms": "48e42fff0b5163b2",
-    "map": "94c7bc0636f8b1a1",
+    "map": "9a0605611681a6a7",
     "lights": "17dfbb5762ff14fa",
-    "entities": "80b2467182427fb7"
+    "entities": "763e4146eb1939c4"
   },
   "derelict-3": {
-    "structure": "a0f9adbcf42ce4d7",
-    "tiles": "e00a86cab04e7e6b",
+    "structure": "464e13e8e38f1611",
+    "tiles": "c01c8241eba1476e",
     "rooms": "6183e8d338619c38",
-    "map": "94177b847a7f5374",
+    "map": "37d7eeaecd59a186",
     "lights": "a49c8e354c3b20b3",
-    "entities": "05025130e8593e51"
+    "entities": "806c7e7919201418"
   },
   "derelict-4": {
-    "structure": "fa753c602e2e647c",
-    "tiles": "3d612d224f11d760",
+    "structure": "cbbc9ebdbd443bf6",
+    "tiles": "a7aaef3b2839b18d",
     "rooms": "b5e763c8869c11d3",
-    "map": "2048165a55b88848",
+    "map": "1a2dd81df2b51fbe",
     "lights": "ed95c4692c418ce9",
-    "entities": "86eefcd36d0b2a70"
+    "entities": "69603e7e8b69f454"
   },
   "derelict-5": {
-    "structure": "b135bf78f1eff16e",
-    "tiles": "2bf5d2dd82896184",
+    "structure": "56f01a0947605cd9",
+    "tiles": "2f161ac0f85ee9eb",
     "rooms": "c670d3e963fbe579",
-    "map": "a937b7695aef0683",
+    "map": "14d6e6452ff69b7a",
     "lights": "52bdc8a291368c2f",
-    "entities": "c428246c68ce7d5d"
+    "entities": "db79acc81cbd9ae3"
   },
   "asteroid-1": {
     "structure": "bb7e2e1a0e513399",
@@ -45,7 +45,7 @@
     "rooms": "5506a3945dd1a7aa",
     "map": "0d0abd0b4f151862",
     "lights": "0582b69ac81cd427",
-    "entities": "8265186df7824297"
+    "entities": "f110f96399553715"
   },
   "asteroid-2": {
     "structure": "183c3eb0741c80cf",
@@ -53,71 +53,71 @@
     "rooms": "a6f738435543183a",
     "map": "0d0abd0b4f151862",
     "lights": "55a23271afd0bd77",
-    "entities": "0f2ada045f1b7a8b"
+    "entities": "260fcecd82d56f8c"
   },
   "asteroid-3": {
-    "structure": "ed79f7cc16626f8c",
-    "tiles": "b5de98f10f62303c",
+    "structure": "cce6223348306905",
+    "tiles": "6d51eeebb4ecabcb",
     "rooms": "4fd8723e40350f5c",
-    "map": "6b0ee853a3e6693f",
+    "map": "df8372e43065cb66",
     "lights": "b2b97c18faa7267d",
-    "entities": "4d07ef7edd87b8b2"
+    "entities": "49c3b878fe5bc3cc"
   },
   "asteroid-4": {
-    "structure": "77a25788a6e4051a",
-    "tiles": "b748bd702f98f2c7",
+    "structure": "3461b80c415beaf6",
+    "tiles": "e03e9577bd15f17d",
     "rooms": "f3c2d7be59a9982a",
-    "map": "b0ae0de13ae3501c",
+    "map": "bcb752d411bd5e0b",
     "lights": "4a84a229c4b5a419",
-    "entities": "5a24808c2ddd3651"
+    "entities": "06c012747afa0002"
   },
   "asteroid-5": {
-    "structure": "2ffa9e63a4b81823",
-    "tiles": "c1e3822c03f50450",
+    "structure": "a0ef7823a683a71c",
+    "tiles": "ee62945622b216bd",
     "rooms": "39e95eca57da4f32",
-    "map": "b3b3969efe94a91f",
+    "map": "5058cc14d5d63717",
     "lights": "952b10d74237862f",
-    "entities": "6fbff928449f17a3"
+    "entities": "05991db1aa906d2a"
   },
   "starbase-1": {
-    "structure": "a9135c72de4f1a48",
-    "tiles": "7ae026d11ab4e7a2",
+    "structure": "0d24f095b1b9115c",
+    "tiles": "22cbcee95e37afaa",
     "rooms": "41722b84b14e5a64",
-    "map": "5de021906340d9d4",
+    "map": "a7869631b7acbde5",
     "lights": "b9dcd2c21e260e37",
-    "entities": "7cc1ad00722402e5"
+    "entities": "dc9d81de69b83153"
   },
   "starbase-2": {
-    "structure": "2252fdd443571614",
-    "tiles": "f99a1d5858383998",
+    "structure": "2386b31e293cb54e",
+    "tiles": "c6ca63885ad92027",
     "rooms": "e5e315e680faa4d7",
-    "map": "9670c3a840133ace",
+    "map": "36563d0ed868ab80",
     "lights": "da928ad3cdfb1862",
-    "entities": "85d5235dbbb4e897"
+    "entities": "97acc2483a2d73ff"
   },
   "starbase-3": {
-    "structure": "ce3fb42855f4f2b8",
-    "tiles": "17ed97c9a433885b",
+    "structure": "22da501794b8ac5c",
+    "tiles": "df10085594a1c91d",
     "rooms": "3cba54f136ca0e8f",
-    "map": "885fa821db85c13d",
+    "map": "dfd6f617e7caf6d1",
     "lights": "a95eece11b978670",
-    "entities": "62ad419120952a5e"
+    "entities": "1c0e09eede348f1b"
   },
   "starbase-4": {
-    "structure": "b14b1fea2fac2b39",
-    "tiles": "56832f47e95b13a0",
+    "structure": "a2ff84a0ceae4ea7",
+    "tiles": "d4cc1ce2e4d7b05e",
     "rooms": "ce8f57255d46bc40",
-    "map": "ec6e4581ecc5ca40",
+    "map": "991a0ba46f876704",
     "lights": "5d68620375dfa197",
-    "entities": "23e2c3ddfbb388ff"
+    "entities": "56445c7155ee0ba0"
   },
   "starbase-5": {
-    "structure": "63aa0a6045ee22eb",
-    "tiles": "c1ce67743841d768",
+    "structure": "b1085e013aa48112",
+    "tiles": "b7806ed12747f2b9",
     "rooms": "1671216bf9adb7af",
-    "map": "d0c3efcaedbd82f5",
+    "map": "26b780c376fb8333",
     "lights": "4132ba7c1951568d",
-    "entities": "ea7f0b6e511ba91a"
+    "entities": "b897bd0b0a88a837"
   },
   "colony-1": {
     "structure": "2e6f7528d4e748ae",
@@ -125,7 +125,7 @@
     "rooms": "21a99e03905e8897",
     "map": "9118462f81d7c2d3",
     "lights": "172c71a189b38a9c",
-    "entities": "71d43021eb1a6520"
+    "entities": "f7f7a8a95df7d830"
   },
   "colony-2": {
     "structure": "131e8e4bce35dfaf",
@@ -133,7 +133,7 @@
     "rooms": "63387107cbc4c9f7",
     "map": "d639d7ae4cf609e9",
     "lights": "6f78a1df6afd8bc7",
-    "entities": "19a3c6d70584f1c9"
+    "entities": "1382ed1678aa230b"
   },
   "colony-3": {
     "structure": "054bfcf5dc2c5deb",
@@ -141,7 +141,7 @@
     "rooms": "9400ae38a31e4ae4",
     "map": "9118462f81d7c2d3",
     "lights": "76351b45cfaea7cd",
-    "entities": "1dbd24b397b71678"
+    "entities": "ab248696fa876526"
   },
   "colony-4": {
     "structure": "68cf87e6c53ccff0",
@@ -149,7 +149,7 @@
     "rooms": "e617868598059da5",
     "map": "9118462f81d7c2d3",
     "lights": "84c6243fca26e940",
-    "entities": "5e8c34fb6dee2976"
+    "entities": "3a7a264cf8a4d819"
   },
   "colony-5": {
     "structure": "37c7c75bc6affbdf",
@@ -157,7 +157,7 @@
     "rooms": "df4923edf0d3c330",
     "map": "da4a4e207e00cd8a",
     "lights": "1e0d2a985c88d597",
-    "entities": "b5b09f58b5f02e8a"
+    "entities": "4d5683d60b48d09b"
   },
   "player_ship-1": {
     "structure": "b1de9e1e94355ed9",
@@ -200,36 +200,36 @@
     "entities": "cf46796160bb6929"
   },
   "derelict-nav_unit": {
-    "structure": "c975e55d79560e4f",
-    "tiles": "0cd65d2ad8fb3447",
+    "structure": "dbc3ab0f9e30cac9",
+    "tiles": "517fc576bae2ec2f",
     "rooms": "db3cc3d5417c8d60",
-    "map": "fc666784b59a25f5",
+    "map": "28f085fa2c9605bf",
     "lights": "27a9bfa03d3e6085",
-    "entities": "0703f02ff8c3638d"
+    "entities": "cb9c31f72f66a767"
   },
   "derelict-enemy_cap_2": {
-    "structure": "3904fe09934d01d8",
-    "tiles": "1e61b5c53b95470a",
+    "structure": "0645bc28641c764d",
+    "tiles": "5b343e39ee0652e1",
     "rooms": "a9cb5db14b0613c3",
-    "map": "95dc002eebcad8bf",
+    "map": "7e3ab46fc7a07924",
     "lights": "5edba71a4f568e06",
-    "entities": "325e34c3d4eed3cb"
+    "entities": "36707dec179ea318"
   },
   "starbase-no_enemies": {
-    "structure": "0cc04a9fe56961a9",
-    "tiles": "5f41ee37e7b10bd9",
+    "structure": "98647f19ee30ed77",
+    "tiles": "13ca194b9005434c",
     "rooms": "e5b15ca4714e2572",
-    "map": "bd56c7e985ff5eb9",
+    "map": "ebaedd9e713fa948",
     "lights": "f6b46d224cc2c40e",
-    "entities": "e75c92c1df275e2c"
+    "entities": "96ec34d5620937ce"
   },
   "asteroid-three_items": {
-    "structure": "5b48b49651e4fdd4",
-    "tiles": "a8556cc6be3c036c",
+    "structure": "4058e1ee2660c095",
+    "tiles": "7ee1578d0b9d67ac",
     "rooms": "c801285f89e11d04",
-    "map": "adfbe62843431470",
+    "map": "ff303e70bb29b578",
     "lights": "ac649da88a6ded16",
-    "entities": "6388b822c8523afb"
+    "entities": "f037a51d9103d138"
   },
   "colony-three_items": {
     "structure": "ffabddca23fccfd6",
@@ -237,31 +237,31 @@
     "rooms": "936045b9cc507cea",
     "map": "9118462f81d7c2d3",
     "lights": "edba747b4eb9e0e8",
-    "entities": "3573f7078592c49f"
+    "entities": "42c9bbe212eff93a"
   },
   "derelict-small_map": {
-    "structure": "e5f97e14ff93c2d3",
-    "tiles": "e6bd4ad4c7fa0936",
+    "structure": "569d85249ce98807",
+    "tiles": "7687fd6728fbd584",
     "rooms": "878fe6f842f9ff6e",
-    "map": "f2604043f6780257",
+    "map": "8bd65a77abcb3ab1",
     "lights": "2d4b7b34dd195282",
-    "entities": "3e2f15c7062d20c7"
+    "entities": "f1ec7c3d44a497de"
   },
   "asteroid-small_map": {
-    "structure": "56170a6e66af4f16",
-    "tiles": "52a0be3ab0d7c4ca",
+    "structure": "6dedeaf6a4b45eef",
+    "tiles": "6e3d79400570f8c8",
     "rooms": "33702049378c4a63",
-    "map": "a199773bd7196ad1",
+    "map": "008b1a651329891c",
     "lights": "c018de4f9b7ff6f4",
-    "entities": "f0c85b459018db7b"
+    "entities": "bab2b589d4b980fe"
   },
   "derelict-respawned": {
-    "structure": "a0f9adbcf42ce4d7",
-    "tiles": "e00a86cab04e7e6b",
+    "structure": "464e13e8e38f1611",
+    "tiles": "c01c8241eba1476e",
     "rooms": "6183e8d338619c38",
-    "map": "94177b847a7f5374",
+    "map": "37d7eeaecd59a186",
     "lights": "a49c8e354c3b20b3",
-    "entities": "1e3faf2309063bf7"
+    "entities": "fc1630d2be6e4525"
   },
   "fallback": {
     "structure": "47d49843efee2a40",

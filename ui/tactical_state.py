@@ -136,7 +136,7 @@ class TacticalState(State):
             game_map = cached["game_map"]
             rooms = cached["rooms"]
             self.exit_pos = cached["exit_pos"]
-            respawn_creatures(game_map, rooms, max_enemies=max_enemies, seed=None)
+            respawn_creatures(game_map, rooms, max_enemies=max_enemies, seed=None, loc_type=loc_type, depth=self.depth)
         else:
             game_map, rooms, exit_pos = generate_dungeon(
                 width=layout.map_w,
@@ -146,6 +146,7 @@ class TacticalState(State):
                 seed=seed,
                 loc_type=loc_type,
                 has_nav_unit=getattr(self.location, "has_nav_unit", False),
+                depth=self.depth,
             )
             self.exit_pos = exit_pos
             engine.area_cache[key] = {
