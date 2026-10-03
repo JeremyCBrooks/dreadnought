@@ -122,11 +122,28 @@ NATURAL_WEAPONS: list[ItemDef] = [
     ),
 ]
 
-_ITEMS_BY_NAME: dict[str, ItemDef] = {i.name: i for i in ITEMS}
+# Gear that only comes off a particular creature when it is destroyed (see
+# EnemyDef.loot_table). Kept out of ITEMS so it never turns up as random loot.
+SALVAGE_ITEMS: list[ItemDef] = [
+    # Torn from a Sentry Turret's mount: hits harder and reaches further than any blaster you'll find.
+    ItemDef(
+        char="}",
+        color=(230, 210, 100),
+        name="Sentry Blaster",
+        type="weapon",
+        value=4,
+        weapon_class="ranged",
+        range=7,
+        ammo=30,
+        max_ammo=30,
+    ),
+]
+
+_ITEMS_BY_NAME: dict[str, ItemDef] = {i.name: i for i in [*ITEMS, *SALVAGE_ITEMS]}
 _NATURAL_WEAPONS_BY_NAME: dict[str, ItemDef] = {w.name: w for w in NATURAL_WEAPONS}
 _SCANNERS_BY_NAME: dict[str, ScannerDef] = {s.name: s for s in SCANNERS}
 
-assert len(_ITEMS_BY_NAME) == len(ITEMS), "Duplicate item name detected"
+assert len(_ITEMS_BY_NAME) == len(ITEMS) + len(SALVAGE_ITEMS), "Duplicate item name detected"
 assert len(_SCANNERS_BY_NAME) == len(SCANNERS), "Duplicate scanner name detected"
 
 

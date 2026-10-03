@@ -300,6 +300,8 @@ ENEMIES: list[EnemyDef] = [
         min_depth=1,
         spawn_weight=4,
         natural_weapon="Turret Blaster",
+        # Sometimes the gun survives the turret and can be torn off its mount.
+        loot_table=(("Sentry Blaster", 0.45),),
     ),
     EnemyDef(
         char="w",
