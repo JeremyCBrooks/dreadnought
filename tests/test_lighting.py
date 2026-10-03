@@ -134,7 +134,7 @@ class TestGameMapLightCaching:
         gm.add_light_source(5, 5, radius=4, color=(255, 255, 255))
         lm1 = gm.get_light_map()
         lm2 = gm.get_light_map()
-        assert lm1 is lm2  # same object — cached
+        assert lm1 is lm2  # same object - cached
 
     def test_invalidate_clears_cache(self):
         gm = make_arena(20, 20)
@@ -318,7 +318,7 @@ class TestDungeonGenLights:
         assert np.any(game_map.tiles["tile_id"] == lamp_tid)
 
     def test_street_lights_not_too_numerous(self):
-        """Street lamps should be sparse — spacing >= 12 spine tiles."""
+        """Street lamps should be sparse - spacing >= 12 spine tiles."""
         from world.dungeon_gen import generate_dungeon
 
         for seed in range(5):
@@ -423,7 +423,7 @@ class TestDungeonGenLights:
                 assert tid != window_tid, f"seed={seed}: light at ({ls.x},{ls.y}) on window tile"
 
     def test_colony_not_every_building_lit(self):
-        """Not every colony building should have lights — some randomness."""
+        """Not every colony building should have lights - some randomness."""
         from world.dungeon_gen import generate_dungeon
 
         any_unlit = False
@@ -438,4 +438,4 @@ class TestDungeonGenLights:
                     break
             if any_unlit:
                 break
-        assert any_unlit, "Every room had a light across 20 seeds — needs randomness"
+        assert any_unlit, "Every room had a light across 20 seeds - needs randomness"

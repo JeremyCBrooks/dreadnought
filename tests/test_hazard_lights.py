@@ -10,7 +10,7 @@ def _make_breached_ship(light_x=5, light_y=5):
 
     Layout (10x10):
       Walls around the edge, floor interior.
-      Breach at (1, 5) — adjacent to floor at (2, 5).
+      Breach at (1, 5) - adjacent to floor at (2, 5).
       Light at (light_x, light_y).
     """
     gm = GameMap(10, 10)
@@ -73,7 +73,7 @@ class TestHazardLightColor:
             gm.tiles[x, 1] = tile_types.wall
         gm.has_space = True
 
-        # Light on a hull wall tile — space is adjacent but NO floor is under vacuum
+        # Light on a hull wall tile - space is adjacent but NO floor is under vacuum
         gm.add_light_source(5, 1, radius=4, color=(200, 190, 170), intensity=0.5)
         gm.recalculate_hazards()
         gm.update_hazard_lights()

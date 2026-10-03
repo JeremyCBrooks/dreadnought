@@ -154,7 +154,7 @@ def test_state_stack_cleared_on_game_over_restart():
 
     evt = FakeEvent(sym=tcod.event.KeySym.RETURN)
 
-    # Press ENTER to restart — should clear entire stack
+    # Press ENTER to restart - should clear entire stack
     engine._state_stack[-1].ev_key(engine, evt)
 
     # Stack should only have TitleState (no stale DummyStrategic)

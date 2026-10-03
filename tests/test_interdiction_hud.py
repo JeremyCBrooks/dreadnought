@@ -1,7 +1,7 @@
 """Tests for interdiction HUD banners (Phase 7).
 
 Strategic view shows BEING BOARDED while interdiction is unresolved.
-Tactical (ship explore) shows INTRUDERS DETECTED — N remain.
+Tactical (ship explore) shows INTRUDERS DETECTED - N remain.
 Both banners disappear after resolution.
 """
 

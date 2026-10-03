@@ -1,4 +1,4 @@
-"""Rate limiting tests for /api/login — slowapi + X-Forwarded-For key function."""
+"""Rate limiting tests for /api/login - slowapi + X-Forwarded-For key function."""
 
 import asyncio
 
@@ -64,7 +64,7 @@ def test_x_forwarded_for_isolates_ip_buckets(client):
     )
     assert r_a.status_code == 429
 
-    # IP-B has a fresh bucket — should get 401, not 429.
+    # IP-B has a fresh bucket - should get 401, not 429.
     r_b = client.post(
         "/api/login",
         json={"username": "alice", "password": "wrong"},

@@ -185,7 +185,7 @@ def test_mission_loadout_to_player_on_tactical_entry():
 
 
 def test_cargo_not_auto_transferred_anymore():
-    """Ship cargo should NOT auto-transfer to player — only mission_loadout does."""
+    """Ship cargo should NOT auto-transfer to player - only mission_loadout does."""
     from ui.tactical_state import TacticalState
     from world.galaxy import Location
 
@@ -627,7 +627,7 @@ def test_equip_works_on_fresh_game():
     engine = _make_engine_with_cargo()
     weapon = Entity(name="Blaster", item={"type": "weapon", "value": 3})
     engine.ship.cargo.append(weapon)
-    # No _saved_player set — simulates a fresh game
+    # No _saved_player set - simulates a fresh game
     assert engine.saved_player is None
 
     state = CargoState()

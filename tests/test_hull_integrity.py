@@ -170,7 +170,7 @@ def test_nav_units_clamped_at_6():
     engine.player.inventory = []
     engine.player.loadout = Loadout()
 
-    # Add 2 nav units — only 1 should be installed (5+1=6, second clamped)
+    # Add 2 nav units - only 1 should be installed (5+1=6, second clamped)
     nav1 = Entity(name="Nav Unit 1", char="n", color=(0, 200, 255), item={"type": "nav_unit", "value": 1})
     nav2 = Entity(name="Nav Unit 2", char="n", color=(0, 200, 255), item={"type": "nav_unit", "value": 1})
     engine.player.inventory.extend([nav1, nav2])

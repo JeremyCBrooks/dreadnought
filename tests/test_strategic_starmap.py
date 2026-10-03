@@ -274,7 +274,7 @@ class TestLabelPositioning:
             for x2, y2, s2 in labels[i + 1 :]:
                 if y1 != y2:
                     continue
-                # Same row — check x ranges don't overlap
+                # Same row - check x ranges don't overlap
                 end1 = x1 + len(s1)
                 end2 = x2 + len(s2)
                 overlaps = not (end1 <= x2 or end2 <= x1)

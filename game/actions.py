@@ -463,7 +463,7 @@ class RangedAction(Action):
         from game.helpers import has_clear_shot
 
         if not has_clear_shot(engine.game_map, entity.x, entity.y, self.target.x, self.target.y):
-            _warn_player(engine, entity, "No clear shot — path blocked.")
+            _warn_player(engine, entity, "No clear shot - path blocked.")
             return 0
 
         # Consume ammo (guard against negative)
@@ -521,7 +521,7 @@ class TakeReactorCoreAction(Action):
         engine.game_map.light_sources = [ls for ls in engine.game_map.light_sources if (ls.x, ls.y) != (tx, ty)]
         engine.game_map.invalidate_hazards()
 
-        # Create reactor core item — Dreadnought location yields special core
+        # Create reactor core item - Dreadnought location yields special core
         from game.entity import Entity as _Entity
 
         loc = getattr(engine.current_state, "location", None)

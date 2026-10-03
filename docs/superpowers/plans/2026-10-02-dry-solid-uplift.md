@@ -33,7 +33,7 @@
 - The save JSON format written by `web/save_load.py` must not change. Old saves must still load.
 - RNG draw order in `world/dungeon_gen/` must not change: same calls, same order, same arguments.
 - TDD: write the test, watch it fail (or, for characterisation tests, prove it can fail by mutation), then implement.
-- Test quality bar — applies to every test in this plan and any an implementer adds:
+- Test quality bar - applies to every test in this plan and any an implementer adds:
   - Before writing a test, name the production bug that would make it fail. If you cannot, do not write it.
   - Expected values are literals or hand-derived. Never compute them with the code under test or its helpers.
   - No change detectors: do not assert a constant's value, a data table's contents, an attribute's existence, a getter's return, or source text. Assert the first player-visible or caller-visible result that depends on it.
@@ -156,7 +156,7 @@ sed -i -b -E 's/\b_new_game\(/new_game(/g; s/\b_enter_mission\(/enter_mission(/g
 
 Remove the now-unused imports (`move_keys`, `Galaxy`, `Ship`, `StrategicState` if ruff reports them).
 
-Run: `pytest tests/test_audit_fixes.py -q` — Expected: 38 passed.
+Run: `pytest tests/test_audit_fixes.py -q` - Expected: 38 passed.
 
 - [ ] **Step 3: Write `tests/test_e2e_flows.py`**
 
@@ -386,7 +386,7 @@ Restore: `git checkout ui/tactical_state.py`.
 
 - [ ] **Step 7: Full gate and commit**
 
-Run: `pytest -q` — Expected: all pass. Run `ruff check .` and `ruff format .`.
+Run: `pytest -q` - Expected: all pass. Run `ruff check .` and `ruff format .`.
 
 ```bash
 git add tests/conftest.py tests/test_audit_fixes.py tests/test_e2e_flows.py tests/fixtures
@@ -406,7 +406,7 @@ git commit -m "test: add end-to-end flow tests, a pre-refactor save fixture and 
 **Interfaces:**
 - Produces: `new_player(x: int, y: int) -> Entity`, `snapshot_player(player: Entity) -> dict`, `fresh_player_snapshot() -> dict`, `apply_snapshot(player: Entity, snapshot: dict | None) -> None`. The dict keys stay exactly `hp, max_hp, defense, power, base_power, inventory, loadout`.
 
-- [ ] **Step 1: Write the failing tests** — `tests/test_player_state.py`
+- [ ] **Step 1: Write the failing tests** - `tests/test_player_state.py`
 
 ```python
 """The player's between-mission record: one place that builds, snapshots and restores it."""
@@ -557,7 +557,7 @@ def apply_snapshot(player: Entity, snapshot: dict | None) -> None:
     recalc_melee_power(player)
 ```
 
-Run: `pytest tests/test_player_state.py -q` — Expected: 5 passed.
+Run: `pytest tests/test_player_state.py -q` - Expected: 5 passed.
 
 - [ ] **Step 4: Replace the six hand-written sites**
 
@@ -607,7 +607,7 @@ Expected: no output.
 
 - [ ] **Step 6: Full gate and commit**
 
-Run: `pytest -q` — Expected: all pass. Run ruff.
+Run: `pytest -q` - Expected: all pass. Run ruff.
 
 ```bash
 git add game/player_state.py tests/test_player_state.py ui/tactical_state.py ui/cargo_state.py
@@ -627,7 +627,7 @@ git commit -m "refactor(player): build, snapshot and restore the player in one m
 
 **Deliberate behaviour change (the only one in this task):** a player killed by an interact hazard chosen through the direction prompt now dies with cause "Killed in action." and no enemy turn runs first. Today that path skips the death check, runs a full world turn, and reports "Succumbed to the environment."
 
-- [ ] **Step 1: Write the failing tests** — `tests/test_player_action_pipeline.py`
+- [ ] **Step 1: Write the failing tests** - `tests/test_player_action_pipeline.py`
 
 ```python
 """Every input mode resolves a consumed action through the same pipeline."""
@@ -792,14 +792,14 @@ Expected: `test_hazard_death_through_the_direction_prompt_is_killed_in_action` f
 
 - [ ] **Step 4: Route the four input paths through it**
 
-`ev_key` — replace everything from `if not consumed:` to the final `return True` with:
+`ev_key` - replace everything from `if not consumed:` to the final `return True` with:
 
 ```python
         self._resolve_player_action(engine, consumed, moved=moved)
         return True
 ```
 
-`_handle_ranged_input` — replace the block
+`_handle_ranged_input` - replace the block
 
 ```python
                 consumed = RangedAction(target).perform(engine, engine.player)
@@ -821,14 +821,14 @@ with
 
 The `death_cause` parameter exists only to keep this path's existing wording. Firing cannot hurt the shooter, so that cause may be unreachable: run `git grep -n "firefight" -- tests`. If no existing test reaches it through real play, delete the parameter and let this call use the default (YAGNI); do not add a test that forces HP to zero just to exercise it.
 
-`_handle_interact_input` — replace `if consumed: ... self._update_fov_with_scan(engine)` with `self._resolve_player_action(engine, consumed)`.
+`_handle_interact_input` - replace `if consumed: ... self._update_fov_with_scan(engine)` with `self._resolve_player_action(engine, consumed)`.
 
-`_handle_scan_input` — replace `if consumed: ... self._update_fov_with_scan(engine)` with `self._resolve_player_action(engine, consumed)`.
+`_handle_scan_input` - replace `if consumed: ... self._update_fov_with_scan(engine)` with `self._resolve_player_action(engine, consumed)`.
 
 - [ ] **Step 5: Run the new tests, then the suite**
 
-Run: `pytest tests/test_player_action_pipeline.py -q` — Expected: 5 passed.
-Run: `pytest -q` — Expected: all pass.
+Run: `pytest tests/test_player_action_pipeline.py -q` - Expected: 5 passed.
+Run: `pytest -q` - Expected: all pass.
 
 - [ ] **Step 6: Commit**
 
@@ -847,10 +847,10 @@ git commit -m "refactor(tactical): resolve every player action through one pipel
 - Modify: `ui/tactical_state.py` (`_after_player_turn` becomes a thin caller; delete `_lose_to_space`)
 
 **Interfaces:**
-- Produces: `advance_turn(engine) -> str | None` — advances the world one tick; returns the death cause if the player died this tick, else `None`. `lose_to_space(engine, entity) -> None`.
+- Produces: `advance_turn(engine) -> str | None` - advances the world one tick; returns the death cause if the player died this tick, else `None`. `lose_to_space(engine, entity) -> None`.
 - Consumes: nothing from earlier tasks. `TacticalState._after_player_turn` keeps its name and signature (34 test call sites rely on it).
 
-- [ ] **Step 1: Write the failing tests** — `tests/test_turn.py`
+- [ ] **Step 1: Write the failing tests** - `tests/test_turn.py`
 
 ```python
 """World turn resolution, independent of any UI state."""
@@ -1076,7 +1076,7 @@ def _run_enemies(engine: Engine) -> None:
             apply_environment_tick_entity(engine, entity)
 ```
 
-Run: `pytest tests/test_turn.py -q` — Expected: 5 passed.
+Run: `pytest tests/test_turn.py -q` - Expected: 5 passed.
 
 - [ ] **Step 4: Make `TacticalState._after_player_turn` a thin caller**
 
@@ -1100,8 +1100,8 @@ Replace the whole method body, and delete the `_lose_to_space` static method bel
 
 - [ ] **Step 5: Full gate and commit**
 
-Run: `git grep -n "_lose_to_space"` — Expected: no output.
-Run: `pytest -q` — Expected: all pass. Run ruff.
+Run: `git grep -n "_lose_to_space"` - Expected: no output.
+Run: `pytest -q` - Expected: all pass. Run ruff.
 
 ```bash
 git add game/turn.py tests/test_turn.py ui/tactical_state.py
@@ -1126,7 +1126,7 @@ git commit -m "refactor(turn): move world turn resolution out of the tactical UI
   - `detach_pirates(engine) -> None` (old `_detach_interdiction_pirates`)
   - `resolve_if_cleared(engine) -> bool` (old `_check_interdiction_resolution`; returns True when it resolved now)
 
-- [ ] **Step 1: Write the failing tests** — `tests/test_interdiction_session.py`
+- [ ] **Step 1: Write the failing tests** - `tests/test_interdiction_session.py`
 
 ```python
 """Interdiction lifecycle driven through the game layer, with no UI state involved."""
@@ -1249,7 +1249,7 @@ def prepare_ship_entry(engine) -> None:
                 (255, 200, 100),
             )
         elif interdiction.resolved:
-            # No facing-airlock pair was available — boarding attempt failed.
+            # No facing-airlock pair was available - boarding attempt failed.
             engine.message_log.add_message(
                 "The pirate craft couldn't find a docking point and broke off.",
                 (200, 200, 200),
@@ -1305,13 +1305,13 @@ def resolve_if_cleared(engine) -> bool:
     if interdiction.alive_pirate_count() > 0:
         return False
     interdiction.resolve()
-    engine.message_log.add_message("Interdiction repelled — system clear.", (100, 255, 100))
+    engine.message_log.add_message("Interdiction repelled - system clear.", (100, 255, 100))
     return True
 ```
 
 In the same file, replace the first twelve lines of `tile_in_player_ship_region` (from `galaxy = getattr(engine, "galaxy", None)` through `interdiction = getattr(system, "interdiction", None)`) with `interdiction = current_interdiction(engine)`. Keep the comment and the `if interdiction is None or ...: return True` check that follow.
 
-Run: `pytest tests/test_interdiction_session.py -q` — Expected: 4 passed.
+Run: `pytest tests/test_interdiction_session.py -q` - Expected: 4 passed.
 
 | Test | Fails if |
 |---|---|
@@ -1347,7 +1347,7 @@ For each hit, replace `state._activate_interdiction_if_any(engine)` with `prepar
 
 - [ ] **Step 7: Full gate and commit**
 
-Run: `pytest -q` — Expected: all pass. Run ruff.
+Run: `pytest -q` - Expected: all pass. Run ruff.
 
 ```bash
 git add game/interdiction.py ui/tactical_state.py ui/strategic_state.py tests/
@@ -1367,7 +1367,7 @@ git commit -m "refactor(interdiction): move the session lifecycle out of the tac
 - Produces: `HudView` dataclass and `render_stats(console, engine, layout, view: HudView) -> None` in `ui/tactical_hud.py`.
 - `TacticalState._render_stats(self, console, engine, layout)` keeps its name and signature (9 test call sites).
 
-- [ ] **Step 1: Write the failing test** — `tests/test_tactical_hud.py`
+- [ ] **Step 1: Write the failing test** - `tests/test_tactical_hud.py`
 
 ```python
 """The tactical stats panel renders from a plain view object, without a TacticalState."""
@@ -1516,8 +1516,8 @@ Move `CTRL_LINES`, `GROUND_MAX_LINES_DEFAULT` and `_hint` out of `ui/tactical_st
 
 - [ ] **Step 5: Full gate and commit**
 
-Run: `pytest tests/test_tactical_hud.py -q` — Expected: 3 passed.
-Run: `pytest -q` — Expected: all pass. Run ruff (it will flag imports left unused in `tactical_state.py`; remove them).
+Run: `pytest tests/test_tactical_hud.py -q` - Expected: 3 passed.
+Run: `pytest -q` - Expected: all pass. Run ruff (it will flag imports left unused in `tactical_state.py`; remove them).
 
 ```bash
 git add ui/tactical_hud.py ui/tactical_state.py tests/test_tactical_hud.py tests/
@@ -1548,7 +1548,7 @@ git commit -m "refactor(hud): render the tactical stats panel from its own modul
 
 **RNG contract:** `build_enemy` draws only inside `build_enemy_inventory`, exactly as the two call sites do today. The caller still makes the `rng.choice(...)` that picks the definition.
 
-- [ ] **Step 1: Write the failing tests** — `tests/test_factories.py`
+- [ ] **Step 1: Write the failing tests** - `tests/test_factories.py`
 
 ```python
 """One place builds item and enemy entities from their data definitions."""
@@ -1736,12 +1736,12 @@ Note: `build_enemy_inventory` built its items with no `rng`, and `ITEMS` (the on
 git grep -l "build_enemy_inventory" -- tests | xargs sed -i -b -E 's/from data\.enemies import (.*)build_enemy_inventory/from game.factories import build_enemy_inventory\nfrom data.enemies import \1/'
 ```
 
-Then open each changed file and tidy the two import lines by hand (remove a trailing comma or an empty `from data.enemies import` line). Verify: `git grep -n "data.enemies import.*build_enemy_inventory"` — Expected: no output.
+Then open each changed file and tidy the two import lines by hand (remove a trailing comma or an empty `from data.enemies import` line). Verify: `git grep -n "data.enemies import.*build_enemy_inventory"` - Expected: no output.
 
 - [ ] **Step 6: Gates and commit**
 
-Run: `pytest tests/test_factories.py tests/test_dungeon_gen_golden.py -q` — Expected: all pass (the golden test proves the RNG order held).
-Run: `pytest -q` — Expected: all pass. Run ruff.
+Run: `pytest tests/test_factories.py tests/test_dungeon_gen_golden.py -q` - Expected: all pass (the golden test proves the RNG order held).
+Run: `pytest -q` - Expected: all pass. Run ruff.
 
 ```bash
 git add game/factories.py tests/ data/enemies.py world/dungeon_gen/spawning.py game/interdiction.py game/actions.py debug.py
@@ -1771,7 +1771,7 @@ git commit -m "refactor(factories): build item and enemy entities in one module"
 | `ui` | `ui`, `game`, `world`, `engine`, `data` |
 | `web` | anything |
 
-- [ ] **Step 1: Write the failing tests** — `tests/test_layering.py`
+- [ ] **Step 1: Write the failing tests** - `tests/test_layering.py`
 
 ```python
 """Packages may only import from their own layer or the layers below it."""
@@ -1856,7 +1856,7 @@ git mv web/console_serializer.py engine/console_serializer.py
 git grep -lE 'ui\.colors|ui\.keys|web\.console_serializer' -- '*.py' | xargs sed -i -b -E 's/\bui\.colors\b/data.colors/g; s/\bui\.keys\b/engine.keys/g; s/\bweb\.console_serializer\b/engine.console_serializer/g'
 ```
 
-Check for the other import spelling: `git grep -nE 'from (ui|web) import .*\b(colors|keys|console_serializer)\b'` — Expected: no output. If there is any, rewrite those lines to `from data import colors`, `from engine import keys`, `from engine import console_serializer`.
+Check for the other import spelling: `git grep -nE 'from (ui|web) import .*\b(colors|keys|console_serializer)\b'` - Expected: no output. If there is any, rewrite those lines to `from data import colors`, `from engine import keys`, `from engine import console_serializer`.
 
 If `tests/test_engine_package.py` or `tests/test_console_serializer.py` assert on module locations, update the asserted paths to the new ones.
 
@@ -1943,7 +1943,7 @@ Expected: 10 passed. If `game` still lists a violation, it is a leftover upward 
 
 - [ ] **Step 6: Full gate and commit**
 
-Run: `pytest -q` — Expected: all pass. Run ruff. Update the "Project structure" block in `README.md`: move `colors.py` under `data/`, `keys.py` under `engine/`, and add `console_serializer.py` under `engine/`.
+Run: `pytest -q` - Expected: all pass. Run ruff. Update the "Project structure" block in `README.md`: move `colors.py` under `data/`, `keys.py` under `engine/`, and add `console_serializer.py` under `engine/`.
 
 ```bash
 git add -A data engine ui web world tests README.md
@@ -1965,7 +1965,7 @@ git commit -m "refactor(layers): move colours, keys and the console serializer d
 - Produces: `unload_mission_salvage(engine, inventory: list[Entity]) -> None` in `game/salvage.py`. It mutates `inventory` in place, removing every item it hands to the ship.
 - `use_consumable(engine, player, item) -> bool` keeps its signature.
 
-- [ ] **Step 1: Write the failing tests** — `tests/test_salvage.py`
+- [ ] **Step 1: Write the failing tests** - `tests/test_salvage.py`
 
 ```python
 """Mission salvage is handed to the ship by item type, from one table."""
@@ -2130,7 +2130,7 @@ def unload_mission_salvage(engine: Engine, inventory: list[Entity]) -> None:
 
 (`data.colors` exists after Task 8. If this task runs before Task 8, import `EQUIP_MSG` from `ui.colors` and let Task 8's rename fix it.)
 
-Run: `pytest tests/test_salvage.py -q` — Expected: 6 passed. Each fails if its item type's handler is missing from the table, has the wrong effect, or leaves the item in the player's inventory; the last fails if the table swallows items it does not own. Message order is not asserted: it is a presentation detail, not correctness.
+Run: `pytest tests/test_salvage.py -q` - Expected: 6 passed. Each fails if its item type's handler is missing from the table, has the wrong effect, or leaves the item in the player's inventory; the last fails if the table swallows items it does not own. Message order is not asserted: it is a presentation detail, not correctness.
 
 - [ ] **Step 4: Use it in `TacticalState.on_exit`**
 
@@ -2194,7 +2194,7 @@ and add, after the last `_do_*` method in the class body:
 
 - [ ] **Step 7: Full gate and commit**
 
-Run: `pytest -q` — Expected: all pass. Run ruff.
+Run: `pytest -q` - Expected: all pass. Run ruff.
 
 ```bash
 git add game/salvage.py tests/test_salvage.py ui/tactical_state.py game/consumables.py game/ai.py
@@ -2203,7 +2203,7 @@ git commit -m "refactor(handlers): dispatch salvage, consumables and AI states f
 
 ---
 
-### Task 10: Grid utilities — one BFS, one neighbour mask
+### Task 10: Grid utilities - one BFS, one neighbour mask
 
 **Files:**
 - Create: `world/grid.py`
@@ -2213,7 +2213,7 @@ git commit -m "refactor(handlers): dispatch salvage, consumables and AI states f
 
 **Interfaces:**
 - Produces, in `world/grid.py`:
-  - `CARDINALS`, `DIAGONALS`, `NEIGHBOURS_8`: tuples of `(dx, dy)`. `CARDINALS` is `((1, 0), (-1, 0), (0, 1), (0, -1))` — this exact order.
+  - `CARDINALS`, `DIAGONALS`, `NEIGHBOURS_8`: tuples of `(dx, dy)`. `CARDINALS` is `((1, 0), (-1, 0), (0, 1), (0, -1))` - this exact order.
   - `bfs(sources: Iterable[Pos], passable: Callable[[int, int], bool], *, max_distance: int | None = None) -> tuple[dict[Pos, int], dict[Pos, Pos | None]]` returning `(distance, parent)`.
   - `path_to(parent: dict[Pos, Pos | None], goal: Pos) -> list[Pos] | None`
   - `flood_fill_walkable(game_map, sources: list[Pos]) -> np.ndarray`
@@ -2222,7 +2222,7 @@ git commit -m "refactor(handlers): dispatch salvage, consumables and AI states f
 
 **Determinism contract:** `bfs` expands neighbours in `CARDINALS` order and never revisits a node, exactly like the four functions it replaces. Pull directions and corridor routes depend on this.
 
-- [ ] **Step 1: Write the failing tests** — `tests/test_grid.py`
+- [ ] **Step 1: Write the failing tests** - `tests/test_grid.py`
 
 ```python
 """Shared grid primitives: breadth-first search and neighbour masks."""
@@ -2449,7 +2449,7 @@ def neighbour_count(mask: np.ndarray, offsets: Iterable[Pos] = CARDINALS) -> np.
     return result
 ```
 
-Run: `pytest tests/test_grid.py -q` — Expected: 11 passed. Every expected value is worked out by hand on a grid small enough to check on paper. The neighbour-order contract is tested through its effect (`test_parent_prefers_the_first_cardinal_that_reaches_a_tile`), not by asserting the constant.
+Run: `pytest tests/test_grid.py -q` - Expected: 11 passed. Every expected value is worked out by hand on a grid small enough to check on paper. The neighbour-order contract is tested through its effect (`test_parent_prefers_the_first_cardinal_that_reaches_a_tile`), not by asserting the constant.
 
 - [ ] **Step 4: Replace the three searches in `game/environment.py`**
 
@@ -2541,8 +2541,8 @@ Import `from world.grid import DIAGONALS, NEIGHBOURS_8, neighbour_any, neighbour
 
 - [ ] **Step 7: Gates and commit**
 
-Run: `pytest tests/test_grid.py tests/test_dungeon_gen_golden.py tests/test_decompression.py tests/test_hazard_propagation.py tests/test_boarding_craft.py -q` — Expected: all pass.
-Run: `pytest -q` — Expected: all pass. Run ruff.
+Run: `pytest tests/test_grid.py tests/test_dungeon_gen_golden.py tests/test_decompression.py tests/test_hazard_propagation.py tests/test_boarding_craft.py -q` - Expected: all pass.
+Run: `pytest -q` - Expected: all pass. Run ruff.
 
 ```bash
 git add world/grid.py tests/ game/environment.py world/game_map.py world/boarding_craft.py world/dungeon_gen/hull.py
@@ -2563,7 +2563,7 @@ git commit -m "refactor(grid): share one BFS and one neighbour mask across hazar
 - `_wall_sides(room: RectRoom) -> list[list[tuple[Pos, Pos, Pos]]]` moves to `rooms.py` unchanged: north, south, west, east; each entry `(wall, outside, inside)`.
 - The three `buildings.py` functions keep their signatures and their exact RNG draws.
 
-- [ ] **Step 1: Write the characterisation tests** — `tests/test_buildings.py`
+- [ ] **Step 1: Write the characterisation tests** - `tests/test_buildings.py`
 
 These pin the current output before the rewrite, at a finer grain than the golden digest.
 
@@ -2812,11 +2812,11 @@ RNG check against the old code, in order: optional `rng.choice`, then `rng.rando
 
 - [ ] **Step 6: Gates, mutation check, commit**
 
-Run: `pytest tests/test_buildings.py tests/test_dungeon_gen_golden.py tests/test_dungeon_gen.py -q` — Expected: all pass.
+Run: `pytest tests/test_buildings.py tests/test_dungeon_gen_golden.py tests/test_dungeon_gen.py -q` - Expected: all pass.
 
 Mutation check: in the new `_subdivide_building`, change `split - 1 > lo_edge` to `split - 1 >= lo_edge`, run `pytest tests/test_buildings.py tests/test_dungeon_gen_golden.py -q`, confirm at least one failure, then undo the change.
 
-Run: `pytest -q` — Expected: all pass. Run ruff.
+Run: `pytest -q` - Expected: all pass. Run ruff.
 
 ```bash
 git add world/dungeon_gen/rooms.py world/dungeon_gen/windows.py world/dungeon_gen/buildings.py tests/test_buildings.py
@@ -2835,10 +2835,10 @@ git commit -m "refactor(buildings): write the doorway and subdivision logic once
 **Interfaces:**
 - Produces new `LocationProfile` fields:
   - `places_doors: bool = True`
-  - `has_hull: bool = False` — airlocks, hull-to-space conversion, ship cosmetics
-  - `hull_breach_chance: float = 0.0` — chance of hull breaches when `has_hull`
-  - `rock_breaches: bool = False` — asteroid-style perimeter breaches
-  - `themed_dressing: bool = False` — rooms already carry themed furnishings
+  - `has_hull: bool = False` - airlocks, hull-to-space conversion, ship cosmetics
+  - `hull_breach_chance: float = 0.0` - chance of hull breaches when `has_hull`
+  - `rock_breaches: bool = False` - asteroid-style perimeter breaches
+  - `themed_dressing: bool = False` - rooms already carry themed furnishings
 
 **RNG contract:** today `rng.random()` is drawn for hull breaches only when the location is a starbase. Keep that: draw only when `0 < hull_breach_chance < 1`.
 
@@ -2952,8 +2952,8 @@ and import `LocationProfile` alongside `get_profile`.
 
 - [ ] **Step 5: Gates and commit**
 
-Run: `pytest tests/test_loc_profiles.py tests/test_dungeon_gen_golden.py -q` — Expected: all pass.
-Run: `pytest -q` — Expected: all pass. Run ruff.
+Run: `pytest tests/test_loc_profiles.py tests/test_dungeon_gen_golden.py -q` - Expected: all pass.
+Run: `pytest -q` - Expected: all pass. Run ruff.
 
 ```bash
 git add world/loc_profiles.py world/dungeon_gen/generator.py tests/test_loc_profiles.py
@@ -2981,7 +2981,7 @@ git commit -m "refactor(dungeon_gen): choose generation steps from the location 
   - `Engine.saved_player: dict | None`
   - `GameMap.pending_decompression`, `GameMap.pull_directions`, `GameMap.fov_from(x: int, y: int, radius: int) -> np.ndarray`
 
-- [ ] **Step 1: Write the failing tests** — `tests/test_engine_api.py`
+- [ ] **Step 1: Write the failing tests** - `tests/test_engine_api.py`
 
 ```python
 """The engine and map expose what other modules need, so nothing reaches into privates."""
@@ -3159,7 +3159,7 @@ In `game/ai.py` `_can_see_player`, replace everything after the `chebyshev` rang
 git grep -lE '_saved_player\b|_pending_decompression|_pull_directions' -- '*.py' | xargs sed -i -b -E 's/\b(engine|self|e|e2|loaded|new_engine|reloaded)\._saved_player\b/\1.saved_player/g; s/"_saved_player"/"saved_player"/g; s/\._pending_decompression\b/.pending_decompression/g; s/\._pull_directions\b/.pull_directions/g'
 ```
 
-Verify: `git grep -nE '\._saved_player\b|_pending_decompression|_pull_directions' -- '*.py'` — Expected: no output. Any remaining hit is a receiver name the pattern did not list; rename it by hand. (`_saved_player_to_dict` and `_saved_player_from_dict` in `web/save_load.py` are function names and must stay.)
+Verify: `git grep -nE '\._saved_player\b|_pending_decompression|_pull_directions' -- '*.py'` - Expected: no output. Any remaining hit is a receiver name the pattern did not list; rename it by hand. (`_saved_player_to_dict` and `_saved_player_from_dict` in `web/save_load.py` are function names and must stay.)
 
 Then replace the stack reach-ins:
 
@@ -3180,8 +3180,8 @@ Expected: no output.
 
 - [ ] **Step 7: Full gate and commit**
 
-Run: `pytest tests/test_engine_api.py -q` — Expected: 5 passed.
-Run: `pytest -q` — Expected: all pass. Run ruff.
+Run: `pytest tests/test_engine_api.py -q` - Expected: 5 passed.
+Run: `pytest -q` - Expected: all pass. Run ruff.
 
 ```bash
 git add -A engine game ui world web tests

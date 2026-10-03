@@ -11,8 +11,8 @@ def serialize_delta(
 ) -> tuple[list[list[int]], np.ndarray]:
     """Return (changed_tiles, snapshot) where each tile is [x, y, ch, fr, fg, fb, br, bg, bb].
 
-    On the first call pass prev_tiles=None — all cells are returned.
-    On subsequent calls pass the snapshot returned by the previous call — only
+    On the first call pass prev_tiles=None - all cells are returned.
+    On subsequent calls pass the snapshot returned by the previous call - only
     cells that changed since then are returned.
     """
     rgb = console.rgb  # shape (W, H), F-order, fields: ch (int32), fg (rgb uint8), bg (rgb uint8)

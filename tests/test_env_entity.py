@@ -83,7 +83,7 @@ class TestEnvironmentEntityDamage:
         """Vacuum is a spatial hazard; no overlay means no effect."""
         engine, creature = _env_engine({"vacuum": 1})
         engine.game_map._hazards_dirty = False
-        # No overlay set — spatial hazard should not fall back to global
+        # No overlay set - spatial hazard should not fall back to global
         hp_before = creature.fighter.hp
         apply_environment_tick_entity(engine, creature)
         assert creature.fighter.hp == hp_before

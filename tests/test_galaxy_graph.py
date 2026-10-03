@@ -184,7 +184,7 @@ class TestGalaxyGraph:
         home_name = g.home_system
         neighbor_name = next(iter(g.systems[home_name].connections))
         g.arrive_at(neighbor_name)
-        # Revisit home — should skip _assign_depths but depths stay correct
+        # Revisit home - should skip _assign_depths but depths stay correct
         g.arrive_at(home_name)
         # Verify depths via manual BFS
         distances = {home_name: 0}

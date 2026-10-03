@@ -1,4 +1,4 @@
-"""Tests for web/db.py — async SQLite helpers."""
+"""Tests for web/db.py - async SQLite helpers."""
 
 from pathlib import Path
 

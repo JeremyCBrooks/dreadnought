@@ -270,7 +270,7 @@ class StrategicState(State):
                     dest_name = conn_map[direction]
                     cost = self.galaxy.travel_cost(dest_name)
                     # A hard-docked ship can only leave by tearing free, so ask
-                    # first. Drift (fuel=0 path) tears free unasked — see _drift().
+                    # first. Drift (fuel=0 path) tears free unasked - see _drift().
                     if engine.ship.fuel > 0 and engine.ship.fuel >= cost:
                         active = current_interdiction(engine)
                         if active is not None and not active.resolved:

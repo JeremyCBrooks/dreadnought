@@ -95,7 +95,7 @@ async def login(request: Request, body: dict, response: Response):
     password = str(body.get("password", ""))
 
     user = await db.get_user_by_name(username)
-    # Always run bcrypt — if the user is missing, check against a dummy hash so
+    # Always run bcrypt - if the user is missing, check against a dummy hash so
     # response time does not reveal whether the username exists.
     pw_hash = user["pw_hash"] if user is not None else _DUMMY_HASH
     # An over-long password can match no account (register refuses them), but
@@ -185,7 +185,7 @@ async def end_game(session_token: str | None = Cookie(default=None)):
         if session._gather_task is not None and not session._gather_task.done():
             session._gather_task.cancel()
             # Await the cancellation so the websocket's finally block runs
-            # (and calls game_manager.unregister) before we return — otherwise
+            # (and calls game_manager.unregister) before we return - otherwise
             # an immediate /api/new-game sees a stale active session and 409s.
             try:
                 await session._gather_task
@@ -194,7 +194,7 @@ async def end_game(session_token: str | None = Cookie(default=None)):
         else:
             # Task already done (player disconnected before End Game was clicked).
             # The websocket's finally block already ran with force_end=False, so
-            # game_manager.unregister was never called — do it explicitly now.
+            # game_manager.unregister was never called - do it explicitly now.
             game_manager.unregister(user["username"])
 
         if treat_as_death:

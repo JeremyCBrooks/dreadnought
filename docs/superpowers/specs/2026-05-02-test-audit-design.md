@@ -8,8 +8,8 @@
 ## Context
 
 The suite has 1,778 tests running in ~388 seconds. Two files account for ~45% of total runtime:
-- `tests/test_dreadnought_spawn.py` — 10 tests × ~13–30s each = ~140s (36%)
-- `tests/test_dungeon_gen.py` — 2 × 200-seed loops = ~35s (9%)
+- `tests/test_dreadnought_spawn.py` - 10 tests × ~13–30s each = ~140s (36%)
+- `tests/test_dungeon_gen.py` - 2 × 200-seed loops = ~35s (9%)
 
 The remaining 1,754 tests across 103 files run in ~175s total and are generally fast.
 
@@ -23,7 +23,7 @@ Fix the known slow tests first. For performative tests, run fast pattern scans a
 
 ## Part 1: Slow Test Fixes
 
-### Fix 1 — Share expanded galaxy across `TestSpawnDreadnought` (~130s savings)
+### Fix 1 - Share expanded galaxy across `TestSpawnDreadnought` (~130s savings)
 
 **File:** `tests/test_dreadnought_spawn.py`
 
@@ -31,7 +31,7 @@ All 10 tests in `TestSpawnDreadnought` call a local `_expand_all(galaxy)` functi
 
 **Expected result:** 10 tests share one galaxy build instead of 10. Runtime for the class drops from ~140s to ~14s.
 
-### Fix 2 — Investigate and possibly reduce 200-seed dungeon loops (~35s)
+### Fix 2 - Investigate and possibly reduce 200-seed dungeon loops (~35s)
 
 **File:** `tests/test_dungeon_gen.py`
 
@@ -50,16 +50,16 @@ Run grep/AST scans across all 105 test files to flag candidates. Then read each 
 
 | Anti-pattern | What to scan for | Action |
 |---|---|---|
-| **Trivial assertion** | `assert True`, `assert x == x`, `assert len(x) >= 0` | Remove — can never fail |
+| **Trivial assertion** | `assert True`, `assert x == x`, `assert len(x) >= 0` | Remove - can never fail |
 | **Testing the default** | Assert value equals the literal passed into constructor on the same line | Remove if no real behavior is tested |
 | **Pure mock test** | Test body contains only `Mock()`/`MagicMock()` with no real game objects | Remove if no real code path runs |
 | **Duplicate scenario** | Two tests with identical setup differing only in one assertion already covered elsewhere | Merge or remove the duplicate |
-| **Dead import test** | `import X; assert X` or `from X import Y; assert Y is not None` | Remove — validates nothing |
+| **Dead import test** | `import X; assert X` or `from X import Y; assert Y is not None` | Remove - validates nothing |
 
 ### What NOT to Remove
 
 - Tests that look trivial but catch a specific regression (check git blame / commit message)
-- Tests that are slow but correct (bcrypt in auth — intentionally expensive)
+- Tests that are slow but correct (bcrypt in auth - intentionally expensive)
 - Tests that seem redundant but cover genuinely separate failure modes
 - Any test with a comment explaining why it exists
 
@@ -68,7 +68,7 @@ Run grep/AST scans across all 105 test files to flag candidates. Then read each 
 For each flagged candidate:
 1. Read the full test and its surrounding tests for context
 2. Check if the assertion could ever fail given valid inputs
-3. Check git blame — was this added to catch a specific bug?
+3. Check git blame - was this added to catch a specific bug?
 4. If the test provides zero additional coverage: delete it
 5. If uncertain: keep it
 

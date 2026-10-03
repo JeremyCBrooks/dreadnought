@@ -1,4 +1,4 @@
-"""Tests for engine.rng — deterministic per-turn RNG used for save-load determinism."""
+"""Tests for engine.rng - deterministic per-turn RNG used for save-load determinism."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def test_rng_works_without_galaxy():
 
 def test_rng_consecutive_calls_same_turn_same_salt_are_identical():
     """Two calls with the same (seed, turn, salt) are independent Random instances
-    seeded the same way — first draw is identical (and that's by design)."""
+    seeded the same way - first draw is identical (and that's by design)."""
     engine = _engine_with_seed(5)
     engine.turn_counter = 3
     a = engine.rng("steal").random()
@@ -136,7 +136,7 @@ def test_steal_action_deterministic_under_same_engine_state():
     e2, t2, p2 = _setup()
 
     # Force the chance to succeed by retrying turns until one works,
-    # but in lockstep — both engines should land on the same outcome.
+    # but in lockstep - both engines should land on the same outcome.
     for turn in range(50):
         e1.turn_counter = turn
         e2.turn_counter = turn
@@ -146,7 +146,7 @@ def test_steal_action_deterministic_under_same_engine_state():
         _try_steal(e1, t1, p1)
         _try_steal(e2, t2, p2)
 
-        # Steal happened iff inventory shrank — must happen on same turn for both
+        # Steal happened iff inventory shrank - must happen on same turn for both
         assert (len(p1.inventory) < len(before1)) == (len(p2.inventory) < len(before2))
 
         if t1.stolen_loot or t2.stolen_loot:

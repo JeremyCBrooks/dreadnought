@@ -128,7 +128,7 @@ def _carve_winding_tunnel(
                 cy += rng.choice([-1, 1])
             else:
                 cx += rng.choice([-1, 1])
-        # else: 10% pause — no move
+        # else: 10% pause - no move
 
         # 15% chance to carve a 3x3 alcove
         if rng.random() < 0.15:

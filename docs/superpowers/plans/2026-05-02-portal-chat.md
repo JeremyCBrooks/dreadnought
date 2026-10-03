@@ -23,7 +23,7 @@
 | `tests/test_chat_api.py` | Create | API endpoint tests with TestClient |
 | `tests/test_chat_cleanup.py` | Create | Retention cleanup test |
 
-Tests live flat under `tests/` to match the existing project layout (`tests/test_auth.py`, `tests/test_rate_limit.py`, etc.) — no `tests/web/` subdir.
+Tests live flat under `tests/` to match the existing project layout (`tests/test_auth.py`, `tests/test_rate_limit.py`, etc.) - no `tests/web/` subdir.
 
 ---
 
@@ -177,7 +177,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE INDEX IF NOT EXISTS idx_chat_created_at ON chat_messages(created_at);
 ```
 
-Note: no `REFERENCES users(id)` — we want history to survive user deletion.
+Note: no `REFERENCES users(id)` - we want history to survive user deletion.
 
 Append these functions to the end of `web/db.py`:
 
@@ -319,7 +319,7 @@ def test_get_chat_authed_empty_returns_empty_list(client):
 pytest tests/test_chat_api.py -v
 ```
 
-Expected: import error (`web.chat` doesn't exist) — that's a collection failure, fine.
+Expected: import error (`web.chat` doesn't exist) - that's a collection failure, fine.
 
 - [ ] **Step 3: Create `web/chat.py` skeleton**
 
@@ -341,7 +341,7 @@ _USER_RATE_WINDOW_SEC = 30.0
 _USER_RATE_MAX = 5
 _HISTORY_LIMIT = 50
 
-# In-memory state — resets on server restart. That's fine: at worst an attacker
+# In-memory state - resets on server restart. That's fine: at worst an attacker
 # gets one extra burst of _USER_RATE_MAX after a restart, and slowapi's IP limit
 # still applies.
 _user_buckets: dict[int, deque[float]] = defaultdict(deque)
@@ -656,7 +656,7 @@ async def post_chat(body: dict, session_token: str | None = Cookie(default=None)
         raise HTTPException(400, err)
 
     if not _check_user_rate(user["id"]):
-        raise HTTPException(429, "Slow down — too many messages")
+        raise HTTPException(429, "Slow down - too many messages")
 
     if cleaned == _last_body_by_user.get(user["id"]):
         raise HTTPException(400, "Duplicate message")
@@ -736,7 +736,7 @@ def test_post_chat_ip_rate_limit(client):
 pytest tests/test_chat_api.py::test_post_chat_ip_rate_limit -v
 ```
 
-Expected: FAIL — no IP limit yet, all 12 POSTs accepted.
+Expected: FAIL - no IP limit yet, all 12 POSTs accepted.
 
 - [ ] **Step 3: Apply slowapi decorator to POST handler**
 
@@ -757,7 +757,7 @@ async def post_chat(request: Request, body: dict, session_token: str | None = Co
         raise HTTPException(400, err)
 
     if not _check_user_rate(user["id"]):
-        raise HTTPException(429, "Slow down — too many messages")
+        raise HTTPException(429, "Slow down - too many messages")
 
     if cleaned == _last_body_by_user.get(user["id"]):
         raise HTTPException(400, "Duplicate message")
@@ -777,7 +777,7 @@ pytest tests/test_chat_api.py -v
 
 Expected: 16 passed.
 
-If `test_post_chat_user_rate_limit` now flakes because slowapi's IP limit also resets between tests via the `_reset_rate_limiter` autouse fixture in `tests/conftest.py` — confirm `limiter.reset()` is being called. (It already is for `web.auth.limiter`, which is the same shared limiter.)
+If `test_post_chat_user_rate_limit` now flakes because slowapi's IP limit also resets between tests via the `_reset_rate_limiter` autouse fixture in `tests/conftest.py` - confirm `limiter.reset()` is being called. (It already is for `web.auth.limiter`, which is the same shared limiter.)
 
 - [ ] **Step 5: Run ruff**
 
@@ -1238,10 +1238,10 @@ async function sendChat(e) {
   try {
     r = await api("POST", "/api/chat", { body });
   } catch (_err) {
-    showChatError("Send failed — try again");
+    showChatError("Send failed - try again");
     return;
   }
-  if (!r) return;  // 401 — api() already redirected
+  if (!r) return;  // 401 - api() already redirected
   if (r.ok) {
     input.value = "";
     updateChatCount();
@@ -1320,7 +1320,7 @@ In one browser:
 2. Confirm chat sidebar shows "No messages yet".
 3. Type "hello" → press Enter. Within ≤5 s (or immediately, since `sendChat` calls `refreshChat()`) the message appears with timestamp, username "alice", and the textarea clears.
 4. Type the same "hello" → press Enter. Confirm "Duplicate message" appears in `#chat-error` for ~5 s.
-5. Send 5 distinct messages quickly. The 6th attempt within 30 s should show "Slow down — too many messages".
+5. Send 5 distinct messages quickly. The 6th attempt within 30 s should show "Slow down - too many messages".
 6. Type 281 characters (paste a long string). Server returns "Message too long".
 7. Live counter shows correct char count and turns red at 260+.
 
@@ -1340,7 +1340,7 @@ git commit -m "feat(chat): client-side polling, send, counter, error display"
 
 ## Task 9: Full test suite + lint sweep
 
-**Files:** none modified — verification only.
+**Files:** none modified - verification only.
 
 - [ ] **Step 1: Run the full chat test suite**
 
@@ -1357,8 +1357,8 @@ pytest
 ```
 
 Expected: all tests pass; chat tests don't break existing auth/server/rate-limit tests. Pay attention to:
-- `test_rate_limit.py` — the autouse `_reset_rate_limiter` fixture in `conftest.py` should keep slowapi state isolated.
-- `test_auth.py` — should not be affected (router is independent).
+- `test_rate_limit.py` - the autouse `_reset_rate_limiter` fixture in `conftest.py` should keep slowapi state isolated.
+- `test_auth.py` - should not be affected (router is independent).
 
 If any pre-existing test breaks, the most likely cause is the new `chat_router` raising at import; check that `web/chat.py` imports cleanly.
 
@@ -1385,16 +1385,16 @@ git commit -m "chore(chat): ruff format pass"
 ## Self-Review Notes
 
 **Spec coverage:**
-- ✅ Schema, denormalized username, indexes — Task 1.
-- ✅ `_scrub` with `(cleaned, error)` tuple — Task 3.
-- ✅ Per-user rate (5/30 s sliding window) — Task 4.
-- ✅ Per-IP rate (10/min via slowapi) — Task 5.
-- ✅ Duplicate guard against immediately-previous scrubbed body — Task 4.
-- ✅ Last-50 GET, since-id GET — Task 1 (DB) + Task 2 (endpoint).
-- ✅ 30-day retention, 24 h cleanup loop — Task 6.
-- ✅ Right sidebar layout, scrollable log, textarea + counter, mobile fallback — Task 7.
-- ✅ Polling on existing 5 s interval, immediate self-pull after send, scroll-pin behaviour — Task 8.
-- ✅ XSS via `escHtml` (extended to cover quotes) — Task 8.
+- ✅ Schema, denormalized username, indexes - Task 1.
+- ✅ `_scrub` with `(cleaned, error)` tuple - Task 3.
+- ✅ Per-user rate (5/30 s sliding window) - Task 4.
+- ✅ Per-IP rate (10/min via slowapi) - Task 5.
+- ✅ Duplicate guard against immediately-previous scrubbed body - Task 4.
+- ✅ Last-50 GET, since-id GET - Task 1 (DB) + Task 2 (endpoint).
+- ✅ 30-day retention, 24 h cleanup loop - Task 6.
+- ✅ Right sidebar layout, scrollable log, textarea + counter, mobile fallback - Task 7.
+- ✅ Polling on existing 5 s interval, immediate self-pull after send, scroll-pin behaviour - Task 8.
+- ✅ XSS via `escHtml` (extended to cover quotes) - Task 8.
 - ✅ All constants from spec match (280, 5, 30, 50, 30 days, 10/min).
 
 **Type/name consistency:**

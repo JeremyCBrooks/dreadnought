@@ -85,7 +85,7 @@ class TestFloodFill:
         overlay = gm.hazard_overlays["vacuum"]
         # Breach is vacuum source
         assert overlay[4, 3]
-        # Open door lets vacuum through — interior should be flooded
+        # Open door lets vacuum through - interior should be flooded
         assert overlay[1, 1]
         assert overlay[2, 2]
 
@@ -128,7 +128,7 @@ class TestFloodFill:
         ]
         gm = _make_map(layout)
         gm.recalculate_hazards()
-        # No vacuum sources — overlay removed
+        # No vacuum sources - overlay removed
         assert "vacuum" not in gm.hazard_overlays
 
 
@@ -175,7 +175,7 @@ class TestDirtyFlag:
         ]
         gm = _make_map(layout)
         gm.recalculate_hazards()
-        # Door is closed — floor at (1,1) should be safe
+        # Door is closed - floor at (1,1) should be safe
         assert not gm.hazard_overlays["vacuum"][1, 1]
 
         # Open the door
@@ -203,7 +203,7 @@ class TestPlayerHazardTick:
         suit = Suit("Empty", {"vacuum": 0})
         engine = _make_engine(gm, 1, 1, env={"vacuum": 1}, suit=suit)
         gm.recalculate_hazards()
-        # Player at (1,1) — vacuum has flooded through open hull breach
+        # Player at (1,1) - vacuum has flooded through open hull breach
         assert gm.hazard_overlays["vacuum"][1, 1]
         apply_environment_tick(engine)
         assert engine.player.fighter.hp < 10
@@ -339,7 +339,7 @@ class TestEnemyHazardTick:
 
     def test_rat_takes_damage_through_open_passage(self):
         """Rat in a room connected to breach via open passage (no door) takes
-        vacuum damage — vacuum spreads through doorless connections.
+        vacuum damage - vacuum spreads through doorless connections.
 
         This is the most likely explanation for 'rats dying behind closed
         doors': they're actually reachable via an open passage elsewhere.
@@ -423,7 +423,7 @@ class TestEnemyHazardTick:
 
 class TestLowGravityGlobal:
     def test_low_gravity_unaffected_by_per_tile(self):
-        """low_gravity is in GLOBAL_HAZARDS and NON_DAMAGING — unaffected by overlays."""
+        """low_gravity is in GLOBAL_HAZARDS and NON_DAMAGING - unaffected by overlays."""
         from game.environment import GLOBAL_HAZARDS, NON_DAMAGING_HAZARDS
 
         assert "low_gravity" in GLOBAL_HAZARDS
@@ -646,5 +646,5 @@ class TestSuitPoolDrain:
         engine = _make_engine(gm, 1, 1, env={"vacuum": 1}, suit=suit)
         gm.recalculate_hazards()
         apply_environment_tick(engine)
-        assert suit.current_pools["vacuum"] == 10  # no drain — sealed room
+        assert suit.current_pools["vacuum"] == 10  # no drain - sealed room
         assert engine.player.fighter.hp == 10

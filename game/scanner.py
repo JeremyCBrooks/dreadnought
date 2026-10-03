@@ -252,7 +252,7 @@ def _collect_visible_hazard_sources(engine: Engine, px: int, py: int) -> list[Ne
             dist = _chebyshev(px, py, bx, by)
             results.append(NearbyEntry(bx, by, dist, "hazard", "X", HAZARD_ENV_DAMAGE, "Hull breach"))
 
-    # Open exterior airlock doors — use airlocks list instead of scanning all tiles
+    # Open exterior airlock doors - use airlocks list instead of scanning all tiles
     ext_open_tid = int(tile_types.airlock_ext_open["tile_id"])
     for al in gm.airlocks:
         dx, dy = al["exterior_door"]
@@ -339,7 +339,7 @@ def build_nearby_entries(engine: Engine) -> list[NearbyEntry]:
             if cur_dist == 0:
                 continue
             if se.category == "hazard":
-                # Env hazard from scan — add if no visible hazard at same position
+                # Env hazard from scan - add if no visible hazard at same position
                 pos_key = (se.x, se.y)
                 if pos_key not in seen_hazard_positions:
                     entries.append(

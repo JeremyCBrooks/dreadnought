@@ -98,7 +98,7 @@ def test_dot_from_data():
 
 
 def test_no_dot_when_zero():
-    """Trigger a hazard with dot: 0 — no effect should be added."""
+    """Trigger a hazard with dot: 0 - no effect should be added."""
     engine = _make_engine()
     hazard = {"type": "electric", "damage": 2, "equipment_damage": False, "dot": 0, "duration": 0}
     trigger_hazard(engine, hazard, "Console")
@@ -112,7 +112,7 @@ def test_infinite_duration():
     trigger_hazard(engine, hazard, "Reactor")
     assert len(engine.active_effects) == 1
     assert engine.active_effects[0]["remaining"] == -1
-    # Tick several times — effect should persist
+    # Tick several times - effect should persist
     for i in range(5):
         apply_dot_effects(engine)
     assert len(engine.active_effects) == 1
@@ -214,7 +214,7 @@ def test_equipment_damage_inventory_fallback_skips_zero_durability():
     force_rng(engine, 0.1)
 
     _apply_equipment_damage(engine, engine.player)
-    assert broken.item["durability"] == 0  # unchanged — no candidates
+    assert broken.item["durability"] == 0  # unchanged - no candidates
 
 
 def test_equipment_damage_is_data_driven():

@@ -225,7 +225,7 @@ class TestEvKeydownRouting:
         old_x, _old_y = engine.player.x, engine.player.y
         result = state.ev_key(engine, FakeEvent(_sym("RIGHT")))
         assert result is True
-        # Should NOT have moved — drifting blocks movement
+        # Should NOT have moved - drifting blocks movement
         assert engine.player.x == old_x
 
     def test_look_mode_entered(self):

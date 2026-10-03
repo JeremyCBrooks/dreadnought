@@ -1,4 +1,4 @@
-"""Tests for Ship cargo sync methods (Task 1 — Explore Ship feature)."""
+"""Tests for Ship cargo sync methods (Task 1 - Explore Ship feature)."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from world.dungeon_gen import RectRoom
 
 def make_cargo_room(cx: int = 4, cy: int = 4) -> RectRoom:
     """Return a RectRoom labelled 'cargo' whose center is (cx, cy)."""
-    # RectRoom(x, y, width, height) — center = (x1+x2)//2, (y1+y2)//2
+    # RectRoom(x, y, width, height) - center = (x1+x2)//2, (y1+y2)//2
     # x1=cx-1, x2=cx+1 → center_x = cx; same for y
     return RectRoom(cx - 1, cy - 1, 2, 2, label="cargo")
 
@@ -44,7 +44,7 @@ def test_ship_initial_game_map_is_none():
 
 
 # ---------------------------------------------------------------------------
-# 2-4. materialize_cargo — happy path
+# 2-4. materialize_cargo - happy path
 # ---------------------------------------------------------------------------
 
 
@@ -82,7 +82,7 @@ def test_materialize_cargo_overflow():
     # has at most ~4 walkable tiles (border walls cut it down).  We put 10 items so
     # the full-map fallback path is definitely exercised.
     gm = make_arena(10, 10)
-    # Room centred at (1,1) — only tiles (1,1),(2,1),(1,2),(2,2) are walkable in 3x3
+    # Room centred at (1,1) - only tiles (1,1),(2,1),(1,2),(2,2) are walkable in 3x3
     cargo_room = make_cargo_room(cx=1, cy=1)
     ship = Ship()
     for i in range(10):
@@ -124,12 +124,12 @@ def test_materialize_cargo_partial_on_full_map():
     for e in placed:
         assert gm.is_walkable(e.x, e.y)
 
-    # Remaining 2 items are still in cargo — not lost
+    # Remaining 2 items are still in cargo - not lost
     assert len(ship.cargo) == 2
 
 
 # ---------------------------------------------------------------------------
-# 5. materialize_cargo — empty cargo is a no-op
+# 5. materialize_cargo - empty cargo is a no-op
 # ---------------------------------------------------------------------------
 
 
@@ -145,7 +145,7 @@ def test_materialize_cargo_empty_cargo_noop():
 
 
 # ---------------------------------------------------------------------------
-# 6. materialize_cargo — empty rooms list → return early
+# 6. materialize_cargo - empty rooms list → return early
 # ---------------------------------------------------------------------------
 
 
@@ -163,7 +163,7 @@ def test_materialize_cargo_no_rooms_noop():
 
 
 # ---------------------------------------------------------------------------
-# 7. materialize_cargo — falls back to rooms[0] when no "cargo" label
+# 7. materialize_cargo - falls back to rooms[0] when no "cargo" label
 # ---------------------------------------------------------------------------
 
 
@@ -182,7 +182,7 @@ def test_materialize_cargo_falls_back_to_first_room():
 
 
 # ---------------------------------------------------------------------------
-# 8-9. collect_floor_items — happy path
+# 8-9. collect_floor_items - happy path
 # ---------------------------------------------------------------------------
 
 
@@ -216,7 +216,7 @@ def test_collect_floor_items_clears_from_map():
 
 
 # ---------------------------------------------------------------------------
-# 10. collect_floor_items — ignores decorations (item=None)
+# 10. collect_floor_items - ignores decorations (item=None)
 # ---------------------------------------------------------------------------
 
 
@@ -234,7 +234,7 @@ def test_collect_floor_items_ignores_non_items():
 
 
 # ---------------------------------------------------------------------------
-# 11. collect_floor_items — ignores blocking entities
+# 11. collect_floor_items - ignores blocking entities
 # ---------------------------------------------------------------------------
 
 
@@ -252,7 +252,7 @@ def test_collect_floor_items_ignores_player():
 
 
 # ---------------------------------------------------------------------------
-# 12. collect_floor_items — empty map
+# 12. collect_floor_items - empty map
 # ---------------------------------------------------------------------------
 
 
@@ -266,7 +266,7 @@ def test_collect_floor_items_empty_map():
 
 
 # ---------------------------------------------------------------------------
-# Task 2: generate_player_ship() — 7 tests
+# Task 2: generate_player_ship() - 7 tests
 # ---------------------------------------------------------------------------
 
 
@@ -330,7 +330,7 @@ def test_generate_player_ship_deterministic():
 
 
 # ---------------------------------------------------------------------------
-# Task 3: TacticalState explore_ship mode — 10 tests
+# Task 3: TacticalState explore_ship mode - 10 tests
 # ---------------------------------------------------------------------------
 
 

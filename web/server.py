@@ -1,4 +1,4 @@
-"""FastAPI server — authenticated WebSocket game sessions with watch mode."""
+"""FastAPI server - authenticated WebSocket game sessions with watch mode."""
 
 from __future__ import annotations
 
@@ -119,7 +119,7 @@ async def game_session(ws: WebSocket) -> None:
     existing = game_manager.get(username)
     if existing is not None:
         if existing.connected:
-            # Genuine duplicate — already playing.
+            # Genuine duplicate - already playing.
             await ws.close(code=1008)
             return
         # Reconnect: reuse the in-memory engine.

@@ -87,7 +87,7 @@ function loadTileset(onReady) {
     onReady();
   };
   img.onerror = () => {
-    status.textContent = "Failed to load tileset — rendering in fallback mode";
+    status.textContent = "Failed to load tileset - rendering in fallback mode";
     onReady(); // continue without tileset
   };
   img.src = "/tileset.png";
@@ -114,7 +114,7 @@ function drawTile(x, y, ch, fr, fg, fb, br, bg, bb) {
   ctx.fillStyle = `rgb(${br},${bg},${bb})`;
   ctx.fillRect(px, py, GLYPH_W, GLYPH_H);
 
-  // Glyph — skip blank/space characters
+  // Glyph - skip blank/space characters
   if (ch <= 32) return;
 
   const tile = TILE_FOR_CODEPOINT.get(ch) ?? ch;
@@ -202,7 +202,7 @@ function connect() {
   };
 
   ws.onclose = () => {
-    status.textContent = "Disconnected — reload to reconnect";
+    status.textContent = "Disconnected - reload to reconnect";
   };
 
   ws.onerror = () => {

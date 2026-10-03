@@ -248,7 +248,7 @@ class TestNoFalseO2Drain:
 
     def test_non_spatial_hazard_still_applies_globally(self):
         """Hazards like radiation (not in SPATIAL_HAZARDS) still apply
-        without an overlay — they are inherently global."""
+        without an overlay - they are inherently global."""
         suit = Suit("EVA", {"radiation": 5})
         engine = self._make_engine(env={"radiation": 1}, suit=suit)
         for _ in range(Suit.DRAIN_INTERVAL):

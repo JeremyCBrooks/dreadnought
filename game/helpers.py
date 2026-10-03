@@ -115,7 +115,7 @@ def get_door_tile_ids() -> tuple[int, int]:
 def has_clear_shot(game_map: GameMap, x1: int, y1: int, x2: int, y2: int) -> bool:
     """Return True if no non-walkable tile lies between (x1,y1) and (x2,y2).
 
-    Uses Bresenham's line algorithm.  Only *intermediate* tiles are checked —
+    Uses Bresenham's line algorithm.  Only *intermediate* tiles are checked -
     the start and end positions are excluded so that the shooter's and
     target's own tiles don't block the shot.
     """
@@ -185,7 +185,7 @@ def recalc_melee_power_ai(entity: Entity) -> None:
 def is_diagonal_blocked(game_map: GameMap, x: int, y: int, dx: int, dy: int) -> bool:
     """Return True if diagonal movement from (x,y) by (dx,dy) is blocked by a closed door.
 
-    Only closed doors block diagonal movement — walls do not, so players
+    Only closed doors block diagonal movement - walls do not, so players
     and creatures can still squeeze past wall corners as normal.
     """
     if dx == 0 or dy == 0:

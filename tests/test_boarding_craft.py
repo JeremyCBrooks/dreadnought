@@ -97,7 +97,7 @@ def test_compose_creates_composite_with_both_ships():
 
 def test_compose_corridor_is_walkable_and_airtight():
     """Every corridor tile is walkable AND every adjacent non-corridor cell is
-    either a wall or a (pre-existing) ship tile — never raw vacuum."""
+    either a wall or a (pre-existing) ship tile - never raw vacuum."""
     pgm, prooms, pexit, rgm, rrooms, pair, layout = _real_ship_pair_that_composes(42)
     cm = layout.composite_map
     space_tid = int(tile_types.space["tile_id"])
@@ -111,7 +111,7 @@ def test_compose_corridor_is_walkable_and_airtight():
             if not cm.in_bounds(nx, ny):
                 continue
             tid = int(cm.tiles["tile_id"][nx, ny])
-            # Adjacent tile must NOT be raw space — that would mean a vacuum leak.
+            # Adjacent tile must NOT be raw space - that would mean a vacuum leak.
             assert tid != space_tid, f"corridor tile {(x, y)} leaks vacuum at {(nx, ny)}"
 
 
@@ -143,7 +143,7 @@ def test_compose_corridor_at_least_gap_long():
 
 
 def test_compose_path_walkable_from_player_to_pirate_airlock():
-    """The corridor path connects the two airlocks — every tile walkable."""
+    """The corridor path connects the two airlocks - every tile walkable."""
     pgm, prooms, pexit, rgm, rrooms, pair, layout = _real_ship_pair_that_composes(42)
     cm = layout.composite_map
     assert cm.is_walkable(*layout.player_airlock_pos)
@@ -201,7 +201,7 @@ def test_compose_merges_pirate_entities_into_composite():
 def test_compose_merges_non_connecting_airlocks_into_composite():
     """Composite has both ships' airlocks (translated), EXCEPT the two connecting
     ones used for the corridor. The connecting airlocks are fused permanently
-    open — leaving their switches active would let the player flip one and
+    open - leaving their switches active would let the player flip one and
     open it as a vacuum source flooding both ships through the corridor."""
     pgm, prooms, pexit, rgm, rrooms, pair, layout = _real_ship_pair_that_composes(42)
     cm = layout.composite_map
@@ -269,7 +269,7 @@ def test_flipping_connecting_airlock_switch_is_a_no_op():
 
 
 def test_composite_has_no_vacuum_sources_in_corridor():
-    """The corridor must NOT introduce vacuum sources — the player ship is
+    """The corridor must NOT introduce vacuum sources - the player ship is
     pressurized and any open airlock_ext_open would flood-fill vacuum
     through the corridor into both ship interiors."""
     pgm, prooms, pexit, rgm, rrooms, pair, layout = _real_ship_pair_that_composes(42)

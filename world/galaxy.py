@@ -288,7 +288,7 @@ class Galaxy:
         """
         changed = self._expand_frontier(system_name)
         if not self._unexplored_frontier:
-            # Graph would close — force at least one new exit from this system
+            # Graph would close - force at least one new exit from this system
             self._generated_frontiers.discard(system_name)
             changed = (
                 self._expand_frontier(system_name, min_exits=len(self.systems[system_name].connections) + 1) or changed
@@ -386,9 +386,9 @@ class Galaxy:
         system.connections[parent.name] = fuel
         parent.connections[name] = fuel
 
-        # Dead end — won't expand further
+        # Dead end - won't expand further
         self._generated_frontiers.add(name)
-        # Unexplored frontier — travel cost 2
+        # Unexplored frontier - travel cost 2
         self._unexplored_frontier.add(name)
 
         self._assign_depths()

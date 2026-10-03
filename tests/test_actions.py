@@ -212,5 +212,5 @@ def test_door_blocks_movement():
 
 
 def test_door_blocks_fov():
-    """Closed door is not transparent — blocks FOV."""
+    """Closed door is not transparent - blocks FOV."""
     assert not bool(tile_types.door_closed["transparent"])

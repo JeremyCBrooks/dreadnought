@@ -80,7 +80,7 @@ def test_drop_skips_adjacent_tiles_with_items():
 def test_drop_skips_unwalkable_adjacent_tiles():
     """Adjacent wall tiles are not valid drop targets."""
     gm = make_arena()
-    # Put player at corner: (1,1) — walls on three sides
+    # Put player at corner: (1,1) - walls on three sides
     p = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
     # Place an item on (1,1) so it tries adjacent tiles
     existing = Entity(x=1, y=1, name="Junk", blocks_movement=False, item={"type": "heal", "value": 1})
@@ -96,7 +96,7 @@ def test_drop_skips_unwalkable_adjacent_tiles():
 def test_drop_fails_when_no_valid_tile():
     """Cannot drop if player tile and all adjacent walkable tiles have items."""
     gm = make_arena()
-    # Player at (1,1) — only 3 walkable neighbors: (2,1), (1,2), (2,2)
+    # Player at (1,1) - only 3 walkable neighbors: (2,1), (1,2), (2,2)
     p = Entity(x=1, y=1, name="Player", fighter=Fighter(10, 10, 0, 1))
     # Fill player tile and all walkable adjacent tiles
     occupied_positions = [(1, 1), (2, 1), (1, 2), (2, 2)]

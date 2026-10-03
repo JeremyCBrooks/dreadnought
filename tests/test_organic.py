@@ -366,7 +366,7 @@ class TestLowGravityEnergyEdgeCases:
         # Actually: turn 1 gains 2, energy=2, can't move. Turn 2 gains 2, energy=4, moves.
         rat.ai.perform(rat, engine)
 
-        # Remove low gravity — energy should accumulate at full speed now
+        # Remove low gravity - energy should accumulate at full speed now
         engine.environment = {}
         old_x, old_y = rat.x, rat.y
         rat.ai.perform(rat, engine)  # gains 4, can move

@@ -446,7 +446,7 @@ def test_player_blocked_shot_still_warns():
     consumed = RangedAction(enemy).perform(engine, player)
 
     assert consumed == 0
-    assert _messages(engine) == ["No clear shot — path blocked."]
+    assert _messages(engine) == ["No clear shot - path blocked."]
 
 
 def test_ranged_enemy_behind_glass_walks_round_instead_of_freezing():
@@ -456,7 +456,7 @@ def test_ranged_enemy_behind_glass_walks_round_instead_of_freezing():
 
     assert enemy.inventory[0].item["ammo"] < 20
     assert player.fighter.hp < 10
-    assert "No clear shot — path blocked." not in _messages(engine)
+    assert "No clear shot - path blocked." not in _messages(engine)
 
 
 def test_ranged_enemy_sealed_behind_glass_counts_as_stuck():

@@ -64,7 +64,7 @@ class TestHullPatina:
                     if nx < gm.width and ny < gm.height and is_wall[nx, ny]:
                         diff = max(abs(int(fg[x, y][c]) - int(fg[nx, ny][c])) for c in range(3))
                         max_diff = max(max_diff, diff)
-        assert max_diff <= 60, f"Adjacent walls differ by {max_diff} — not smooth"
+        assert max_diff <= 60, f"Adjacent walls differ by {max_diff} - not smooth"
 
     def test_does_not_modify_non_wall_tiles(self):
         """Patina should only affect wall tiles."""
@@ -335,4 +335,4 @@ class TestFullIntegration:
                 has_debris = any(int(c) in debris_chars for c in chars)
                 assert not has_debris, f"Starbase with 0 breaches (seed={seed}) should have no debris"
                 return
-        # If all seeds had breaches, that's fine — skip
+        # If all seeds had breaches, that's fine - skip

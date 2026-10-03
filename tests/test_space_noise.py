@@ -28,7 +28,7 @@ class TestFractalNoise:
         assert not np.array_equal(r1, r2)
 
     def test_has_smooth_variation(self):
-        """Adjacent cells should not jump wildly — max neighbor diff < raw random."""
+        """Adjacent cells should not jump wildly - max neighbor diff < raw random."""
         rng = np.random.RandomState(10)
         field = fractal_noise(rng, 50, 50, octaves=3, base_radius=8)
         # Compute max absolute difference between horizontally adjacent cells
@@ -154,7 +154,7 @@ class TestNebulaClustering:
 
 
 class TestNebulaMorphologyVariation:
-    """Nebulae should have varied shapes — not all uniform blobs."""
+    """Nebulae should have varied shapes - not all uniform blobs."""
 
     @staticmethod
     def _nebula_mask_for_seed(seed, size=200):
@@ -188,7 +188,7 @@ class TestNebulaMorphologyVariation:
 
     def test_nebula_regions_have_varied_sizes(self):
         """Across several seeds, nebula connected components should have a
-        wide range of sizes — not all similarly-sized blobs."""
+        wide range of sizes - not all similarly-sized blobs."""
         all_areas = []
         for seed in [10, 42, 77, 123, 200, 333, 500, 999]:
             neb = self._nebula_mask_for_seed(seed, size=250)
@@ -231,7 +231,7 @@ class TestNebulaMorphologyVariation:
 
     def test_nebula_density_varies_across_space(self):
         """Different quadrants of a large region should have meaningfully
-        different nebula coverage — not uniform density everywhere."""
+        different nebula coverage - not uniform density everywhere."""
         neb = self._nebula_mask_for_seed(42, size=400)
         # Split into 4 quadrants
         q_size = 200
@@ -241,7 +241,7 @@ class TestNebulaMorphologyVariation:
                 quad = neb[qx * q_size : (qx + 1) * q_size, qy * q_size : (qy + 1) * q_size]
                 quadrant_densities.append(np.mean(quad))
         densities = np.array(quadrant_densities)
-        # The densities should vary — std should be meaningful
+        # The densities should vary - std should be meaningful
         # (uniform coverage across all quadrants implies no variation)
         density_range = densities.max() - densities.min()
         assert density_range > 0.05, (

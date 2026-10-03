@@ -85,14 +85,14 @@ def test_clear_shot_same_tile():
 
 
 def test_clear_shot_target_tile_not_checked():
-    """The target's own tile is not checked — only intermediate tiles matter."""
+    """The target's own tile is not checked - only intermediate tiles matter."""
     gm = make_arena(20, 20)
     # Set the target tile to non-walkable; shot should still succeed
     # because we only check *intermediate* tiles, not the endpoint
     gm.tiles[10, 5] = tile_types.wall
-    # From adjacent tile — no intermediates, target tile ignored
+    # From adjacent tile - no intermediates, target tile ignored
     assert has_clear_shot(gm, 9, 5, 10, 5) is True
-    # From farther away — intermediates (6..9) are floor, target (10) ignored
+    # From farther away - intermediates (6..9) are floor, target (10) ignored
     assert has_clear_shot(gm, 5, 5, 10, 5) is True
 
 

@@ -193,7 +193,7 @@ airlock_floor = new_tile(
     light=(ord("="), (220, 180, 50), (20, 18, 5)),
 )
 
-# Exterior airlock door — hull-colored so it blends with the hull
+# Exterior airlock door - hull-colored so it blends with the hull
 airlock_ext_closed = new_tile(
     walkable=False,
     transparent=False,

@@ -152,7 +152,7 @@ def _dress_ship_room(
 
     occupied: set[tuple[int, int]] = {(e.x, e.y) for e in game_map.entities}
 
-    # Room fixture tiles — non-walkable light sources (placed first to block entity placement)
+    # Room fixture tiles - non-walkable light sources (placed first to block entity placement)
     cx, cy = room.center
     fixture_tile = None
     fixture_light = None
@@ -197,7 +197,7 @@ def _dress_ship_room(
                 return x, y
         return None
 
-    # Decorations — visual only, non-blocking, no interactable
+    # Decorations - visual only, non-blocking, no interactable
     dec_min, dec_max = dressing["decoration_count"]
     for _ in range(rng.randint(dec_min, dec_max)):
         pos = _pick_floor_pos()

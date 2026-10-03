@@ -143,7 +143,7 @@ class TestDeathDropsIntegration:
         RangedAction(player).perform(engine, enemy)
         assert blaster.item["ammo"] == 3
 
-        # Now kill the enemy — weapon should drop with ammo=3
+        # Now kill the enemy - weapon should drop with ammo=3
         from game.actions import MeleeAction
 
         enemy.fighter.hp = 1

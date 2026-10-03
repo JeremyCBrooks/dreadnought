@@ -51,7 +51,7 @@ def _entity_to_dict(entity) -> dict:
         d["ai_stuck_turns"] = entity.ai_stuck_turns
         d["ai_energy"] = entity.ai_energy
 
-    # Inventory + loadout + stolen_loot — indices preserve in-graph identity.
+    # Inventory + loadout + stolen_loot - indices preserve in-graph identity.
     inv = entity.inventory
     d["inventory"] = [_entity_to_dict(child) for child in inv]
     if entity.loadout is not None:
@@ -176,7 +176,7 @@ def _ship_from_dict(d: dict | None):
 def _interdiction_to_dict(interdiction) -> dict | None:
     """Serialize an Interdiction.
 
-    The composite map is NOT serialized — it's deterministically rebuilt
+    The composite map is NOT serialized - it's deterministically rebuilt
     from ``pirate_ship_seed`` + the saved airlock interior positions when
     the player next enters the ship, then ``tile_changes`` are replayed on
     top. Only living pirates are saved; the dead stay dead.
@@ -476,7 +476,7 @@ def is_mid_mission(engine: Engine) -> bool:
 def make_death_save_dict(cause: str = "Mission abandoned") -> dict:
     """Build the minimal save record used when a player force-ends mid-mission.
 
-    Loading this dict pushes a GameOverState — the next login lands on the
+    Loading this dict pushes a GameOverState - the next login lands on the
     death screen instead of teleporting them back to the ship.
     """
     return {"dead": True, "cause": cause}
@@ -506,7 +506,7 @@ def engine_to_dict(engine: Engine) -> dict:
     disconnects, ask the active TacticalState to flush its in-flight state
     (refresh saved_player, report floor items) so the save accurately
     reflects current player HP/inventory and cargo. The live session is left
-    untouched — a reconnect resumes the same engine.
+    untouched - a reconnect resumes the same engine.
     """
     from ui.tactical_state import TacticalState
 

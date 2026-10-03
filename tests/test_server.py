@@ -121,7 +121,7 @@ def test_watcher_receives_portal_redirect_on_player_disconnect(client):
 
     alice_ctx = client.websocket_connect("/ws", headers=alice_headers)
     alice_ws = alice_ctx.__enter__()
-    alice_ws.receive_json()  # first frame — session is active and connected
+    alice_ws.receive_json()  # first frame - session is active and connected
 
     bob_ctx = client.websocket_connect("/ws/watch/alice", headers=bob_headers)
     bob_ws = bob_ctx.__enter__()
@@ -139,7 +139,7 @@ def test_watcher_receives_portal_redirect_on_player_disconnect(client):
 @pytest.mark.anyio
 async def test_receive_loop_notifies_queue_when_iter_json_exits_normally():
     """receive_loop must put None in the input queue even when iter_json() exits
-    without raising — Starlette ≥1.0 swallows WebSocketDisconnect internally
+    without raising - Starlette ≥1.0 swallows WebSocketDisconnect internally
     so the async-for just stops; without a finally clause the queue never gets
     the sentinel and run_async loops forever.
     """
@@ -185,7 +185,7 @@ def test_server_wires_on_quit_to_raise_quit_to_portal(client):
     token = _create_game(client, "alice")
 
     with client.websocket_connect(f"/ws?token={token}") as ws:
-        ws.receive_json()  # first frame — engine is now running
+        ws.receive_json()  # first frame - engine is now running
         session = gm.get("alice")
         assert session is not None
         assert callable(session.engine.on_quit), "server must set engine.on_quit"
@@ -199,13 +199,13 @@ def test_server_wires_on_quit_on_reconnect(client):
 
     token = _create_game(client, "alice")
 
-    # First connection — disconnect immediately
+    # First connection - disconnect immediately
     with client.websocket_connect(f"/ws?token={token}") as ws:
         ws.receive_json()
 
     time.sleep(0.1)
 
-    # Reconnect — engine is reused from in-memory session
+    # Reconnect - engine is reused from in-memory session
     with client.websocket_connect(f"/ws?token={token}") as ws:
         ws.receive_json()
         session = gm.get("alice")

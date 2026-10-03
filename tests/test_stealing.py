@@ -261,7 +261,7 @@ class TestFleeUrgencyWithStolenLoot:
         pirate.inventory.append(medkit)
         pirate.stolen_loot = [medkit]
 
-        # 50% HP — above 0.3 base threshold but below 0.5 boosted threshold
+        # 50% HP - above 0.3 base threshold but below 0.5 boosted threshold
         pirate.fighter.hp = 5
         pirate.x, pirate.y = 6, 5
 
@@ -275,7 +275,7 @@ class TestFleeUrgencyWithStolenLoot:
         pirate.ai_target = (player.x, player.y)
         pirate.stolen_loot = []
 
-        # 50% HP — above 0.3 threshold, should NOT flee
+        # 50% HP - above 0.3 threshold, should NOT flee
         pirate.fighter.hp = 5
 
         pirate.ai.perform(pirate, engine)

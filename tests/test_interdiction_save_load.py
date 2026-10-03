@@ -1,6 +1,6 @@
 """Tests for Interdiction save/load round-trip.
 
-Composite map is NOT serialized — it's deterministically rebuilt from
+Composite map is NOT serialized - it's deterministically rebuilt from
 ``pirate_ship_seed`` + saved airlock interior positions when the player
 next enters the ship. Pirate entities serialize with their composite-coord
 positions and re-attach via ``rebuild_composite``.
@@ -101,7 +101,7 @@ def test_save_load_preserves_active_interdiction_metadata():
     assert loaded.pirate_offset == interdiction.pirate_offset
     assert loaded.player_airlock_interior == interdiction.player_airlock_interior
     assert loaded.pirate_airlock_interior == interdiction.pirate_airlock_interior
-    # composite_map is NOT serialized — must be None on load
+    # composite_map is NOT serialized - must be None on load
     assert loaded.composite_map is None
     assert loaded.original_ship_map is None
 

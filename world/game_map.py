@@ -141,7 +141,7 @@ class GameMap:
                 self.hazard_overlays["vacuum"] = self._empty_bool_grid()
             self._vacuum_baseline_set = True
 
-        # Space tiles always have vacuum — mark them unconditionally
+        # Space tiles always have vacuum - mark them unconditionally
         if self.has_space:
             space_tid = int(tile_types.space["tile_id"])
             space_mask = self.tiles["tile_id"] == space_tid
@@ -226,7 +226,7 @@ class GameMap:
     def update_hazard_lights(self) -> None:
         """Set light colors to red if adjacent interior floors are under hazard.
 
-        Only walkable (floor) tiles are checked — space and wall tiles are
+        Only walkable (floor) tiles are checked - space and wall tiles are
         ignored so that hull-boundary lights don't false-positive from
         adjacent space vacuum.  Restores base_color when hazard clears.
         """
@@ -235,7 +235,7 @@ class GameMap:
         if not self.light_sources:
             return
         if not self.hazard_overlays:
-            # No hazards at all — restore everything
+            # No hazards at all - restore everything
             for ls in self.light_sources:
                 if ls.color != ls.base_color:
                     ls.color = ls.base_color
@@ -301,7 +301,7 @@ class GameMap:
             elif entity.item:
                 lines.append((f"You see {entity.name} ({entity.char}) lying here.", (180, 200, 255)))
             elif getattr(entity, "interactable", None):
-                lines.append((f"{entity.name} ({entity.char}) — [e] to interact.", (200, 220, 150)))
+                lines.append((f"{entity.name} ({entity.char}) - [e] to interact.", (200, 220, 150)))
         return lines
 
     def apply_scan_glow(self, cx: int, cy: int, radius: int) -> None:

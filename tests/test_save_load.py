@@ -1,4 +1,4 @@
-"""Tests for web/save_load.py — engine serialization round-trips."""
+"""Tests for web/save_load.py - engine serialization round-trips."""
 
 import numpy as np
 
@@ -518,7 +518,7 @@ def test_save_load_preserves_ship_map():
     new_engine = Engine()
     dict_to_engine(d, new_engine)
 
-    # Verify tiles are identical — same seed must produce the same layout
+    # Verify tiles are identical - same seed must produce the same layout
     assert new_engine.ship is not None
     assert new_engine.ship.game_map is not None
     assert np.array_equal(new_engine.ship.game_map.tiles, gm_orig.tiles)

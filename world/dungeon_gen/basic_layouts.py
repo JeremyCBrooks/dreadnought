@@ -100,7 +100,7 @@ def _generate_standard(
     floor_tile: np.ndarray,
     **kwargs: object,
 ) -> list[RectRoom]:
-    """Standard starbase layout — like original but with wider corridors and bigger rooms."""
+    """Standard starbase layout - like original but with wider corridors and bigger rooms."""
     w, h = game_map.width, game_map.height
     rooms: list[RectRoom] = []
     label_counts: dict[str, int] = {}

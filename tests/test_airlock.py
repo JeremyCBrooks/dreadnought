@@ -286,7 +286,7 @@ def test_airlock_corridor_walls_intact():
                         continue
                     tid = int(game_map.tiles["tile_id"][nx, ny])
                     assert tid != space_tid, (
-                        f"seed={seed}: airlock wall at ({nx},{ny}) next to ({px},{py}) is space — diagonal leak!"
+                        f"seed={seed}: airlock wall at ({nx},{ny}) next to ({px},{py}) is space - diagonal leak!"
                     )
 
 
@@ -416,7 +416,7 @@ def test_space_tiles_always_have_vacuum_overlay():
     hull breaches or open airlock doors.  And ONLY space tiles get vacuum
     when no breach or exterior door is open."""
     gm = _make_airlock_map()
-    # No open doors, no hull breaches — but space tiles should still be vacuum
+    # No open doors, no hull breaches - but space tiles should still be vacuum
     gm._hazards_dirty = True
     gm.recalculate_hazards()
     overlay = gm.hazard_overlays.get("vacuum")

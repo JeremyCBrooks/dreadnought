@@ -24,7 +24,7 @@ uv pip install -e ".[dev]"
 
 ### Game flow
 
-**Title** → **Strategic** (star system — pick locations, navigate between systems) → **Briefing** (choose suit) → **Tactical** (dungeon: explore, fight, loot) → reach exit `>` → back to **Strategic**.
+**Title** → **Strategic** (star system - pick locations, navigate between systems) → **Briefing** (choose suit) → **Tactical** (dungeon: explore, fight, loot) → reach exit `>` → back to **Strategic**.
 
 Collect 6 navigation units from derelicts across the galaxy to reveal the Dreadnought's location. Board the Dreadnought, extract its reactor core, and return it to your home system to win.
 
@@ -91,18 +91,18 @@ Collect 6 navigation units from derelicts across the galaxy to reveal the Dreadn
 
 ### Features
 
-- **Turn-based combat** — melee bump attacks and ranged weapons with ammo and line-of-sight
-- **Enemy AI** — 4-state machine (sleeping → wandering → hunting → fleeing) with configurable vision, aggro, pathfinding, door interaction, variable move speed, and item usage
-- **Environmental hazards** — vacuum, electric, radiation, explosive, gas, structural, explosive decompression, low gravity
-- **Suit system** — EVA Suit (vacuum/cold) and Hazard Suit (radiation/heat) with resistance pools
-- **Equipment** — 2-slot loadout (weapon + scanner/tool), durability, 3-tier scanners
-- **Ship systems** — fuel, hull integrity, cargo hold, nav unit tracker
-- **Procedural galaxy** — on-demand star system generation, multiple locations per system, deterministic seeding
-- **Drift** — when fuel runs out, the ship drifts to a random neighbor, jettisoning cargo
-- **Break-away** — navigating while a pirate ship is hard-docked offers to tear free under power, at the cost of hull damage and possibly cargo
-- **Hull breaches** — every hull point lost opens a real breach in the ship's outer hull, venting the compartment behind it; Hull Patches seal them by hand, one charge per breach
-- **Reactor cores** — extractable tile fixtures that convert to fuel; the Dreadnought's core triggers victory
-- **Gore & debris** — blood splatter (organic) and oil/debris (inorganic) on death, scales with enemy HP
+- **Turn-based combat** - melee bump attacks and ranged weapons with ammo and line-of-sight
+- **Enemy AI** - 4-state machine (sleeping → wandering → hunting → fleeing) with configurable vision, aggro, pathfinding, door interaction, variable move speed, and item usage
+- **Environmental hazards** - vacuum, electric, radiation, explosive, gas, structural, explosive decompression, low gravity
+- **Suit system** - EVA Suit (vacuum/cold) and Hazard Suit (radiation/heat) with resistance pools
+- **Equipment** - 2-slot loadout (weapon + scanner/tool), durability, 3-tier scanners
+- **Ship systems** - fuel, hull integrity, cargo hold, nav unit tracker
+- **Procedural galaxy** - on-demand star system generation, multiple locations per system, deterministic seeding
+- **Drift** - when fuel runs out, the ship drifts to a random neighbor, jettisoning cargo
+- **Break-away** - navigating while a pirate ship is hard-docked offers to tear free under power, at the cost of hull damage and possibly cargo
+- **Hull breaches** - every hull point lost opens a real breach in the ship's outer hull, venting the compartment behind it; Hull Patches seal them by hand, one charge per breach
+- **Reactor cores** - extractable tile fixtures that convert to fuel; the Dreadnought's core triggers victory
+- **Gore & debris** - blood splatter (organic) and oil/debris (inorganic) on death, scales with enemy HP
 
 ### Project structure
 

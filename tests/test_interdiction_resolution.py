@@ -71,7 +71,7 @@ def test_resolve_marks_resolved_true_and_does_not_swap_map():
     composite_was = interdiction.composite_map
     interdiction.resolve()
     assert interdiction.resolved is True
-    # Map is still the composite — restoration hasn't happened yet.
+    # Map is still the composite - restoration hasn't happened yet.
     assert ship.game_map is composite_was
 
 

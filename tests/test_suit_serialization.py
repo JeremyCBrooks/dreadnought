@@ -23,7 +23,7 @@ def test_suit_basic_round_trip():
 
 
 def test_suit_current_pools_preserved():
-    """current_pools may be drained below max — round-trip must keep that exactly."""
+    """current_pools may be drained below max - round-trip must keep that exactly."""
     from web.save_load import _suit_from_dict, _suit_to_dict
 
     suit = HAZARD_SUIT.copy()

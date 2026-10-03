@@ -31,7 +31,7 @@ def _place_doors(
     door_chance: float = 0.65,
     min_spacing: int = 3,
 ) -> None:
-    """Place closed doors at room entrances — chokepoints adjacent to a room's
+    """Place closed doors at room entrances - chokepoints adjacent to a room's
     inner area, with minimum spacing to avoid door clusters."""
     floor_tid = int(floor_tile["tile_id"])
     w, h = game_map.width, game_map.height

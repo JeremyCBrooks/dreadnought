@@ -760,7 +760,7 @@ def test_nearby_hull_breach_deduplicates_with_scan_vacuum():
     engine.scan_results = perform_area_scan(engine, engine.player)
     entries = build_nearby_entries(engine)
     hazards = [e for e in entries if e.category == "hazard"]
-    # Should be exactly 1 — the visible "Hull breach", not also a "Vacuum" duplicate
+    # Should be exactly 1 - the visible "Hull breach", not also a "Vacuum" duplicate
     assert len(hazards) == 1
     assert "Hull breach" in hazards[0].label
 
@@ -897,11 +897,11 @@ def test_scan_glow_is_circular():
     gm.render(console, cam_x=0, cam_y=0, vp_x=0, vp_y=0, vp_w=10, vp_h=10, scan_glow=scan_glow)
 
     shroud_ch = int(tile_types.SHROUD["ch"])
-    # (5, 2) is dist 3 along cardinal — should be visible
+    # (5, 2) is dist 3 along cardinal - should be visible
     assert console.rgb["ch"][5, 2] != shroud_ch
-    # (2, 2) is dist sqrt(18) ~= 4.24 — outside radius 3, should be shroud
+    # (2, 2) is dist sqrt(18) ~= 4.24 - outside radius 3, should be shroud
     assert console.rgb["ch"][2, 2] == shroud_ch
-    # (3, 3) is dist sqrt(8) ~= 2.83 — inside radius 3, should be visible
+    # (3, 3) is dist sqrt(8) ~= 2.83 - inside radius 3, should be visible
     assert console.rgb["ch"][3, 3] != shroud_ch
 
 

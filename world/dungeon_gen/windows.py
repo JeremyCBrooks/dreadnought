@@ -63,7 +63,7 @@ def _place_exterior_windows(
     all_segments: list[list[tuple[int, int]]] = []
     for (dx, dy), positions in by_orient.items():
         if dx == 0:
-            # North/south-facing walls — group by row, sort by x
+            # North/south-facing walls - group by row, sort by x
             by_row: dict[int, list[tuple[int, int]]] = {}
             for pos in positions:
                 by_row.setdefault(pos[1], []).append(pos)
@@ -71,7 +71,7 @@ def _place_exterior_windows(
                 row_positions.sort()
                 all_segments.extend(_split_into_segments(row_positions))
         else:
-            # East/west-facing walls — group by column, sort by y
+            # East/west-facing walls - group by column, sort by y
             by_col: dict[int, list[tuple[int, int]]] = {}
             for pos in positions:
                 by_col.setdefault(pos[0], []).append(pos)
@@ -135,7 +135,7 @@ def _place_ship_exterior_windows(
         # Wall facing north: outside north, inside south -> dx=0, dy=1
         # Wall facing south: outside south, inside north -> dx=0, dy=-1
         # Wall facing east (aft): outside east, inside west -> dx=-1, dy=0
-        # Bridge: allow west (forward), north, south — no aft (east).
+        # Bridge: allow west (forward), north, south - no aft (east).
         # Aft-facing wall: inside is west (dx=-1), so block dx=-1.
         # Other rooms allow all hull-facing directions.
         if room.label == "bridge" and (dx, dy) == (-1, 0):

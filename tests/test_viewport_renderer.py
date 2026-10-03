@@ -62,7 +62,7 @@ class TestStarDisc:
         # Star is in upper-right corner: cx = 64 + 96 - 2 = 158, cy = 1
         # Check a cell near the star center (within the disc)
         bg = tuple(c.rgb["bg"][155, 0])
-        # Should be bright — at least one channel > 150
+        # Should be bright - at least one channel > 150
         assert max(bg) > 150, f"Near-star bg too dim: {bg}"
 
     def test_red_giant_fills_more_than_white_dwarf(self):
@@ -83,7 +83,7 @@ class TestSpecialStars:
         """Black hole center should be darker than surrounding space."""
         c = FakeConsole(160, 50)
         render_viewport(c, 64, 0, 96, 42, "black_hole", 1, time_override=0.0)
-        # Star center: cx=158, cy=1 — check a cell very near center
+        # Star center: cx=158, cy=1 - check a cell very near center
         center_bg = c.rgb["bg"][157, 0]
         center_brightness = int(center_bg[0]) + int(center_bg[1]) + int(center_bg[2])
         # Should be very dark (near 0)
@@ -117,7 +117,7 @@ class TestSpecialStars:
 
 class TestFlares:
     def test_flares_change_over_time(self):
-        """Flares should animate — different times produce different output."""
+        """Flares should animate - different times produce different output."""
         c1 = FakeConsole(160, 50)
         c2 = FakeConsole(160, 50)
         render_viewport(c1, 64, 0, 96, 42, "yellow_dwarf", 42, time_override=0.0)
@@ -139,7 +139,7 @@ class TestFlares:
 
 class TestStarColors:
     def test_background_stars_have_color_variation(self):
-        """Background stars should not all be the same hue — some yellow/red."""
+        """Background stars should not all be the same hue - some yellow/red."""
         c = FakeConsole(160, 50)
         # Use white_dwarf (small radius) so most prints are background stars
         render_viewport(c, 64, 0, 96, 42, "white_dwarf", 42, time_override=0.0)

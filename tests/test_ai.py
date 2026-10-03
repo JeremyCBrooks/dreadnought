@@ -418,7 +418,7 @@ class TestSleeping:
         )
         gm.entities.append(creature)
         creature.ai.perform(creature, engine)
-        # Adjacent — should have attacked on wake turn
+        # Adjacent - should have attacked on wake turn
         assert player.fighter.hp < 10
 
     def test_sleeping_wake_does_not_teleport(self):
@@ -445,7 +445,7 @@ class TestSleeping:
         dx = abs(creature.x - start_x)
         dy = abs(creature.y - start_y)
         assert dx <= 1 and dy <= 1, (
-            f"Creature teleported from ({start_x},{start_y}) to ({creature.x},{creature.y}) — moved {dx + dy} tiles!"
+            f"Creature teleported from ({start_x},{start_y}) to ({creature.x},{creature.y}) - moved {dx + dy} tiles!"
         )
 
     def test_drone_returns_to_sleep_after_losing_player(self):
@@ -576,7 +576,7 @@ class TestFleeingCleanup:
 
 
 # ---------------------------------------------------------------------------
-# Fleeing pathfinding — creatures should seek escape routes, not just
+# Fleeing pathfinding - creatures should seek escape routes, not just
 # greedily maximize distance and trap themselves in corners.
 # ---------------------------------------------------------------------------
 
@@ -605,7 +605,7 @@ class TestFleeingPathfinding:
                 for x_wall in range(2, 8):
                     gm.tiles[x_wall, y] = tile_types.wall
         gm.tiles[7, 5] = tile_types.door_closed
-        # Run a few turns — creature should open the door and escape through it
+        # Run a few turns - creature should open the door and escape through it
         for _ in range(4):
             creature.ai.perform(creature, engine)
         assert gm.tiles["walkable"][7, 5], "Creature should have opened the door"
@@ -627,7 +627,7 @@ class TestFleeingPathfinding:
         )
         creature.ai_state = "fleeing"
         gm.entities.append(creature)
-        # Wall at x=10, y=8..12 — blocks direct eastward escape
+        # Wall at x=10, y=8..12 - blocks direct eastward escape
         for y in range(8, 13):
             gm.tiles[10, y] = tile_types.wall
         start_dist = max(abs(creature.x - player.x), abs(creature.y - player.y))
@@ -665,7 +665,7 @@ class TestFleeingPathfinding:
 
 
 # ---------------------------------------------------------------------------
-# Memory persistence — creatures should hunt long enough to be threatening
+# Memory persistence - creatures should hunt long enough to be threatening
 # ---------------------------------------------------------------------------
 
 
@@ -715,7 +715,7 @@ class TestMemoryPersistence:
 
 
 # ---------------------------------------------------------------------------
-# Move speed — energy-based movement with variable creature speeds
+# Move speed - energy-based movement with variable creature speeds
 # ---------------------------------------------------------------------------
 
 
@@ -1061,7 +1061,7 @@ class TestMoveSpeed:
 
 
 # ---------------------------------------------------------------------------
-# Door blocking — creatures must not attack through closed doors
+# Door blocking - creatures must not attack through closed doors
 # ---------------------------------------------------------------------------
 
 
@@ -1069,7 +1069,7 @@ class TestDoorBlocking:
     def test_rat_cannot_attack_through_closed_door(self):
         """A rat on the other side of a closed door should not damage the player.
 
-        Layout: @+r in a corridor — player at (1,1), door at (2,1), rat at (3,1).
+        Layout: @+r in a corridor - player at (1,1), door at (2,1), rat at (3,1).
         Walls surround to prevent any diagonal bypass.
         """
         gm = make_arena(5, 3)
@@ -1092,7 +1092,7 @@ class TestDoorBlocking:
         creature.ai.perform(creature, engine)
 
         assert player.fighter.hp == 10, "Rat should not damage player through a closed door"
-        assert creature.x == 3 and creature.y == 1, "Rat should not move — door is blocking"
+        assert creature.x == 3 and creature.y == 1, "Rat should not move - door is blocking"
 
     def test_rat_cannot_cut_corner_past_door(self):
         """A rat should not move diagonally past a closed door.
@@ -1134,11 +1134,11 @@ class TestDoorBlocking:
         # Rat should NOT have cut the corner to (2, 0) or (2, 2) diagonally
         # past the closed door at (2, 1). It should go down to (3, 2) first.
         assert not (creature.x == 2 and creature.y == 2), "Rat should not cut corner diagonally past a closed door"
-        # With 1 move, rat should have moved to (3, 2) — the only valid step
+        # With 1 move, rat should have moved to (3, 2) - the only valid step
         assert creature.x == 3 and creature.y == 2, f"Expected rat at (3,2), got ({creature.x},{creature.y})"
 
     def test_diagonal_past_wall_still_allowed(self):
-        """Diagonal movement past a wall corner is fine — only doors block.
+        """Diagonal movement past a wall corner is fine - only doors block.
 
         Layout:
           #####
@@ -1153,7 +1153,7 @@ class TestDoorBlocking:
           #r#.#
           #####
         Rat at (1,2), wall at (2,2), player at (2,1).
-        Rat should move diag from (1,2) to (2,1) — wall at (2,2) doesn't
+        Rat should move diag from (1,2) to (2,1) - wall at (2,2) doesn't
         block because it's a wall, not a door.
         """
         gm = make_arena(5, 4)
@@ -1322,7 +1322,7 @@ class TestPatrolWander:
         assert creature.ai_wander_goal is None
 
     def test_wandering_does_not_path_through_walls(self):
-        """Wander goal must be truly reachable — not across a wall partition."""
+        """Wander goal must be truly reachable - not across a wall partition."""
         gm, player, engine = _setup(w=30, h=30, player_pos=(1, 1))
         creature = _make_creature(
             20,
@@ -1337,7 +1337,7 @@ class TestPatrolWander:
         # Solid wall partition at x=10
         for y in range(0, 30):
             gm.tiles[10, y] = tile_types.wall
-        # Run many turns — creature must never cross the wall
+        # Run many turns - creature must never cross the wall
         for _ in range(30):
             creature.ai.perform(creature, engine)
             assert creature.x > 10, f"Creature crossed wall partition to ({creature.x},{creature.y})"
@@ -1425,7 +1425,7 @@ class TestWanderingInHazards:
                 moved = True
                 break
 
-        assert moved, "Wandering enemy froze in hazard area — never moved in 10 turns"
+        assert moved, "Wandering enemy froze in hazard area - never moved in 10 turns"
 
     def test_wander_prefers_non_hazard_tiles(self):
         """When some non-hazard tiles exist, wander goal should prefer them."""
@@ -1485,11 +1485,11 @@ class TestHuntingUnreachable:
         creature.ai_turns_since_seen = 0
         gm.entities.append(creature)
 
-        # Run many turns — enemy can always see player through window
+        # Run many turns - enemy can always see player through window
         for _ in range(30):
             creature.ai.perform(creature, engine)
 
-        # Enemy should NOT still be stuck in hunting — it should have
+        # Enemy should NOT still be stuck in hunting - it should have
         # de-aggroed because it cannot reach the player.
         assert creature.ai_state != "hunting", (
             f"Enemy stuck in hunting for 30 turns despite being unreachable "
@@ -1514,7 +1514,7 @@ class TestHuntingUnreachable:
         creature.ai_turns_since_seen = 0
         gm.entities.append(creature)
 
-        # Run several turns — enemy should approach and attack, staying in hunting
+        # Run several turns - enemy should approach and attack, staying in hunting
         for _ in range(10):
             creature.ai.perform(creature, engine)
 
@@ -1716,7 +1716,7 @@ class TestFleeingStaleDistance:
             config={
                 "flee_threshold": 0.3,
                 "aggro_distance": 8,
-                "move_speed": 8,  # fast — will move multiple times
+                "move_speed": 8,  # fast - will move multiple times
             },
         )
         creature.ai_state = "fleeing"
@@ -1741,7 +1741,7 @@ class TestFleeingStaleDistance:
         old_hp = player.fighter.hp
         creature.ai.perform(creature, engine)
 
-        # Creature should have fled away — it should NOT have attacked
+        # Creature should have fled away - it should NOT have attacked
         from game.helpers import chebyshev
 
         dist = chebyshev(creature.x, creature.y, player.x, player.y)

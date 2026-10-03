@@ -1,4 +1,4 @@
-"""Tests for engine.keys — centralised key mappings."""
+"""Tests for engine.keys - centralised key mappings."""
 
 import tcod.event
 

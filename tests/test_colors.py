@@ -1,4 +1,4 @@
-"""Tests for data.colors — shared color constants."""
+"""Tests for data.colors - shared color constants."""
 
 from data import colors
 

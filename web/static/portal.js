@@ -187,10 +187,10 @@ async function sendChat(e) {
   try {
     r = await api("POST", "/api/chat", { body });
   } catch (_err) {
-    showChatError("Send failed — try again");
+    showChatError("Send failed - try again");
     return;
   }
-  if (!r) return;  // 401 — api() already redirected
+  if (!r) return;  // 401 - api() already redirected
   if (r.ok) {
     input.value = "";
     updateChatCount();

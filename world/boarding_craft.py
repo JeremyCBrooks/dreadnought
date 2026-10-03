@@ -10,7 +10,7 @@ Algorithm:
      exterior_door to the pirate's exterior_door, traversing only SPACE tiles
      so it never crosses either ship's hull or glass.
   5. Every tile adjacent to a corridor tile that's still space gets stamped
-     with a wall — the corridor is airtight.
+     with a wall - the corridor is airtight.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from world.game_map import GameMap
 from world.grid import bfs, path_to
 
 # Tiles between the two ship HULLS along the placement direction. Kept small
-# so the corridor is short — the pirate ship's empty exterior canvas is
+# so the corridor is short - the pirate ship's empty exterior canvas is
 # collapsed by hull-bbox-based placement (see _placement_offsets).
 GAP_BETWEEN_SHIPS: int = 2
 
@@ -105,7 +105,7 @@ def _placement_offsets(
 
     dx, dy = direction
     if dx == 1:  # pirate east of player
-        # Use whichever offset places the pirate further east — guarantees no
+        # Use whichever offset places the pirate further east - guarantees no
         # hull overlap regardless of where the airlock sits inside its canvas.
         offset_x = max(
             p_ext[0] + GAP_BETWEEN_SHIPS + 1 - r_ext[0],  # airlock alignment
@@ -237,7 +237,7 @@ def compose_ships(
     )
 
     # BFS from one tile outward of player exterior_door to one tile inward
-    # of pirate exterior_door. We pathfind through SPACE tiles only — the
+    # of pirate exterior_door. We pathfind through SPACE tiles only - the
     # corridor never crosses either ship's hull or interior. Routed BEFORE
     # touching the shared entity/light lists so a failed composition leaves
     # the player map exactly as it was (callers retry with other seeds).
@@ -270,7 +270,7 @@ def compose_ships(
 
     # Airlocks: composite gets a new list with translated copies of each
     # ship's airlocks, EXCLUDING the two connecting airlocks. Those airlocks
-    # are fused permanently open as part of the corridor — leaving their
+    # are fused permanently open as part of the corridor - leaving their
     # switches active would let the player flip one to open it as a vacuum
     # source, flooding both ships through the corridor.
     composite.airlocks = [
@@ -329,7 +329,7 @@ def compose_ships(
 
     corridor_tiles = list(path)
 
-    # Pick a pirate-ship room for spawning pirates — prefer the one farthest
+    # Pick a pirate-ship room for spawning pirates - prefer the one farthest
     # from the connection airlock so they don't all rush the corridor instantly.
     def room_distance(room: RectRoom) -> int:
         rcx, rcy = room.center

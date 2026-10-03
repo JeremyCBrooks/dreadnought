@@ -1,4 +1,4 @@
-"""Enemy AI behaviours — 4-state creature AI with pathfinding."""
+"""Enemy AI behaviours - 4-state creature AI with pathfinding."""
 
 from __future__ import annotations
 
@@ -199,7 +199,7 @@ class CreatureAI:
         gm = engine.game_map
         player = engine.player
 
-        # Dijkstra from player — dist[x,y] = travel cost from player to (x,y)
+        # Dijkstra from player - dist[x,y] = travel cost from player to (x,y)
         graph = tcod.path.SimpleGraph(cost=cost, cardinal=2, diagonal=3)
         pf = tcod.path.Pathfinder(graph)
         pf.add_root((player.x, player.y))
@@ -290,7 +290,7 @@ class CreatureAI:
             owner.ai_wander_goal = self._pick_wander_goal(owner, engine)
         if owner.ai_wander_goal is None:
             return  # no reachable goal found
-        # Already at goal — pick a new one
+        # Already at goal - pick a new one
         if (owner.x, owner.y) == owner.ai_wander_goal:
             owner.ai_wander_goal = self._pick_wander_goal(owner, engine)
             if owner.ai_wander_goal is None:
@@ -298,7 +298,7 @@ class CreatureAI:
         # Pathfind toward the goal
         path = self._compute_path(owner, engine, owner.ai_wander_goal)
         if not path or not self._move_along_path(owner, engine, path):
-            # Stuck — pick a new goal next turn
+            # Stuck - pick a new goal next turn
             owner.ai_wander_goal = None
 
     # ---- item usage ----
@@ -478,12 +478,12 @@ class CreatureAI:
             self._attack(owner, engine)
             return
 
-        # At last-known position but player not here — give up target
+        # At last-known position but player not here - give up target
         if not can_see and distance == 0:
             owner.ai_target = None
             return
 
-        # Movement — spend energy, possibly multiple steps for fast creatures
+        # Movement - spend energy, possibly multiple steps for fast creatures
         moved = False
         while self._can_spend_move(owner, engine):
             path = self._compute_path(owner, engine, owner.ai_target)
@@ -502,7 +502,7 @@ class CreatureAI:
 
         # Track consecutive turns where we couldn't move toward the target.
         # Handles enemies that can see the player (e.g. through a window)
-        # but have no walkable path — without this they'd freeze in hunting.
+        # but have no walkable path - without this they'd freeze in hunting.
         if moved or real_dist <= 1:
             owner.ai_stuck_turns = 0
         else:
@@ -552,10 +552,10 @@ class CreatureAI:
         if self._try_use_item(owner, engine):
             return
 
-        # Movement — spend energy, possibly multiple steps for fast creatures
+        # Movement - spend energy, possibly multiple steps for fast creatures
         while self._can_spend_move(owner, engine):
             if not self._flee_pathfind(owner, engine):
-                # No escape route — fight if adjacent (recompute after movement)
+                # No escape route - fight if adjacent (recompute after movement)
                 current_dist = chebyshev(owner.x, owner.y, target.x, target.y)
                 if current_dist <= 1:
                     self._attack(owner, engine)

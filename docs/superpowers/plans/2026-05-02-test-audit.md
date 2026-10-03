@@ -4,7 +4,7 @@
 
 **Goal:** Reduce suite runtime and remove low-value tests without losing real coverage.
 
-**Architecture:** Three focused tasks — share the expensive galaxy expansion across tests via a module-scoped fixture + per-test deepcopy; remove two pairs of identical dungeon-gen crash tests; scan all test files for performative patterns and remove confirmed low-value tests.
+**Architecture:** Three focused tasks - share the expensive galaxy expansion across tests via a module-scoped fixture + per-test deepcopy; remove two pairs of identical dungeon-gen crash tests; scan all test files for performative patterns and remove confirmed low-value tests.
 
 **Tech Stack:** pytest fixtures (`scope="module"`), `copy.deepcopy`, grep
 
@@ -59,7 +59,7 @@ Insert after the `_make_engine_with_galaxy` function (around line 44), before th
 
 ```python
 # ---------------------------------------------------------------------------
-# Shared galaxy fixture — expands once per module, per-test deepcopy for isolation
+# Shared galaxy fixture - expands once per module, per-test deepcopy for isolation
 # ---------------------------------------------------------------------------
 
 
@@ -81,7 +81,7 @@ def expanded_galaxy(_galaxy_42_template):
 
 For each test method listed below, add `expanded_galaxy` as a parameter and replace the two-line galaxy setup with `galaxy = expanded_galaxy`.
 
-**`test_spawn_creates_system`** — current lines 53–57:
+**`test_spawn_creates_system`** - current lines 53–57:
 ```python
 def test_spawn_creates_system(self, expanded_galaxy):
     galaxy = expanded_galaxy
@@ -89,7 +89,7 @@ def test_spawn_creates_system(self, expanded_galaxy):
     assert DREADNOUGHT_SYSTEM_NAME in galaxy.systems
 ```
 
-**`test_spawn_single_derelict_location`** — current lines 59–66:
+**`test_spawn_single_derelict_location`** - current lines 59–66:
 ```python
 def test_spawn_single_derelict_location(self, expanded_galaxy):
     galaxy = expanded_galaxy
@@ -101,7 +101,7 @@ def test_spawn_single_derelict_location(self, expanded_galaxy):
     assert loc.loc_type == "derelict"
 ```
 
-**`test_spawn_beyond_deepest`** — current lines 69–75:
+**`test_spawn_beyond_deepest`** - current lines 69–75:
 ```python
 def test_spawn_beyond_deepest(self, expanded_galaxy):
     galaxy = expanded_galaxy
@@ -111,7 +111,7 @@ def test_spawn_beyond_deepest(self, expanded_galaxy):
     assert dread.depth >= max_depth
 ```
 
-**`test_spawn_reachable`** — current lines 77–82:
+**`test_spawn_reachable`** - current lines 77–82:
 ```python
 def test_spawn_reachable(self, expanded_galaxy):
     galaxy = expanded_galaxy
@@ -120,7 +120,7 @@ def test_spawn_reachable(self, expanded_galaxy):
     assert DREADNOUGHT_SYSTEM_NAME in reachable
 ```
 
-**`test_spawn_idempotent`** — current lines 84–91:
+**`test_spawn_idempotent`** - current lines 84–91:
 ```python
 def test_spawn_idempotent(self, expanded_galaxy):
     galaxy = expanded_galaxy
@@ -131,7 +131,7 @@ def test_spawn_idempotent(self, expanded_galaxy):
     assert len(galaxy.systems) == count_before
 ```
 
-**`test_spawn_not_on_existing_position`** — current lines 104–110:
+**`test_spawn_not_on_existing_position`** - current lines 104–110:
 ```python
 def test_spawn_not_on_existing_position(self, expanded_galaxy):
     galaxy = expanded_galaxy
@@ -141,7 +141,7 @@ def test_spawn_not_on_existing_position(self, expanded_galaxy):
     assert (sys.gx, sys.gy) not in occupied_before
 ```
 
-**`test_spawn_connections_bidirectional`** — current lines 112–120:
+**`test_spawn_connections_bidirectional`** - current lines 112–120:
 ```python
 def test_spawn_connections_bidirectional(self, expanded_galaxy):
     galaxy = expanded_galaxy
@@ -153,7 +153,7 @@ def test_spawn_connections_bidirectional(self, expanded_galaxy):
         assert DREADNOUGHT_SYSTEM_NAME in parent.connections
 ```
 
-**`test_spawn_is_dead_end`** — current lines 122–126:
+**`test_spawn_is_dead_end`** - current lines 122–126:
 ```python
 def test_spawn_is_dead_end(self, expanded_galaxy):
     galaxy = expanded_galaxy
@@ -161,7 +161,7 @@ def test_spawn_is_dead_end(self, expanded_galaxy):
     assert DREADNOUGHT_SYSTEM_NAME in galaxy._generated_frontiers
 ```
 
-**`test_spawn_is_frontier`** — current lines 128–133:
+**`test_spawn_is_frontier`** - current lines 128–133:
 ```python
 def test_spawn_is_frontier(self, expanded_galaxy):
     """Dreadnought system has travel cost 2 (unexplored frontier)."""
@@ -170,7 +170,7 @@ def test_spawn_is_frontier(self, expanded_galaxy):
     assert galaxy.travel_cost(DREADNOUGHT_SYSTEM_NAME) == 2
 ```
 
-**Leave `test_spawn_deterministic` unchanged.** It uses `seed=99` and must run two genuine expansions to verify determinism — it cannot use the shared fixture.
+**Leave `test_spawn_deterministic` unchanged.** It uses `seed=99` and must run two genuine expansions to verify determinism - it cannot use the shared fixture.
 
 - [ ] **Step 5: Update the 2 tests in `TestDreadnoughtTrigger` to use the fixture**
 
@@ -239,7 +239,7 @@ git commit -m "perf: share expanded galaxy fixture across dreadnought spawn test
 
 ## Task 2: Remove duplicate dungeon-gen crash tests
 
-**Problem:** Two pairs of tests are identical (same function call, same assertion) — the `_with_windows` versions were added to verify windows don't crash the generator but ended up duplicating the pre-existing "no crash" tests exactly.
+**Problem:** Two pairs of tests are identical (same function call, same assertion) - the `_with_windows` versions were added to verify windows don't crash the generator but ended up duplicating the pre-existing "no crash" tests exactly.
 
 **Files:**
 - Modify: `tests/test_dungeon_gen.py`
@@ -256,7 +256,7 @@ Read lines 765–769 and 952–956. Confirm:
 - `test_colony_no_crash_with_windows` calls `generate_dungeon(width=80, height=45, seed=seed, loc_type="colony")` and `assert rooms`
 - They are identical.
 
-If either pair has any difference, do NOT remove — stop and report DONE_WITH_CONCERNS.
+If either pair has any difference, do NOT remove - stop and report DONE_WITH_CONCERNS.
 
 - [ ] **Step 2: Remove `test_derelict_no_crash_with_windows` (lines ~959–963)**
 
@@ -306,7 +306,7 @@ git commit -m "test: remove duplicate colony and derelict no-crash tests"
 **Files:**
 - Read-then-edit: any `tests/*.py` file that has flagged matches
 
-### Phase A — Run the scans
+### Phase A - Run the scans
 
 - [ ] **Step 1: Scan for trivially-true assertions**
 
@@ -323,7 +323,7 @@ Record every match. Each is a candidate for removal.
 grep -n "assert .* is not None$" tests/*.py | head -60
 ```
 
-Record file:line for every match. These are worth examining in context — often fine, but sometimes the only assertion in a test.
+Record file:line for every match. These are worth examining in context - often fine, but sometimes the only assertion in a test.
 
 - [ ] **Step 3: Scan for mock-assertion-only tests**
 
@@ -354,7 +354,7 @@ for l in lines:
 
 This surfaces test names; cross-reference with visual inspection for very short tests.
 
-### Phase B — Read flagged files in full depth
+### Phase B - Read flagged files in full depth
 
 For each file that produced matches in Phase A:
 
@@ -362,15 +362,15 @@ For each file that produced matches in Phase A:
 
 For every candidate match, apply the following judgment criteria **in order**:
 
-1. **Can this assertion ever fail?** If `assert True`, `assert x == x`, or `assert len(items) >= 0` — the answer is no. Delete the test (or just the useless assertion if the test has other valuable assertions).
+1. **Can this assertion ever fail?** If `assert True`, `assert x == x`, or `assert len(items) >= 0` - the answer is no. Delete the test (or just the useless assertion if the test has other valuable assertions).
 
-2. **Does the test exercise real code?** If the test body is only `Mock()` / `MagicMock()` calls with `assert_called_*` and no actual game objects are instantiated and used — remove it.
+2. **Does the test exercise real code?** If the test body is only `Mock()` / `MagicMock()` calls with `assert_called_*` and no actual game objects are instantiated and used - remove it.
 
 3. **Does `assert x is not None` actually guard anything?** If `x` was just set and can never be None (e.g. `x = SomeClass()`), the assertion is redundant. If `x` comes from a function that could return None (a lookup, a search), keep it.
 
 4. **Is it a duplicate?** Two tests in the same file with identical setup that differ only by asserting two different fields on the same object should be merged into one test. Delete the duplicate, add the merged assertion.
 
-5. **Check git blame for context.** If a test was added in a commit message like "fix: crash when X was None" — it is a regression guard, keep it regardless of how trivial it looks.
+5. **Check git blame for context.** If a test was added in a commit message like "fix: crash when X was None" - it is a regression guard, keep it regardless of how trivial it looks.
 
 - [ ] **Step 7: For each confirmed low-value test: delete it, then run the full suite**
 
@@ -380,7 +380,7 @@ After each deletion (or batch of deletions within the same file):
 .venv/Scripts/pytest tests/ -q --tb=short 2>&1 | tail -5
 ```
 
-Expected: all tests PASS (lower count than before). If any test fails, the deleted test was guarding real behavior — restore it.
+Expected: all tests PASS (lower count than before). If any test fails, the deleted test was guarding real behavior - restore it.
 
 - [ ] **Step 8: Commit after each file's cleanup**
 

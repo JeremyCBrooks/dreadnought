@@ -364,7 +364,7 @@ def test_spine_is_walkable_end_to_end():
 
 
 def test_spine_does_not_span_full_width():
-    """Spine should not touch map edges — ship has defined bounds."""
+    """Spine should not touch map edges - ship has defined bounds."""
     rng = random.Random(42)
     game_map = GameMap(80, 45, fill_tile=tile_types.wall)
     profile, _, margin_x = _load_hull_profile(rng, 80)
@@ -1066,7 +1066,7 @@ def test_no_window_corner_ears():
     for seed in range(20):
         gm, rooms, _ = generate_dungeon(seed=seed, loc_type="derelict")
         # Airlock corridor walls are intentionally preserved even if they
-        # look like "ears" — skip them.
+        # look like "ears" - skip them.
         airlock_wall_pos: set = set()
         for al in gm.airlocks:
             adx, ady = al["direction"]
@@ -1237,13 +1237,13 @@ def test_asteroid_has_space_when_breaches():
         if has_breach:
             assert game_map.has_space
             return
-    # If no breaches found in 50 seeds, that's fine — no assertion needed
+    # If no breaches found in 50 seeds, that's fine - no assertion needed
 
 
 def test_door_placement():
     """Doors appear at room entrances in generated dungeons."""
     door_closed_id = int(tile_types.door_closed["tile_id"])
-    # Try multiple seeds — at least one should produce doors
+    # Try multiple seeds - at least one should produce doors
     found = False
     for seed in range(50):
         game_map, rooms, _ = generate_dungeon(seed=seed, max_rooms=8)
@@ -1481,7 +1481,7 @@ def test_paths_do_not_cross_walls():
 
     With BFS pathfinding, paths route through walkable ground and may pass
     through narrow gaps between buildings.  The key invariant is that every
-    path tile was placed on a ground tile — never on a wall or floor tile.
+    path tile was placed on a ground tile - never on a wall or floor tile.
     This is tested by ``test_paths_only_overwrite_ground`` above.  Here we
     additionally verify that path tiles form connected regions reachable from
     a map edge without crossing walls (no disconnected "jump-through" fragments).
@@ -1637,7 +1637,7 @@ def test_meander_avoids_walls():
     wall_tid = int(tile_types.structure_wall["tile_id"])
     gm = GameMap(40, 20, fill_tile=ground_tile)
     # Wall at y=8: one ground row (y=9) separates it from path at y=10.
-    # Lateral offset to y=9 is ground but wall-adjacent — should be skipped.
+    # Lateral offset to y=9 is ground but wall-adjacent - should be skipped.
     for x in range(0, 40):
         gm.tiles[x, 8] = tile_types.structure_wall
     straight = [(x, 10) for x in range(2, 38)]
@@ -1864,7 +1864,7 @@ def test_dock_no_walls():
 
 
 def test_dock_is_octagonal():
-    """The dock shape should be octagonal — corner tiles outside the bounding box are untouched."""
+    """The dock shape should be octagonal - corner tiles outside the bounding box are untouched."""
     for seed in range(5):
         game_map, rooms, _ = generate_dungeon(seed=seed, loc_type="colony")
         dock = rooms[0]
@@ -1879,7 +1879,7 @@ def test_dock_is_octagonal():
                 else:
                     outside_count += 1
         # An octagon has fewer tiles than its bounding square
-        assert outside_count > 0, f"seed={seed}: no corner cuts — not octagonal"
+        assert outside_count > 0, f"seed={seed}: no corner cuts - not octagonal"
         assert inside_count > outside_count, f"seed={seed}: too few interior tiles"
 
 
@@ -1977,7 +1977,7 @@ def test_village_dungeon_small_map_no_crash():
 
 
 def test_generate_dungeon_no_crash_on_tiny_map():
-    # Very small map — rooms may be empty
+    # Very small map - rooms may be empty
     game_map, rooms, exit_pos = generate_dungeon(width=5, height=5, seed=99, loc_type="derelict")
     assert game_map is not None
 

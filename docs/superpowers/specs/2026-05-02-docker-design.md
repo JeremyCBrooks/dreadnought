@@ -1,4 +1,4 @@
-# Docker Container Design — Dreadnought Web Server
+# Docker Container Design - Dreadnought Web Server
 
 **Date:** 2026-05-02
 **Scope:** Single container running the FastAPI/uvicorn web server for cloud deployment
@@ -7,7 +7,7 @@
 
 ## Overview
 
-Package the Dreadnought web server as a production-ready Docker image for deployment on cloud container platforms (Fly.io, Railway, Render, etc.). The desktop tcod TUI (`main.py`) is excluded — this container serves browser-based play only.
+Package the Dreadnought web server as a production-ready Docker image for deployment on cloud container platforms (Fly.io, Railway, Render, etc.). The desktop tcod TUI (`main.py`) is excluded - this container serves browser-based play only.
 
 ---
 
@@ -17,12 +17,12 @@ Package the Dreadnought web server as a production-ready Docker image for deploy
 
 | File | Change |
 |---|---|
-| `Dockerfile` | New — multi-stage build |
-| `.dockerignore` | New — excludes noise from image |
-| `.env.example` | New — documents env vars for operators |
-| `web/main.py` | Modified — read PORT, LOG_LEVEL from env |
-| `web/server.py` or DB init module | Modified — read DATABASE_PATH from env (exact file TBD during impl) |
-| `web/server.py` | Modified — add `GET /health` endpoint |
+| `Dockerfile` | New - multi-stage build |
+| `.dockerignore` | New - excludes noise from image |
+| `.env.example` | New - documents env vars for operators |
+| `web/main.py` | Modified - read PORT, LOG_LEVEL from env |
+| `web/server.py` or DB init module | Modified - read DATABASE_PATH from env (exact file TBD during impl) |
+| `web/server.py` | Modified - add `GET /health` endpoint |
 
 ### Multi-Stage Build
 
@@ -30,7 +30,7 @@ Package the Dreadnought web server as a production-ready Docker image for deploy
 - Copies `pyproject.toml` + `uv.lock`
 - Installs uv binary from `ghcr.io/astral-sh/uv:latest`
 - Runs `uv sync --frozen --no-dev --no-install-project` to populate `.venv`
-- No app source — layer caches cleanly when only code changes
+- No app source - layer caches cleanly when only code changes
 
 **Runtime stage** (`python:3.12-slim`):
 - Copies `.venv` from build stage
@@ -72,7 +72,7 @@ CMD ["python", "-m", "web.main"]
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PORT` | `8000` | Uvicorn listen port — cloud platforms inject this |
+| `PORT` | `8000` | Uvicorn listen port - cloud platforms inject this |
 | `DATABASE_PATH` | `dreadnought.db` | Path to SQLite file |
 | `LOG_LEVEL` | `info` | Uvicorn log verbosity |
 
@@ -92,7 +92,7 @@ The SQLite database is excluded from the image via `.dockerignore`. Cloud platfo
 
 `GET /health` returns `{"status": "ok"}` with HTTP 200. Added as a one-liner route in `web/server.py`. Used by cloud platforms to determine container readiness before routing traffic.
 
-The `HEALTHCHECK` instruction uses Python stdlib (`urllib.request`) — no curl dependency required.
+The `HEALTHCHECK` instruction uses Python stdlib (`urllib.request`) - no curl dependency required.
 
 ---
 
@@ -121,6 +121,6 @@ main.py
 
 ## Out of Scope
 
-- Desktop TUI (`main.py` / tcod window) — excluded from container
-- Nginx reverse proxy / TLS termination — handled by cloud platform
-- Horizontal scaling — SQLite is single-writer; one instance per volume
+- Desktop TUI (`main.py` / tcod window) - excluded from container
+- Nginx reverse proxy / TLS termination - handled by cloud platform
+- Horizontal scaling - SQLite is single-writer; one instance per volume

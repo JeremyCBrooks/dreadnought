@@ -80,7 +80,7 @@ def test_electric_equipment_damage():
     force_rng(engine, 0.1)
 
     trigger_hazard(engine, hazard, "Console")
-    # Weapon had durability 1, reaches 0 — tagged as damaged, NOT removed
+    # Weapon had durability 1, reaches 0 - tagged as damaged, NOT removed
     assert engine.player.loadout.slot1 is weapon
     assert weapon.item["durability"] == 0
     assert weapon.item.get("damaged") is True

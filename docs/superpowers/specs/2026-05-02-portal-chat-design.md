@@ -1,11 +1,11 @@
-# Portal Public Chat — Design
+# Portal Public Chat - Design
 
 **Date:** 2026-05-02
 **Status:** Approved, ready for implementation planning
 
 ## Goal
 
-Add a basic public chat to the portal page. Visible and usable only to logged-in players. No private messages — one shared room. Layered bot/spam protection.
+Add a basic public chat to the portal page. Visible and usable only to logged-in players. No private messages - one shared room. Layered bot/spam protection.
 
 ## Scope
 
@@ -49,9 +49,9 @@ CREATE INDEX IF NOT EXISTS idx_chat_created_at ON chat_messages(created_at);
 
 Functions:
 
-- `insert_chat_message(user_id: int, username: str, body: str) -> int` — inserts and returns the new id.
-- `get_chat_messages(since_id: int | None, limit: int) -> list[Row]` — when `since_id is None`, returns the last `limit` rows ordered ascending by id; when set, returns rows with `id > since_id` ordered ascending.
-- `delete_old_chat_messages(max_age_seconds: float) -> int` — used by the cleanup loop.
+- `insert_chat_message(user_id: int, username: str, body: str) -> int` - inserts and returns the new id.
+- `get_chat_messages(since_id: int | None, limit: int) -> list[Row]` - when `since_id is None`, returns the last `limit` rows ordered ascending by id; when set, returns rows with `id > since_id` ordered ascending.
+- `delete_old_chat_messages(max_age_seconds: float) -> int` - used by the cleanup loop.
 
 ### `web/chat.py` (new)
 
@@ -69,17 +69,17 @@ _last_body_by_user: dict[int, str] = {}
 
 Helpers:
 
-- `_scrub(body: str) -> tuple[str, str | None]` — returns `(cleaned, error)`. Steps: strip control chars (anything `< 0x20`, including newlines — chat is single-line), collapse whitespace runs to single spaces, trim. If the result is empty, return `("", "Empty message")`. If `len(cleaned) > _MAX_BODY`, return `("", "Message too long")`. Otherwise return `(cleaned, None)`.
-- `_check_user_rate(user_id: int) -> bool` — sliding-window over `_user_buckets[user_id]`: drop timestamps older than `_USER_RATE_WINDOW_SEC`; if remaining count ≥ `_USER_RATE_MAX` return `False`; else append `now` and return `True`.
+- `_scrub(body: str) -> tuple[str, str | None]` - returns `(cleaned, error)`. Steps: strip control chars (anything `< 0x20`, including newlines - chat is single-line), collapse whitespace runs to single spaces, trim. If the result is empty, return `("", "Empty message")`. If `len(cleaned) > _MAX_BODY`, return `("", "Message too long")`. Otherwise return `(cleaned, None)`.
+- `_check_user_rate(user_id: int) -> bool` - sliding-window over `_user_buckets[user_id]`: drop timestamps older than `_USER_RATE_WINDOW_SEC`; if remaining count ≥ `_USER_RATE_MAX` return `False`; else append `now` and return `True`.
 
 Endpoints:
 
-- `GET /api/chat?since=<int>` — auth required. Returns `{messages: [{id, username, body, created_at}, ...], latest_id: int}`. No `since` returns last 50 oldest→newest.
-- `POST /api/chat` — auth required, decorated `@limiter.limit("10/minute")`. Body `{body: str}`. Pipeline order:
+- `GET /api/chat?since=<int>` - auth required. Returns `{messages: [{id, username, body, created_at}, ...], latest_id: int}`. No `since` returns last 50 oldest→newest.
+- `POST /api/chat` - auth required, decorated `@limiter.limit("10/minute")`. Body `{body: str}`. Pipeline order:
   1. (slowapi runs IP limit first)
   2. Auth (401 if missing)
-  3. `cleaned, err = _scrub(body)` — if `err`, return 400 with `detail=err` ("Empty message" or "Message too long").
-  4. `_check_user_rate(user_id)` → 429 "Slow down — too many messages" if over limit.
+  3. `cleaned, err = _scrub(body)` - if `err`, return 400 with `detail=err` ("Empty message" or "Message too long").
+  4. `_check_user_rate(user_id)` → 429 "Slow down - too many messages" if over limit.
   5. Duplicate guard: `if cleaned == _last_body_by_user.get(user_id)` → 400 "Duplicate message".
   6. `db.insert_chat_message(user_id, username, cleaned)`; update `_last_body_by_user[user_id] = cleaned`.
 
@@ -88,7 +88,7 @@ Endpoints:
 ### `web/server.py` changes
 
 - Import and `app.include_router(chat_router)` next to the existing `auth_router`.
-- New `_chat_cleanup_loop()` — sleeps `24 * 3600`, calls `db.delete_old_chat_messages(30 * 86400)`, repeats. Started and cancelled in `_lifespan` alongside the existing two cleanup loops.
+- New `_chat_cleanup_loop()` - sleeps `24 * 3600`, calls `db.delete_old_chat_messages(30 * 86400)`, repeats. Started and cancelled in `_lifespan` alongside the existing two cleanup loops.
 
 ### `web/static/portal.html` changes
 
@@ -106,10 +106,10 @@ let chatLatestId = 0;
 
 Functions:
 
-- `renderChatMessages(msgs, append)` — builds `<div class="chat-msg">` rows; if `append` and the user was scroll-pinned (within 30 px of bottom) before append, scrolls to bottom; on initial render always scrolls to bottom.
-- `refreshChat()` — `GET /api/chat?since=<chatLatestId>` (or no param if `chatLatestId === 0`); on success, updates `chatLatestId` to `latest_id` and renders. Silently ignores non-OK responses other than 401 (which `api()` already handles).
-- `sendChat(e)` — `e.preventDefault()`; reads textarea; POSTs `/api/chat`; on OK, clears textarea and resets counter; on 4xx, displays `detail` in `#chat-error` for 5 s; on network error, shows "Send failed — try again".
-- `updateChatCount()` — `input` listener on textarea, updates `#chat-count` and toggles red class.
+- `renderChatMessages(msgs, append)` - builds `<div class="chat-msg">` rows; if `append` and the user was scroll-pinned (within 30 px of bottom) before append, scrolls to bottom; on initial render always scrolls to bottom.
+- `refreshChat()` - `GET /api/chat?since=<chatLatestId>` (or no param if `chatLatestId === 0`); on success, updates `chatLatestId` to `latest_id` and renders. Silently ignores non-OK responses other than 401 (which `api()` already handles).
+- `sendChat(e)` - `e.preventDefault()`; reads textarea; POSTs `/api/chat`; on OK, clears textarea and resets counter; on 4xx, displays `detail` in `#chat-error` for 5 s; on network error, shows "Send failed - try again".
+- `updateChatCount()` - `input` listener on textarea, updates `#chat-count` and toggles red class.
 - Wire `refreshChat()` into `init()` (once on load) and into the existing `setInterval(refreshActivePlayers, 5000)` (so both poll on the same tick).
 - Submit on Enter; Shift+Enter inserts newline (which `_scrub` strips server-side anyway, so effectively just a soft line wrap).
 
@@ -138,14 +138,14 @@ Functions:
 | C. Content scrub | `_scrub()`: trim, control-char strip, whitespace collapse, length cap | ≤ 280 chars after trim |
 | D. Duplicate guard | In-memory `_last_body_by_user[user_id]` compared to scrubbed body | Block exact match against immediately previous message |
 
-A and D reset on server restart — acceptable; an attacker buys at most one extra burst of 5, and slowapi (B) keeps applying.
+A and D reset on server restart - acceptable; an attacker buys at most one extra burst of 5, and slowapi (B) keeps applying.
 
 ## Error Handling & Edge Cases
 
 - **Unauth on poll:** 401 → existing `api()` helper redirects to `/`.
 - **Network/server error on poll:** silently swallowed; next tick retries.
-- **Network error on send:** "Send failed — try again" in `#chat-error`; textarea contents preserved.
-- **Race on `since`:** `id INTEGER PRIMARY KEY` is monotonic; `WHERE id > ?` with commit-per-insert is safe under concurrent writers — a poll mid-insert simply picks the row up next tick.
+- **Network error on send:** "Send failed - try again" in `#chat-error`; textarea contents preserved.
+- **Race on `since`:** `id INTEGER PRIMARY KEY` is monotonic; `WHERE id > ?` with commit-per-insert is safe under concurrent writers - a poll mid-insert simply picks the row up next tick.
 - **User deleted while messages exist:** denormalized `username` column means rows still render correctly; no join required.
 - **Server restart:** in-memory rate buckets and duplicate guard reset to empty. IP limit (slowapi, also in-memory but shared with the rest of the app) likewise resets.
 - **Long unbroken strings:** `overflow-wrap: anywhere` on body cells prevents sidebar blowout.
@@ -192,7 +192,7 @@ No client-side JS tests (consistent with the rest of `web/static/`).
 | File | Change |
 |------|--------|
 | `web/db.py` | + schema, + 3 functions |
-| `web/chat.py` | new — router, scrub, rate-limit helpers |
+| `web/chat.py` | new - router, scrub, rate-limit helpers |
 | `web/server.py` | + include_router, + cleanup loop in `_lifespan` |
 | `web/static/portal.html` | restructure to 2-column flex, add chat sidebar markup + CSS |
 | `web/static/portal.js` | + chat polling, send handler, counter |

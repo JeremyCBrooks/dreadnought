@@ -103,7 +103,7 @@ class Engine:
 
         Per-call salting prevents two independent rolls in the same turn from
         sharing draws. Same engine state + same salt always reproduces the
-        same stream — that's what makes save/load resistant to RNG savescum.
+        same stream - that's what makes save/load resistant to RNG savescum.
         """
         return seeded_rng(self.galaxy.seed if self.galaxy is not None else 0, self.turn_counter, salt)
 
@@ -208,7 +208,7 @@ class Engine:
                     if self.current_state:
                         self.current_state.ev_key(self, event)
             except TimeoutError:
-                pass  # animation tick — loop and re-render
+                pass  # animation tick - loop and re-render
 
     def run(self) -> None:
         """Main loop: open window, run state machine until quit."""

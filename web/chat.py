@@ -20,7 +20,7 @@ _USER_RATE_WINDOW_SEC = 30.0
 _USER_RATE_MAX = 5
 _HISTORY_LIMIT = 50
 
-# In-memory state — resets on server restart. That's fine: at worst an attacker
+# In-memory state - resets on server restart. That's fine: at worst an attacker
 # gets one extra burst of _USER_RATE_MAX after a restart, and slowapi's IP limit
 # still applies.
 _user_buckets: dict[int, deque[float]] = defaultdict(deque)
@@ -85,7 +85,7 @@ async def post_chat(request: Request, body: dict, session_token: str | None = Co
         raise HTTPException(400, err)
 
     if not _check_user_rate(user["id"]):
-        raise HTTPException(429, "Slow down — too many messages")
+        raise HTTPException(429, "Slow down - too many messages")
 
     if cleaned == _last_body_by_user.get(user["id"]):
         raise HTTPException(400, "Duplicate message")

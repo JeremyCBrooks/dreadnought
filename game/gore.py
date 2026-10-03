@@ -1,4 +1,4 @@
-"""Runtime death gore — place blood, oil, or debris when enemies die."""
+"""Runtime death gore - place blood, oil, or debris when enemies die."""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ def place_death_gore(
     """Place gore on floor tiles at *entity*'s position and adjacent tiles.
 
     Only plain floor tiles (default char, no existing decorations) receive
-    gore.  Items on a tile are unaffected — they render on top of the tile.
+    gore.  Items on a tile are unaffected - they render on top of the tile.
     Gore type is determined by ``entity.organic`` and ``entity.gore_color``.
     Amount scales with ``entity.fighter.max_hp``.
     """

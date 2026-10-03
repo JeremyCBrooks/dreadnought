@@ -48,7 +48,7 @@ def _make_engine_with_galaxy(seed: int = 42) -> tuple[Engine, Galaxy]:
 
 
 # ---------------------------------------------------------------------------
-# Shared galaxy fixture — expands once per module, per-test deepcopy for isolation
+# Shared galaxy fixture - expands once per module, per-test deepcopy for isolation
 # ---------------------------------------------------------------------------
 
 
@@ -349,7 +349,7 @@ class TestDreadnoughtCore:
         state = StrategicState(galaxy)
         engine._state_stack.append(state)
 
-        # Put a regular reactor_core in cargo — should not trigger victory
+        # Put a regular reactor_core in cargo - should not trigger victory
         regular = Entity(
             char="*",
             color=(180, 80, 255),

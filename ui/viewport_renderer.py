@@ -8,7 +8,7 @@ from data.star_types import STAR_TYPES
 from world.noise import coord_fractal_noise
 
 # Background star color tints: (r_mult, g_mult, b_mult)
-# Derived from hash bits — most white/blue, some yellow/red
+# Derived from hash bits - most white/blue, some yellow/red
 _STAR_TINTS = [
     (1.0, 1.0, 1.0),  # white
     (0.9, 0.9, 1.0),  # blue-white
@@ -100,7 +100,7 @@ def render_starfield_bg(
 
     Args:
         seed: system seed for deterministic noise and star hashing.
-        coord_x/y: world-space origin — noise and star hashes are computed
+        coord_x/y: world-space origin - noise and star hashes are computed
             at (coord_x + lx, coord_y + ly) so overlapping regions match.
         glow: (vp_w, vp_h) star glow intensity to attenuate nebula/stars. None = no glow.
         cell_mask: (vp_w, vp_h) bool mask limiting which cells to render. None = all.
@@ -124,7 +124,7 @@ def render_starfield_bg(
         bg_slice["bg"][..., 1] = base_bg // 3
         bg_slice["bg"][..., 2] = base_bg
 
-    # Nebula clouds — attenuated near star glow if present
+    # Nebula clouds - attenuated near star glow if present
     glow_atten = glow if glow is not None else np.zeros((vp_w, vp_h))
     nebula_threshold = 0.18
     nebula_mask = nebula_density > nebula_threshold
@@ -151,7 +151,7 @@ def render_starfield_bg(
             np.clip(current, 0, 255, out=current)
             bg_slice["bg"][..., ch] = current.astype(np.uint8)
 
-    # Background stars — fully vectorized
+    # Background stars - fully vectorized
     star_brightness = cached["star_brightness"]
 
     hx_arr = (coord_x + np.arange(vp_w)).reshape(-1, 1)
@@ -276,7 +276,7 @@ def render_viewport(
         # Compute star color per cell based on distance
         norm = np.zeros_like(dist)
         norm[disc_mask] = dist[disc_mask] / max(radius, 1)
-        # Outside disc, norm > 1 — use edge/corona colors
+        # Outside disc, norm > 1 - use edge/corona colors
         norm[outside] = 1.0 + falloff_dist / max(glow_extent, 1)
 
         for ch in range(3):
@@ -306,7 +306,7 @@ def render_viewport(
 
     # --- Special rendering for black holes ---
     if st.render_hint == "black_hole":
-        # Accretion disc first, then darken center on top — so the
+        # Accretion disc first, then darken center on top - so the
         # darkening smoothly eats into the inner disc edge
         disc_inner = float(radius)
         disc_outer = radius * 3.0
@@ -325,7 +325,7 @@ def render_viewport(
                 np.clip(current, 0, 255, out=current)
                 bg_slice["bg"][..., ch] = current.astype(np.uint8)
 
-        # Darken center — extends into inner disc for smooth blend
+        # Darken center - extends into inner disc for smooth blend
         darken_radius = radius * 1.6
         darken_mask = dist <= darken_radius
         for ch in range(3):

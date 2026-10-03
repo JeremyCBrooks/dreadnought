@@ -170,7 +170,7 @@ def test_game_over_text_fades_in():
     engine._state_stack.append(state)
     state.on_enter(engine)
 
-    # At start — text very dim
+    # At start - text very dim
     state._fade_start = time.time()
     console = FakeConsole()
     state.on_render(console, engine)
@@ -178,7 +178,7 @@ def test_game_over_text_fades_in():
     assert len(you_died) == 1
     assert you_died[0]["fg"][0] < 30
 
-    # After fade — full brightness
+    # After fade - full brightness
     state._fade_start = time.time() - FADE_IN_DURATION - 1.0
     console2 = FakeConsole()
     state.on_render(console2, engine)
@@ -230,7 +230,7 @@ def test_victory_fade_colors():
 
 
 def test_game_over_renders_on_black():
-    """Game over should not render any state below — just black + text."""
+    """Game over should not render any state below - just black + text."""
     state = GameOverState(victory=False)
     engine = Engine()
     engine._state_stack.append(state)

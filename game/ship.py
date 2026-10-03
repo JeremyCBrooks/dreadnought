@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 
 class Ship:
-    """The player's ship — persists across tactical sessions."""
+    """The player's ship - persists across tactical sessions."""
 
     @staticmethod
     def _max_nav_units() -> int:
@@ -184,7 +184,7 @@ class Ship:
         for item in self.cargo:
             tile = find_drop_tile(game_map, cx, cy)
             if tile is None:
-                # 3x3 neighbourhood is full — scan the entire map for space.
+                # 3x3 neighbourhood is full - scan the entire map for space.
                 tile = next(
                     (
                         (x, y)
@@ -195,7 +195,7 @@ class Ship:
                     None,
                 )
             if tile is None:
-                # No space at all — leave remaining items in cargo.
+                # No space at all - leave remaining items in cargo.
                 break
             item.x, item.y = tile
             game_map.entities.append(item)

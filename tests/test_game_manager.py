@@ -1,4 +1,4 @@
-"""Tests for web/game_manager.py — active session registry."""
+"""Tests for web/game_manager.py - active session registry."""
 
 import asyncio
 from datetime import UTC, datetime
@@ -265,16 +265,16 @@ def test_get_idle_usernames_multiple_sessions():
 
     gm._sessions.clear()
 
-    # connected — must not be evicted
+    # connected - must not be evicted
     s1 = gm.register("connected_user", make_engine())
     s1.connected = True
 
-    # disconnected but recent — must not be evicted
+    # disconnected but recent - must not be evicted
     s2 = gm.register("recent_user", make_engine())
     s2.connected = False
     s2.idle_since = datetime.now(UTC) - timedelta(seconds=100)
 
-    # disconnected and expired — must be evicted
+    # disconnected and expired - must be evicted
     s3 = gm.register("idle_user", make_engine())
     s3.connected = False
     s3.idle_since = datetime.now(UTC) - timedelta(seconds=1801)

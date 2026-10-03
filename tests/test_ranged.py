@@ -62,7 +62,7 @@ def test_get_ranged_weapon_ignores_unequipped_inventory():
     unequipped = _ranged_weapon(ammo=10)
     player.loadout = Loadout(slot1=equipped)
     player.inventory = [equipped, unequipped]
-    # Should return None — the equipped weapon has no ammo,
+    # Should return None - the equipped weapon has no ammo,
     # and the unequipped one should NOT be auto-selected
     assert get_equipped_ranged_weapon(player) is None
 
@@ -192,7 +192,7 @@ def test_ranged_last_bullet_then_blocked():
     result = RangedAction(target).perform(engine, engine.player)
     assert result == 1
     assert weapon.item["ammo"] == 0
-    # Now try again — should fail
+    # Now try again - should fail
     result2 = RangedAction(target).perform(engine, engine.player)
     assert result2 == 0
     assert weapon.item["ammo"] == 0  # must not go negative
@@ -340,7 +340,7 @@ def test_ai_wander_when_not_visible():
 def test_ai_boxed_in_no_crash():
     """Enemy surrounded by walls should not crash when trying to wander."""
     engine = make_engine()
-    # Place enemy at (1, 1) — surrounded by walls on all sides in the 10x10 arena
+    # Place enemy at (1, 1) - surrounded by walls on all sides in the 10x10 arena
     # Actually (1,1) is floor, but let's put it in a corner where 3 sides are walls
     enemy = Entity(x=1, y=1, name="Rat", fighter=Fighter(1, 1, 0, 1), blocks_movement=True, ai=CreatureAI())
     engine.game_map.entities.append(enemy)

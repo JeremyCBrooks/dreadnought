@@ -123,7 +123,7 @@ class TestBfsTowardBreach:
 
         sources = [(0, 0), (6, 0)]
         pull, _ = _bfs_toward_breach(gm, sources)
-        # Middle tile (3,0) equidistant — BFS finds first source queued
+        # Middle tile (3,0) equidistant - BFS finds first source queued
         # Left tiles should pull left
         assert pull[(1, 0)] == (-1, 0)
         # Right tiles should pull right
@@ -235,7 +235,7 @@ class TestTriggerDecompression:
         newly_exposed[1:5, 1] = True  # corridor + door newly exposed
 
         trigger_decompression(engine, [(6, 1)], newly_exposed)
-        # Both player and enemy should be tagged — they're within range of the door
+        # Both player and enemy should be tagged - they're within range of the door
         assert engine.player.decompression_moves > 0
         assert enemy.decompression_moves > 0
 
@@ -347,7 +347,7 @@ class TestProcessDecompressionStep:
         entity.decompression_moves = 3
 
         process_decompression_step(gm, entity, pull)
-        # Entity should have moved — exact position depends on BFS path
+        # Entity should have moved - exact position depends on BFS path
         assert entity.decompression_moves < 3 or entity.fighter.hp < 10
 
     def test_transition_to_drifting(self):
@@ -431,7 +431,7 @@ class TestPendingDecompression:
         gm.tiles[5, 1] = tile_types.space
         gm.has_space = True
 
-        # First recalculate with closed airlock — no vacuum
+        # First recalculate with closed airlock - no vacuum
         gm.recalculate_hazards()
         assert gm.pending_decompression is None
 
@@ -461,7 +461,7 @@ class TestPendingDecompression:
         gm.pending_decompression = None
         gm._hazards_dirty = True
         gm.recalculate_hazards()
-        # No new tiles exposed — no pending
+        # No new tiles exposed - no pending
         assert gm.pending_decompression is None
 
     def test_first_recalculate_with_breach_no_decompression(self):
@@ -496,7 +496,7 @@ class TestPendingDecompression:
         newly_exposed[5, 1] = True  # only the breach itself is "new"
 
         trigger_decompression(engine, [(5, 1)], newly_exposed)
-        # Enemy at (4,1) was already in vacuum — should NOT be tagged
+        # Enemy at (4,1) was already in vacuum - should NOT be tagged
         assert enemy.decompression_moves == 0
 
     def test_entity_blown_past_breach_into_space(self):
@@ -755,7 +755,7 @@ class TestDecompressionCleanup:
         gm = _make_map(layout)
         gm.recalculate_hazards()
 
-        # Enemy with low HP between walls — will hit wall and take lethal impact
+        # Enemy with low HP between walls - will hit wall and take lethal impact
         enemy = Entity(
             x=3,
             y=1,
@@ -783,7 +783,7 @@ class TestDecompressionCleanup:
         state = TacticalState.__new__(TacticalState)
         state._after_player_turn(engine)
 
-        # Enemy must be removed — not left as a zombie
+        # Enemy must be removed - not left as a zombie
         assert enemy not in gm.entities
 
     def test_non_organic_killed_by_impact_also_removed(self):

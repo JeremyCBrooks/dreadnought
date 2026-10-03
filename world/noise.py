@@ -34,7 +34,7 @@ def coord_fractal_noise(
 
     Returns a (len(xs), len(ys)) array in [0, 1].  Any two callers using the
     same seed and overlapping coordinate ranges will get identical values in
-    the overlap — regardless of the total region size.
+    the overlap - regardless of the total region size.
     """
     gx_base = xs.reshape(-1, 1).astype(np.float64)
     gy_base = ys.reshape(1, -1).astype(np.float64)

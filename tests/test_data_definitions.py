@@ -379,7 +379,7 @@ class TestInteractableByName:
 
 
 class TestNameUniqueness:
-    """All definition lists must have unique names — duplicates would silently
+    """All definition lists must have unique names - duplicates would silently
     overwrite entries in the _*_BY_NAME lookup dicts."""
 
     def test_enemy_names_unique(self):

@@ -84,7 +84,7 @@ def _apply_hull_patina(
             fg_ch[is_wall] += offset[is_wall]
             bg_ch[is_wall] += offset[is_wall] // 2
 
-            # Warm tint: boost red, reduce blue — visible rust patches
+            # Warm tint: boost red, reduce blue - visible rust patches
             # Scale tint by damage: pristine = subtle steel variation,
             # wrecked = heavy rust/corrosion
             tint_str = 0.3 + 0.7 * damage_level
@@ -95,7 +95,7 @@ def _apply_hull_patina(
                 fg_ch[warm] -= int(15 * scale * tint_str)
                 bg_ch[warm] -= int(6 * scale * tint_str)
 
-            # Cool tint: boost blue, reduce red — steel patches
+            # Cool tint: boost blue, reduce red - steel patches
             if ch == 2:  # blue
                 fg_ch[cool] += int(15 * scale * tint_str)
                 bg_ch[cool] += int(6 * scale * tint_str)

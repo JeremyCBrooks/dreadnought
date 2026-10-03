@@ -53,7 +53,7 @@ class ConfirmDialogState(State):
 
         body = self.body(engine)
         choices: list[DialogLine] = [(self.confirm_label, GRAY), (self.cancel_label, GRAY)]
-        # Title, blank, body, blank, choices — the body and its blank drop out when empty.
+        # Title, blank, body, blank, choices - the body and its blank drop out when empty.
         rows: list[DialogLine | None] = [(self.title, HEADER_TITLE), None]
         if body:
             rows += [*body, None]

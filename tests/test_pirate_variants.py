@@ -1,4 +1,4 @@
-"""Tests for pirate species — human, alien, and mech pirate entities."""
+"""Tests for pirate species - human, alien, and mech pirate entities."""
 
 import random
 

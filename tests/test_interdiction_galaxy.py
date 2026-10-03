@@ -57,7 +57,7 @@ def test_arrive_at_still_works_without_ship_param():
     """Existing callers (tests, save/load) call arrive_at(name) only. Must not break."""
     g = Galaxy(seed=1)
     name = next(iter(g.systems[g.home_system].connections))
-    g.arrive_at(name)  # no ship arg — must not raise
+    g.arrive_at(name)  # no ship arg - must not raise
 
 
 # ---- Gating ----

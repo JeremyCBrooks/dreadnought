@@ -23,7 +23,7 @@ GLOBAL_HAZARDS = {"low_gravity"}
 
 # Hazards that are purely spatial: they ONLY apply where an overlay marks
 # affected tiles.  If the overlay doesn't exist (no active sources) the
-# hazard has no effect — it never falls back to global application.
+# hazard has no effect - it never falls back to global application.
 SPATIAL_HAZARDS = {"vacuum"}
 
 
@@ -115,7 +115,7 @@ def trigger_decompression(
 
     Air flows from the pressurized side through the opening (pressure
     boundary) across the vacuum area and out the breach.  Range is measured
-    from the **opening**, not the breach — an entity 3 tiles from a door is
+    from the **opening**, not the breach - an entity 3 tiles from a door is
     affected even if the breach is 20 tiles away on the far side.
 
     Returns the pull-direction map so callers can store it for subsequent
@@ -186,7 +186,7 @@ def process_decompression_step(
         pos = (entity.x, entity.y)
         direction = pull_directions.get(pos, entity.decompression_direction)
         if direction == (0, 0):
-            # At breach source — find adjacent space tile to blow entity out
+            # At breach source - find adjacent space tile to blow entity out
             for adx, ady in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 ax, ay = entity.x + adx, entity.y + ady
                 if game_map.in_bounds(ax, ay) and game_map.tiles["tile_id"][ax, ay] == space_tid:

@@ -170,7 +170,7 @@ def test_glow_tint_out_of_bounds_no_crash():
     gm = make_arena(10, 10)
     glow_mask = np.full((8, 8), fill_value=True, order="F")
     color = (200, 200, 200)
-    # Entity at edge, camera at 0,0 — lx=9, ly=9 is out of 8x8 glow_mask
+    # Entity at edge, camera at 0,0 - lx=9, ly=9 is out of 8x8 glow_mask
     result = gm._glow_tint_color(color, 9, 9, glow_mask, 0.5, 0, 0)
     assert result == color  # should return unchanged color
 

@@ -64,12 +64,12 @@ def _place_building_lights(
         cx, cy = room.center
         # Decide: overhead (center) or wall sconce
         if rng.random() < 0.5:
-            # Overhead — place at center if walkable
+            # Overhead - place at center if walkable
             if game_map.in_bounds(cx, cy) and game_map.tiles["walkable"][cx, cy]:
                 game_map.add_light_source(cx, cy, radius=radius, color=color, intensity=intensity)
                 continue
 
-        # Wall sconce — find a wall tile inside the room that isn't a door/window
+        # Wall sconce - find a wall tile inside the room that isn't a door/window
         # and has an adjacent floor tile inside the room
         xs, ys = room.inner
         sconce_candidates: list[tuple[int, int]] = []
@@ -83,7 +83,7 @@ def _place_building_lights(
                 if game_map.tiles["walkable"][x, y]:
                     continue  # not a wall
                 if not game_map.tiles["transparent"][x, y]:
-                    # Opaque wall — check it has an adjacent floor inside room
+                    # Opaque wall - check it has an adjacent floor inside room
                     for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
                         nx, ny = x + dx, y + dy
                         if (
@@ -294,7 +294,7 @@ def _generate_village_paths(
             if 0 < x + 1 < w - 1:
                 spine_tiles.append((x + 1, y))
 
-    # Paint spine — only overwrite ground tiles
+    # Paint spine - only overwrite ground tiles
     for x, y in spine_tiles:
         if game_map.in_bounds(x, y) and int(game_map.tiles["tile_id"][x, y]) == ground_tid:
             game_map.tiles[x, y] = path_tile

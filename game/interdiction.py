@@ -562,5 +562,5 @@ def resolve_if_cleared(engine) -> bool:
     if interdiction.alive_pirate_count() > 0:
         return False
     interdiction.resolve()
-    engine.message_log.add_message("Interdiction repelled — system clear.", (100, 255, 100))
+    engine.message_log.add_message("Interdiction repelled - system clear.", (100, 255, 100))
     return True

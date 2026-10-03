@@ -1,4 +1,4 @@
-"""Tests for runtime death gore — blood/oil/debris placed when enemies die."""
+"""Tests for runtime death gore - blood/oil/debris placed when enemies die."""
 
 import random
 import random as _random
@@ -188,7 +188,7 @@ class TestPlaceDeathGore:
         assert np.array_equal(orig_wall_fg, new_wall_fg), "Gore should not modify wall tiles"
 
     def test_gore_allowed_under_items(self):
-        """Gore modifies the tile underneath items — items render on top."""
+        """Gore modifies the tile underneath items - items render on top."""
         from game.gore import place_death_gore
 
         gm = _make_gore_map()
@@ -315,7 +315,7 @@ class TestPlaceDeathGore:
                 if not gm.in_bounds(nx, ny):
                     continue
                 if int(gm.tiles["light"]["ch"][nx, ny]) != floor_ch:
-                    # This tile was modified — check all layers
+                    # This tile was modified - check all layers
                     assert int(gm.tiles["dark"]["ch"][nx, ny]) != int(tile_types.floor["dark"]["ch"]) or int(
                         gm.tiles["lit"]["ch"][nx, ny]
                     ) != int(tile_types.floor["lit"]["ch"]), "Gore should modify dark/lit layers too"
@@ -531,7 +531,7 @@ class TestDeathIntegration:
         apply_environment_tick_entity(engine, creature)
 
         assert creature not in gm.entities
-        # Check that gore was placed — at least one tile around death pos
+        # Check that gore was placed - at least one tile around death pos
         # should have a modified light char
         gore_found = False
         for dx in range(-1, 2):

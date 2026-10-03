@@ -74,9 +74,9 @@ class GalaxyMapState(State):
         ch = engine.CONSOLE_HEIGHT
         console.draw_rect(0, 0, cw, ch, ch=32, bg=DIALOG_BG)
 
-        # Header — show current system name in full
+        # Header - show current system name in full
         current_name = self.galaxy.current_system
-        console.print(x=2, y=1, string=f"GALAXY MAP — {current_name}", fg=(255, 255, 100))
+        console.print(x=2, y=1, string=f"GALAXY MAP - {current_name}", fg=(255, 255, 100))
         console.print(
             x=2,
             y=ch - 1,
@@ -171,21 +171,21 @@ class GalaxyMapState(State):
         color = (40, 60, 80)
 
         if dy == 0:
-            # Horizontal — step by x
+            # Horizontal - step by x
             sx = 1 if dx > 0 else -1
             for i in range(1, abs(dx)):
                 px = ax + i * sx
                 if x0 <= px < x1 and y0 <= ay < y1:
                     console.print(x=px, y=ay, string="-", fg=color)
         elif dx == 0:
-            # Vertical — step by y
+            # Vertical - step by y
             sy = 1 if dy > 0 else -1
             for i in range(1, abs(dy)):
                 py = ay + i * sy
                 if x0 <= ax < x1 and y0 <= py < y1:
                     console.print(x=ax, y=py, string="|", fg=color)
         else:
-            # Diagonal — step by y, compute x at each row
+            # Diagonal - step by y, compute x at each row
             char = "\\" if (dx > 0) == (dy > 0) else "/"
             sy = 1 if dy > 0 else -1
             for i in range(1, abs(dy)):

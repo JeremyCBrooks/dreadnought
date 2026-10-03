@@ -167,7 +167,7 @@ class TacticalState(State):
         self._restore_player_from_saved(player, engine)
         game_map.entities.append(player)
 
-        # Seed for space starfield — matches strategic viewport when available
+        # Seed for space starfield - matches strategic viewport when available
         system_name = getattr(self.location, "system_name", "") if self.location else ""
         if system_name:
             from game.helpers import stable_seed
@@ -342,7 +342,7 @@ class TacticalState(State):
         Called from ``engine_to_dict`` when this state is on the stack but
         the player is mid-mission (didn't go through ``on_exit``). Refreshes
         ``engine.saved_player`` so HP/inventory changes since the last clean
-        exit aren't lost on reload — on any mission, or a disconnect would
+        exit aren't lost on reload - on any mission, or a disconnect would
         hand back the HP the player walked in with. Aboard the ship it also
         returns the floor items that ``on_exit`` would have swept into cargo
         so the save can include them.
@@ -399,7 +399,7 @@ class TacticalState(State):
             return self._handle_look_input(engine, key)
 
         if key in cancel_keys():
-            return True  # consumed — exit only via docking hatch
+            return True  # consumed - exit only via docking hatch
 
         if is_action("quit", key) and event.mod & (tcod.event.Modifier.LSHIFT | tcod.event.Modifier.RSHIFT):
             from ui.confirm_quit_state import ConfirmQuitState
@@ -420,7 +420,7 @@ class TacticalState(State):
             self._enter_look(engine)
             return True
 
-        # While drifting, block turn-consuming inputs — only UI actions above are allowed
+        # While drifting, block turn-consuming inputs - only UI actions above are allowed
         if engine.player.drifting:
             return True
 
@@ -836,7 +836,7 @@ class TacticalState(State):
         if engine.player.drifting and engine.player.fighter.hp > 0 and self._death_cause is None:
             now = time.time()
             if self._drift_timer == 0.0:
-                # First frame of drift — initialize timer
+                # First frame of drift - initialize timer
                 self._drift_timer = now
             elif now - self._drift_timer >= DRIFT_INTERVAL:
                 self._drift_timer = now

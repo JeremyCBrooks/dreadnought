@@ -123,7 +123,7 @@ def _pick_room_spec(
     specs = allowed_specs if allowed_specs is not None else profile.room_specs
     available = [s for s in specs if s.max_count == -1 or label_counts.get(s.label, 0) < s.max_count]
     if not available:
-        # All at max — pick any unlimited spec or fall back to first
+        # All at max - pick any unlimited spec or fall back to first
         unlimited = [s for s in specs if s.max_count == -1]
         return rng.choice(unlimited) if unlimited else specs[0]
     return rng.choice(available)

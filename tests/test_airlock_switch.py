@@ -13,10 +13,10 @@ def _make_airlock_map():
     """Build a small map with one airlock and switch.
 
     Layout (10x10, wall border, floor interior):
-      Switch at (1, 3) — wall tile replaced with switch
-      Interior door at (1, 4) — door_closed
+      Switch at (1, 3) - wall tile replaced with switch
+      Interior door at (1, 4) - door_closed
       Airlock floor at (1, 5)
-      Exterior door at (1, 6) — airlock_ext_closed
+      Exterior door at (1, 6) - airlock_ext_closed
       Player at (2, 3)
     """
     gm = GameMap(10, 10)
@@ -128,7 +128,7 @@ class TestToggleSwitchAction:
         blocker = Entity(x=1, y=6, name="Blocker", blocks_movement=True, fighter=Fighter(5, 5, 0, 1))
         gm.entities.append(blocker)
 
-        # Try to close — should fail
+        # Try to close - should fail
         result = ToggleSwitchAction(-1, 0).perform(engine, player)
         assert result == 0
         # Switch stays on, door stays open
@@ -231,7 +231,7 @@ class TestAdjacentInteractDirs:
         from ui.tactical_state import TacticalState
 
         gm, player = _make_airlock_map()
-        # Player at (2,3), door at (1,4) is diagonal — should be detected
+        # Player at (2,3), door at (1,4) is diagonal - should be detected
         engine = MockEngine(gm, player)
         dirs = TacticalState._adjacent_interact_dirs(engine)
         door_dirs = [(dx, dy, k) for dx, dy, k in dirs if k == "door"]

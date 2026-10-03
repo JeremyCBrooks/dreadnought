@@ -97,7 +97,7 @@ def test_death_save_dict_loads_into_game_over_state():
 
 def test_end_game_mid_mission_marks_save_as_dead(client):
     """/api/end-game while a TacticalState is on the active session's stack
-    must NOT delete the save — it must rewrite it as a death record so the
+    must NOT delete the save - it must rewrite it as a death record so the
     player sees GameOverState on next login (closes the heal exploit)."""
     from ui.tactical_state import TacticalState
 
@@ -143,7 +143,7 @@ def test_end_game_strategic_still_deletes_save(client):
 
 
 def test_end_game_no_active_session_deletes_save(client):
-    """No active session — just delete (current behavior)."""
+    """No active session - just delete (current behavior)."""
     _register_login(client)
     client.post("/api/new-game", json={})
 
@@ -205,7 +205,7 @@ def test_end_game_awaits_session_cancellation_before_returning(client):
         # Re-attach the task on this loop
         session._gather_task = asyncio.create_task(fake_websocket_loop())
         await asyncio.sleep(0)
-        # Call end-game via the test client (sync) — but we need to run the
+        # Call end-game via the test client (sync) - but we need to run the
         # async cancel/await path in the same loop. Use a starlette async test.
         from httpx import ASGITransport, AsyncClient
 

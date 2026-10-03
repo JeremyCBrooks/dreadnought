@@ -116,7 +116,7 @@ class _ForcedRng:
 def force_rng(engine, value: float = 0.0) -> None:
     """Pin engine.rng() so .random() returns *value* and .choice() picks index 0.
 
-    Useful when tests previously relied on patching module-level random.* —
+    Useful when tests previously relied on patching module-level random.* -
     after the deterministic-RNG refactor, RNG flows through engine.rng(salt).
     """
     forced = _ForcedRng(value)

@@ -175,7 +175,7 @@ def render_stats(console: Any, engine: Engine, layout: SimpleNamespace, view: Hu
             fg=color,
         )
 
-    # NEARBY section (below UNDERFOOT) — unified visible + scan data
+    # NEARBY section (below UNDERFOOT) - unified visible + scan data
     from game.scanner import build_nearby_entries
 
     nearby_y = ground_header_y + 1 + min(len(wrapped), ground_max_lines) + 1

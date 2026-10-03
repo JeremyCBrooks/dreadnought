@@ -542,7 +542,7 @@ def scatter_flora(
     flora_tiles = [(entry, make_flora_tile(entry, palette)) for entry in palette.flora]
     total_density = sum(e.density for e in palette.flora)
 
-    # Shared vegetation density field — determines WHERE flora grows at all.
+    # Shared vegetation density field - determines WHERE flora grows at all.
     # Fractal noise gives organic, varied patch shapes and sizes.
     veg_field = fractal_noise(np_rng, w, h, octaves=3, base_radius=8)
 
@@ -557,7 +557,7 @@ def scatter_flora(
         return
     veg_threshold = float(np.quantile(ground_values, 1.0 - target_coverage))
 
-    # Per-type zone fields — determines WHICH flora type appears where.
+    # Per-type zone fields - determines WHICH flora type appears where.
     # Broader scale than veg patches so regions feel coherent.
     zone_fields = [fractal_noise(np_rng, w, h, octaves=2, base_radius=12) for _ in range(n_types)]
 
@@ -620,7 +620,7 @@ def apply_ground_noise(
     """Apply smooth fractal noise to ground/flora bg colors.
 
     Uses three independent fractal noise channels so color shifts are
-    organic — warm areas, cool areas, bright/dark patches — rather than
+    organic - warm areas, cool areas, bright/dark patches - rather than
     a uniform grey offset.
     """
     mask = game_map.tiles["tile_id"] == ground_tid

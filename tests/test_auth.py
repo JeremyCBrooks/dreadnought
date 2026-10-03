@@ -1,4 +1,4 @@
-"""Tests for web/auth.py — FastAPI auth router."""
+"""Tests for web/auth.py - FastAPI auth router."""
 
 import asyncio
 

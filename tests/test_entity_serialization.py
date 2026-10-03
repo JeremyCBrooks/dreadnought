@@ -1,8 +1,8 @@
 """Tests for extended entity serialization (Step 1 of mid-mission save).
 
 Beyond the existing minimal entity round-trip in test_save_load.py, full resume
-needs every per-entity field — position, AI state, inventory, loadout, stolen
-loot, drifting/decompression — to round-trip identically.
+needs every per-entity field - position, AI state, inventory, loadout, stolen
+loot, drifting/decompression - to round-trip identically.
 """
 
 from __future__ import annotations

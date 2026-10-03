@@ -39,7 +39,7 @@ def client(tmp_path, monkeypatch):
 
 @pytest.fixture
 def secure_client(tmp_path, monkeypatch):
-    """Test client with COOKIE_SECURE=1 — only used to assert the Secure flag/HSTS."""
+    """Test client with COOKIE_SECURE=1 - only used to assert the Secure flag/HSTS."""
     with _make_client(tmp_path, monkeypatch, secure=True) as c:
         yield c
 
@@ -239,7 +239,7 @@ def test_websocket_auth_via_cookie(client):
 
     with client.websocket_connect("/ws") as ws:
         msg = ws.receive_json()
-        # Connection authenticated successfully — we got a frame, not a 1008 close.
+        # Connection authenticated successfully - we got a frame, not a 1008 close.
         assert "type" in msg
 
 

@@ -167,7 +167,7 @@ class TestNavUnitInDungeon:
         """When has_nav_unit=True, a nav unit entity should appear in the map."""
         from world.dungeon_gen import generate_dungeon
 
-        # Try several seeds — ship gen is variable; we need one that produces a bridge
+        # Try several seeds - ship gen is variable; we need one that produces a bridge
         found = False
         for seed in range(50):
             game_map, rooms, exit_pos = generate_dungeon(

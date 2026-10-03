@@ -19,7 +19,7 @@ ONE_HIT_KILL: bool = False  # Player attacks always kill
 VISIBLE_ALL: bool = False  # All tiles visible, lit, and explored
 MAX_NAV_UNITS: int | None = 1  # Override Ship.MAX_NAV_UNITS (None = use default 6)
 
-# Debug starting inventory — list of (category, name) tuples.
+# Debug starting inventory - list of (category, name) tuples.
 # category is "scanner", "item", etc. matching data module categories.
 # Set to empty list to disable.
 START_INVENTORY: list[tuple[str, str]] = [

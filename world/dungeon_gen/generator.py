@@ -140,7 +140,7 @@ def generate_dungeon(
         # Re-enforce walls around airlock corridors (hull cleanup may
         # have converted them to space, creating diagonal gaps).
         _enforce_airlock_walls(game_map, wall_tile)
-        # Hull breaches — starbases only have a 20% chance; player ship never has breaches
+        # Hull breaches - starbases only have a 20% chance; player ship never has breaches
         if not player_ship and _rolls_hull_breach(profile, rng):
             _place_hull_breaches(game_map, rng, wall_tile)
 
@@ -160,7 +160,7 @@ def generate_dungeon(
     return game_map, rooms, exit_pos
 
 
-# The derelict profile uses the "ship" generator — correct layout for a vessel.
+# The derelict profile uses the "ship" generator - correct layout for a vessel.
 _PLAYER_SHIP_LOC_TYPE = "derelict"
 
 
@@ -173,7 +173,7 @@ def generate_player_ship(
 
     No enemies, no free-standing item pickups, no hull breaches. Interactable
     furnishings (lockers, consoles) are preserved. The reactor core tile is
-    present in the engine_room — it is the ship's own power core and
+    present in the engine_room - it is the ship's own power core and
     TacticalState blocks extracting it in explore_ship mode.
     """
     return generate_dungeon(

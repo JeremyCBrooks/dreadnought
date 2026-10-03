@@ -1,4 +1,4 @@
-"""Tests for data.hull_templates — hull profile data integrity and selection."""
+"""Tests for data.hull_templates - hull profile data integrity and selection."""
 
 import random
 

@@ -89,7 +89,7 @@ class TestDrainPool:
             s.drain_pool("vacuum")
         s.refill_pools()
         assert s.current_pools["vacuum"] == 10
-        # Drain ticks should be reset — need full interval again
+        # Drain ticks should be reset - need full interval again
         for _ in range(Suit.DRAIN_INTERVAL - 1):
             s.drain_pool("vacuum")
         assert s.current_pools["vacuum"] == 10

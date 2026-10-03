@@ -317,7 +317,7 @@ def _convert_hull_to_space(game_map: GameMap, wall_tile: np.ndarray) -> None:
     game_map.tiles[to_space] = tile_types.space
 
     # Cleanup: walls adjacent to windows but not to any walkable tile are
-    # hull filler behind exterior windows — convert to space so windows
+    # hull filler behind exterior windows - convert to space so windows
     # actually look out into space.
     is_wall_now = game_map.tiles["tile_id"] == wall_tid
     is_window_now = game_map.tiles["tile_id"] == window_tid
