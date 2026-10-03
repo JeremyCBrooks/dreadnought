@@ -295,7 +295,7 @@ class Galaxy:
         # Arriving explores a system, even one generated as a dead end (the Dreadnought's).
         self._unexplored_frontier.discard(system_name)
         changed = self._expand_frontier(system_name)
-        if not self._unexplored_frontier:
+        if not self._unexplored_frontier and system_name != self.dreadnought_system:
             # Graph would close - force at least one new exit from this system
             self._generated_frontiers.discard(system_name)
             changed = (

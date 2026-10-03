@@ -20,6 +20,15 @@ def _make_engine_with_cargo(*cargo_names):
     return engine
 
 
+def _pack(engine) -> list:
+    """The player's real pack, which the cargo screen manages at the helm and in a briefing alike."""
+    from game.player_state import fresh_player_snapshot
+
+    if engine.saved_player is None:
+        engine.saved_player = fresh_player_snapshot()
+    return engine.saved_player.setdefault("inventory", [])
+
+
 def test_initial_section_is_cargo():
     state = CargoState()
     assert state._section == _CARGO
@@ -47,12 +56,11 @@ def test_transfer_cargo_to_personal():
     K = tcod.event.KeySym
     engine = _make_engine_with_cargo("Wrench", "Medkit")
 
-    state = CargoState(during_briefing=True)
+    state = CargoState()
     state.selected = 0
     state.ev_key(engine, FakeEvent(K.RETURN))
 
-    assert len(engine.mission_loadout) == 1
-    assert engine.mission_loadout[0].name == "Wrench"
+    assert [item.name for item in _pack(engine)] == ["Wrench"]
     assert len(engine.ship.cargo) == 1
 
 
@@ -62,14 +70,14 @@ def test_transfer_personal_to_cargo():
     K = tcod.event.KeySym
     engine = _make_engine_with_cargo()
     item = Entity(name="Pipe", item={"type": "weapon", "value": 1})
-    engine.mission_loadout.append(item)
+    _pack(engine).append(item)
 
-    state = CargoState(during_briefing=True)
+    state = CargoState()
     state._section = _PERSONAL
     state.selected = 0
     state.ev_key(engine, FakeEvent(K.RETURN))
 
-    assert len(engine.mission_loadout) == 0
+    assert _pack(engine) == []
     assert item in engine.ship.cargo
 
 
@@ -79,15 +87,15 @@ def test_transfer_blocked_at_max_capacity():
     K = tcod.event.KeySym
     engine = _make_engine_with_cargo("Extra")
     for i in range(PLAYER_MAX_INVENTORY):
-        engine.mission_loadout.append(Entity(name=f"Item{i}"))
+        _pack(engine).append(Entity(name=f"Item{i}"))
 
-    state = CargoState(during_briefing=True)
+    state = CargoState()
     state._section = _CARGO
     state.selected = 0
     state.ev_key(engine, FakeEvent(K.RETURN))
 
     # Transfer should be blocked
-    assert len(engine.mission_loadout) == PLAYER_MAX_INVENTORY
+    assert len(_pack(engine)) == PLAYER_MAX_INVENTORY
     assert len(engine.ship.cargo) == 1  # "Extra" still in cargo
 
 
@@ -425,18 +433,16 @@ def test_equip_works_in_briefing_context():
     K = tcod.event.KeySym
     engine = _make_engine_with_cargo()
     weapon = Entity(name="Blaster", item={"type": "weapon", "value": 3})
-    engine.mission_loadout.append(weapon)
+    _pack(engine).append(weapon)
 
-    state = CargoState(during_briefing=True)
+    state = CargoState()
     state._section = _PERSONAL
     state.selected = 0
     state.ev_key(engine, FakeEvent(K.e))
 
-    # Weapon should be equipped in the lazily-created _saved_player loadout
-    assert engine.saved_player is not None
     lo = engine.saved_player["loadout"]
     assert lo.has_item(weapon)
-    assert weapon in engine.mission_loadout  # stays in list, just marked equipped
+    assert weapon in _pack(engine)  # stays in the pack, just marked equipped
 
 
 def test_equip_ignored_in_cargo_section():
@@ -655,10 +661,9 @@ def test_equipped_shown_in_combined_on_fresh_game():
     K = tcod.event.KeySym
     engine = _make_engine_with_cargo()
     weapon = Entity(name="Blaster", item={"type": "weapon", "value": 3})
-    engine.mission_loadout.append(weapon)
-    assert engine.saved_player is None
+    _pack(engine).append(weapon)
 
-    state = CargoState(during_briefing=True)
+    state = CargoState()
     state._section = _PERSONAL
     state.selected = 0
     state.ev_key(engine, FakeEvent(K.e))

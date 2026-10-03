@@ -150,7 +150,7 @@ def has_clear_shot(game_map: GameMap, x1: int, y1: int, x2: int, y2: int) -> boo
 
 def find_drop_tile(game_map: GameMap, x: int, y: int) -> tuple[int, int] | None:
     """Find a walkable tile at (x,y) or adjacent with no items."""
-    if not game_map.get_items_at(x, y):
+    if game_map.is_walkable(x, y) and not game_map.get_items_at(x, y):
         return (x, y)
     for dx in (-1, 0, 1):
         for dy in (-1, 0, 1):

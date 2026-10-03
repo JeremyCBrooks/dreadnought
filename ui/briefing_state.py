@@ -102,7 +102,7 @@ class BriefingState(State):
         if key == tcod.event.KeySym.C:
             from ui.cargo_state import CargoState
 
-            engine.push_state(CargoState(during_briefing=True))
+            engine.push_state(CargoState())
             return True
 
         return True

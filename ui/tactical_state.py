@@ -56,9 +56,13 @@ def _area_key(location: Location | None, depth: int) -> tuple[str, int]:
     return (loc_name, depth)
 
 
-def _area_seed(location_name: str, depth: int) -> int:
-    """Deterministic seed for dungeon layout so the same area is always the same layout."""
-    raw = hashlib.md5(f"{location_name}_{depth}".encode(), usedforsecurity=False).hexdigest()[:8]
+def _area_seed(location_name: str) -> int:
+    """Deterministic seed for a place's layout, so the same place is always laid out the same.
+
+    Not keyed on depth: a system's depth can change as the galaxy grows, and the
+    player's changes to a place (Location.tile_changes) only fit its own layout.
+    """
+    raw = hashlib.md5(f"{location_name}_0".encode(), usedforsecurity=False).hexdigest()[:8]
     return int(raw, 16)
 
 
@@ -103,7 +107,7 @@ class TacticalState(State):
 
         loc_name = self.location.name if self.location else "the dungeon"
         key = _area_key(self.location, self.depth)
-        seed = _area_seed(loc_name, self.depth)
+        seed = _area_seed(loc_name)
         max_enemies = self._max_enemies()
 
         # Environment and suit: from location data (galaxy sets vacuum for

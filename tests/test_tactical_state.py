@@ -78,13 +78,13 @@ class TestAreaKeyAndSeed:
         assert _area_key(None, 0) == ("the dungeon", 0)
 
     def test_area_seed_deterministic(self):
-        s1 = _area_seed("Derelict Alpha", 1)
-        s2 = _area_seed("Derelict Alpha", 1)
+        s1 = _area_seed("Derelict Alpha")
+        s2 = _area_seed("Derelict Alpha")
         assert s1 == s2
 
     def test_area_seed_different_for_different_input(self):
-        s1 = _area_seed("Derelict Alpha", 1)
-        s2 = _area_seed("Derelict Beta", 1)
+        s1 = _area_seed("Derelict Alpha")
+        s2 = _area_seed("Derelict Beta")
         assert s1 != s2
 
 

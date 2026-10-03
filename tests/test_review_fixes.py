@@ -211,21 +211,85 @@ class TestPackingAtTheHelm:
         engine.push_state(TacticalState(location=location, depth=0))
         assert kit in engine.player.inventory
 
-    def test_items_packed_during_a_briefing_you_back_out_of_go_back_to_cargo(self):
+    def _briefing(self, engine):
         from ui.briefing_state import BriefingState
-        from ui.cargo_state import CargoState
 
-        engine, _ = new_game(1)
         location = next(loc for s in engine.galaxy.systems.values() for loc in s.locations)
         engine.push_state(BriefingState(location=location, depth=0))
+        return location
+
+    def _briefing_cargo(self, engine):
+        """Open the cargo screen from the briefing, the way the player does (C)."""
+        import tcod.event
+
+        from tests.conftest import FakeEvent
+
+        engine.current_state.ev_key(engine, FakeEvent(tcod.event.KeySym.C))
+        return engine.current_state
+
+    def _pack(self, engine) -> list:
+        from game.player_state import fresh_player_snapshot
+
+        if engine.saved_player is None:
+            engine.saved_player = fresh_player_snapshot()
+        return engine.saved_player.setdefault("inventory", [])
+
+    def test_the_briefing_shows_the_pack_you_already_carry(self):
+
+        engine, _ = new_game(1)
+        carried = _item(MEDKIT)
+        self._pack(engine).append(carried)
+        self._briefing(engine)
+        assert carried in self._briefing_cargo(engine)._personal_list(engine)
+
+    def test_a_full_pack_takes_nothing_more_in_a_briefing(self):
+        from game.entity import PLAYER_MAX_INVENTORY
+
+        engine, _ = new_game(1)
+        self._pack(engine).extend(_item(MEDKIT) for _ in range(PLAYER_MAX_INVENTORY))
+        self._briefing(engine)
+        extra = _item(MEDKIT)
+        engine.ship.cargo = [extra]
+        self._briefing_cargo(engine)._transfer(engine)
+        assert extra in engine.ship.cargo
+        assert len(self._pack(engine)) == PLAYER_MAX_INVENTORY
+
+    def test_picks_made_in_a_briefing_you_back_out_of_stay_in_your_pack(self):
+
+        engine, _ = new_game(1)
+        self._briefing(engine)
         kit = _item(MEDKIT)
         engine.ship.cargo = [kit]
-        CargoState(during_briefing=True)._transfer(engine)
-        assert engine.mission_loadout == [kit]
+        self._briefing_cargo(engine)._transfer(engine)
+        engine.pop_state()  # close the cargo screen
         engine.pop_state()  # back out to the helm
-        engine.push_state(BriefingState(location=location, depth=0))
-        assert kit in engine.ship.cargo
-        assert engine.mission_loadout == []
+        self._briefing(engine)
+        assert kit in self._pack(engine)
+        assert kit not in engine.ship.cargo
+
+    def test_an_equipped_pick_is_never_also_in_the_hold(self):
+        import tcod.event
+
+        from tests.conftest import FakeEvent
+        from ui.cargo_state import _PERSONAL
+
+        engine, _ = new_game(1)
+        self._briefing(engine)
+        pipe = _item(
+            {"char": "/", "color": (1, 1, 1), "name": "Bent Pipe", "type": "weapon", "value": 2}
+            | {"weapon_class": "melee", "durability": 5, "max_durability": 5}
+        )
+        engine.ship.cargo = [pipe]
+        cargo = self._briefing_cargo(engine)
+        cargo._transfer(engine)
+        cargo._section = _PERSONAL
+        cargo.selected = next(i for i, (item, _) in enumerate(cargo._combined_personal(engine)) if item is pipe)
+        cargo.ev_key(engine, FakeEvent(tcod.event.KeySym.E))
+        engine.pop_state()  # close the cargo screen
+        engine.pop_state()  # back out to the helm
+        self._briefing(engine)
+        assert engine.saved_player["loadout"].has_item(pipe)
+        assert pipe not in engine.ship.cargo
 
 
 # ---------------------------------------------------------------------------
@@ -397,3 +461,59 @@ class TestRangedWeaponProblem:
         target = _carrying(engine, "Rat", 5, 2)
         assert RangedAction(target).perform(engine, player) == 0
         assert engine.message_log.messages[-1][0] == "No ranged weapon equipped."
+
+
+# ---------------------------------------------------------------------------
+# Follow-ups from reviewing the fixes
+# ---------------------------------------------------------------------------
+
+
+class TestAPlaceKeepsItsLayout:
+    def test_the_layout_ignores_the_system_s_depth(self):
+        from ui.tactical_state import _area_seed
+
+        assert _area_seed("Derelict Alpha") == _area_seed("Derelict Alpha")
+        assert _area_seed("Derelict Alpha") != _area_seed("Derelict Beta")
+
+    def test_looting_survives_the_system_changing_depth(self):
+        from ui.tactical_state import TacticalState
+
+        engine, _ = new_game(1)
+        state = enter_mission(engine, "derelict")
+        location = state.location
+        gm = engine.game_map
+        furnishing = next(e for e in gm.entities if e.interactable and e.fighter is None)
+        spot, name = (furnishing.x, furnishing.y), furnishing.name
+        gm.entities.remove(furnishing)
+        layout = gm.tiles["tile_id"].copy()
+        engine.pop_state()
+        engine.area_cache.clear()
+        engine.push_state(TacticalState(location=location, depth=state.depth + 1))
+        assert (engine.game_map.tiles["tile_id"] == layout).all(), "same place, same layout"
+        assert not [e for e in engine.game_map.entities if e.interactable and (e.x, e.y) == spot and e.name == name]
+
+
+def test_reaching_the_dreadnought_last_does_not_grow_it_new_exits():
+    from world.galaxy import Galaxy
+
+    galaxy = Galaxy(seed=4)
+    name = galaxy.spawn_dreadnought()
+    exits = set(galaxy.systems[name].connections)
+    galaxy._unexplored_frontier = {name}
+    galaxy.arrive_at(name)
+    assert set(galaxy.systems[name].connections) == exits
+
+
+def test_respawning_over_space_drops_onto_solid_ground():
+    from world.dungeon_gen import respawn_creatures
+
+    engine, _ = _arena()
+    gm = engine.game_map
+    gm.tiles[15:, :] = tile_types.space
+    stolen = _item(MEDKIT)
+    thief = _carrying(engine, "Pirate", 17, 6, _item(NAV_UNIT), stolen)
+    thief.stolen_loot = [stolen]
+    rooms = [type("R", (), {"x1": 1, "y1": 1, "x2": 13, "y2": 10, "center": (7, 5), "label": "x"})()] * 2
+    respawn_creatures(gm, rooms, max_enemies=0, seed=1)
+    for item in (*_on_floor(engine, "Navigation Unit"), stolen):
+        assert gm.is_walkable(item.x, item.y)
