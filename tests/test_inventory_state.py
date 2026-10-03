@@ -256,7 +256,7 @@ def test_drop_in_tactical():
     engine.player.inventory.append(item)
 
     # Simulate tactical state on the stack
-    tac = TacticalState.__new__(TacticalState)
+    tac = TacticalState()
     engine._state_stack = [tac]
     state = InventoryState()
     engine._state_stack.append(state)
@@ -295,7 +295,7 @@ def test_drop_equipped_item_unequips():
     engine.player.loadout = Loadout(slot1=weapon)
     engine.player.inventory.append(weapon)
 
-    tac = TacticalState.__new__(TacticalState)
+    tac = TacticalState()
     engine._state_stack = [tac]
     state = InventoryState()
     engine._state_stack.append(state)
@@ -316,7 +316,7 @@ def test_drop_clamps_selected():
     item = Entity(name="Med-kit", item={"type": "heal", "value": 5})
     engine.player.inventory.append(item)
 
-    tac = TacticalState.__new__(TacticalState)
+    tac = TacticalState()
     engine._state_stack = [tac]
     state = InventoryState()
     engine._state_stack.append(state)

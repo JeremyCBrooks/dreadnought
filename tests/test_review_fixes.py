@@ -341,6 +341,44 @@ class TestInventoryTakesTime:
         inventory._drop(engine)
         assert engine.turn_counter == turn + 1
 
+    def test_using_an_item_leaves_the_pack_open(self):
+        engine, inventory = self._open(_item(MEDKIT), _item(MEDKIT))
+        engine.player.fighter.hp = 3
+        inventory._activate(engine)
+        assert engine.current_state is inventory
+
+    def test_equipping_leaves_the_pack_open(self):
+        pipe = _item(
+            {"char": "/", "color": (1, 1, 1), "name": "Bent Pipe", "type": "weapon", "value": 2}
+            | {"weapon_class": "melee", "durability": 5, "max_durability": 5}
+        )
+        engine, inventory = self._open(pipe)
+        if engine.player.loadout and engine.player.loadout.has_item(pipe):
+            engine.player.loadout.unequip(pipe)
+        inventory._activate(engine)
+        assert engine.current_state is inventory
+
+    def test_dropping_leaves_the_pack_open(self):
+        engine, inventory = self._open(_item(MEDKIT))
+        inventory._drop(engine)
+        assert engine.current_state is inventory
+
+    def test_the_pack_is_not_stacked_twice(self):
+        from ui.inventory_state import InventoryState
+
+        engine, inventory = self._open(_item(MEDKIT))
+        inventory._drop(engine)
+        assert sum(isinstance(s, InventoryState) for s in engine.states) == 1
+
+    def test_dying_on_that_turn_closes_the_pack(self, monkeypatch):
+        from ui.tactical_state import TacticalState
+
+        engine, inventory = self._open(_item(MEDKIT))
+        monkeypatch.setattr("game.turn.advance_turn", lambda _engine: "Suffocated.")
+        inventory._drop(engine)
+        assert isinstance(engine.current_state, TacticalState)
+        assert engine.current_state._death_cause == "Suffocated."
+
     def test_at_the_helm_time_stands_still(self):
         from ui.inventory_state import InventoryState
 

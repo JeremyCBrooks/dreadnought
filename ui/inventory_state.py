@@ -80,18 +80,23 @@ class InventoryState(State):
             self._spend_turn(engine)
 
     def _spend_turn(self, engine: Engine) -> bool:
-        """On a mission, an inventory action takes a turn: close the pack and let the world move.
+        """On a mission, an inventory action takes a turn: the world moves, then the pack reopens.
 
-        Returns False (and changes nothing) when there is no mission to advance, such as at the helm.
+        The pack stays shut if that turn took the mission elsewhere (the player died, or
+        another screen came up). Returns False (and changes nothing) when there is no
+        mission to advance, such as at the helm.
         """
         from ui.tactical_state import TacticalState
 
         mission = next((s for s in reversed(engine.states) if isinstance(s, TacticalState)), None)
         if mission is None:
             return False
+        # The mission resolves a turn only while it is the current state.
         while engine.current_state is not mission:
             engine.pop_state()
         mission._resolve_player_action(engine, 1)
+        if engine.current_state is mission and mission._death_cause is None:
+            engine.push_state(self)
         return True
 
     def _in_tactical(self, engine: Engine) -> bool:
