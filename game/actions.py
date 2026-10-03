@@ -46,6 +46,12 @@ def _calc_damage(engine: Engine, attacker: Entity, target: Entity, base_power: i
 def _apply_damage_and_death(engine: Engine, attacker: Entity, target: Entity, damage: int) -> None:
     """Apply damage to target and handle death/removal."""
     target.fighter.hp = max(0, target.fighter.hp - damage)
+    if target.fighter.hp > 0:
+        if attacker is engine.player and target.ai is not None:
+            from game.creatures import provoke
+
+            provoke(engine, target)
+        return
     if target.fighter.hp <= 0:
         if target is engine.player:
             engine.message_log.add_message("You die...", DEATH_MSG)
@@ -60,6 +66,9 @@ def _apply_damage_and_death(engine: Engine, attacker: Entity, target: Entity, da
             place_death_gore(engine.game_map, target)
             if target in engine.game_map.entities:
                 engine.game_map.entities.remove(target)
+            from game.creatures import release_death_effect
+
+            release_death_effect(engine, target)
 
 
 def _attack_message(
@@ -198,6 +207,14 @@ class BumpAction(Action):
 
         target = engine.game_map.get_blocking_entity(dest_x, dest_y)
         if target and target.fighter:
+            from game.creatures import is_companion
+
+            if entity is engine.player and is_companion(target):
+                # Step past a companion rather than strike it.
+                target.x, target.y = entity.x, entity.y
+                entity.x, entity.y = dest_x, dest_y
+                engine.game_map.invalidate_entity_index()
+                return 1
             return MeleeAction(target).perform(engine, entity)
 
         # Check for airlock→space transition
@@ -306,6 +323,12 @@ class InteractAction(Action):
         if not target or not target.interactable:
             engine.message_log.add_message("Nothing to interact with here.", DARK_GRAY)
             return 0
+
+        from game.creatures import is_disguised, spring_ambush
+
+        if is_disguised(target):
+            spring_ambush(engine, target)
+            return 1
 
         ih = target.interactable
         name = target.name
@@ -466,11 +489,12 @@ class RangedAction(Action):
             _warn_player(engine, entity, "No clear shot - path blocked.")
             return 0
 
-        # Consume ammo (guard against negative)
+        # Consume ammo (guard against negative); a creature's own weapon never runs dry
         if weapon.item.get("ammo", 0) <= 0:
             _warn_player(engine, entity, "Out of ammo!")
             return 0
-        weapon.item["ammo"] = max(0, weapon.item["ammo"] - 1)
+        if not weapon.item.get("natural"):
+            weapon.item["ammo"] = max(0, weapon.item["ammo"] - 1)
 
         damage = _calc_damage(engine, entity, self.target, weapon.item["value"])
         _attack_message(engine, entity, self.target, "shoot", "shoots", damage, PLAYER_RANGED, ENEMY_RANGED)

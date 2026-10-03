@@ -152,9 +152,10 @@ def should_attempt_interdiction(system, ship, galaxy, rng) -> bool:
 
 def _pirate_definitions() -> list:
     """The creatures that crew boarding craft."""
-    from data.enemies import BOARDING, creatures_for
+    from data.enemies import BOARDING, COMMUNITIES
 
-    return creatures_for(BOARDING, depth=0)
+    (crew,) = COMMUNITIES[BOARDING]
+    return crew.creatures(depth=0)
 
 
 def _spawn_pirates_in_room(craft_room, game_map, rng, count) -> list:

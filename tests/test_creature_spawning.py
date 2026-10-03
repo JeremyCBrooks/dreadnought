@@ -51,11 +51,13 @@ def test_variety_within_a_location_type():
     assert len(_census("derelict", depth=5)) >= 5
 
 
-def test_swarms_spawn_together():
+@pytest.mark.parametrize("max_enemies", [1, 3])
+def test_swarms_spawn_together(max_enemies):
+    """A swarm is one encounter: even a shallow, quiet room gets the whole swarm."""
     mites = enemy_by_name("Hull Mite")
     found_group = False
     for seed in SEEDS:
-        game_map, _, _ = generate_dungeon(seed=seed, loc_type="asteroid", depth=0, max_enemies=3)
+        game_map, _, _ = generate_dungeon(seed=seed, loc_type="asteroid", depth=0, max_enemies=max_enemies)
         positions = [(e.x, e.y) for e in _creatures(game_map) if e.ai_config.get("species") == mites.name]
         for x, y in positions:
             neighbours = [p for p in positions if p != (x, y) and max(abs(p[0] - x), abs(p[1] - y)) <= 2]

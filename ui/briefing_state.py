@@ -121,6 +121,18 @@ class BriefingState(State):
         y += 1
         console.print(x=bx + 2, y=y, string=f"Type: {self.location.loc_type}", fg=HEADER_TEXT)
 
+        # What scans say lives there: hostile, or a place at peace.
+        from game.creatures import community_of
+
+        community = community_of(self.location)
+        if community is not None:
+            import textwrap
+
+            report_color = THREAT_LOW if community.peaceful else THREAT_MODERATE
+            for line in textwrap.wrap(f"Reports: {community.report}", width=max(10, bw - 4)):
+                y += 1
+                console.print(x=bx + 2, y=y, string=line, fg=report_color)
+
         # Environment hazards come directly from the location data
         # (galaxy assigns vacuum to derelicts/asteroids).
         env = dict(self.location.environment or {})

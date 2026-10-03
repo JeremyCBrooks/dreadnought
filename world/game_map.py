@@ -45,6 +45,7 @@ class GameMap:
         self.light_sources: list = []
         self._light_map: np.ndarray | None = None
         self._light_dirty: bool = True
+        self._carried_light_key: tuple = ()
 
     def _empty_bool_grid(self) -> np.ndarray:
         """Create a False-filled bool array matching map dimensions."""
@@ -265,11 +266,16 @@ class GameMap:
                 self._light_dirty = True
 
     def get_light_map(self) -> np.ndarray:
-        if self._light_map is None or self._light_dirty or self.has_flickering_lights:
-            from world.lighting import compute_light_map
+        from world.lighting import compute_light_map, entity_lights
 
-            self._light_map = compute_light_map(self.width, self.height, self.tiles, self.light_sources)
+        # Glowing creatures carry their light with them; recompute when one moves.
+        carried = entity_lights(self.entities)
+        carried_key = tuple((ls.x, ls.y, ls.radius, ls.color) for ls in carried)
+        stale = self._light_dirty or self.has_flickering_lights or carried_key != self._carried_light_key
+        if self._light_map is None or stale:
+            self._light_map = compute_light_map(self.width, self.height, self.tiles, [*self.light_sources, *carried])
             self._light_dirty = False
+            self._carried_light_key = carried_key
         return self._light_map
 
     def describe_at(
@@ -290,14 +296,18 @@ class GameMap:
         tid = int(self.tiles["tile_id"][x, y])
         name, flavor = tile_types.describe_tile(tid, biome=self.biome)
         lines: list[tuple[str, tuple[int, int, int]]] = [
-            (f"{name} \u2014 {flavor}", (170, 170, 190)),
+            (f"{name} - {flavor}", (170, 170, 190)),
         ]
 
         for entity in self._get_entities_at(x, y):
             if not self.visible[entity.x, entity.y] and visible_only:
                 continue
-            if entity.fighter and entity.blocks_movement:
+            # A disguised creature carries an interactable and reads as the furnishing it mimics.
+            if entity.fighter and entity.blocks_movement and not entity.interactable:
                 lines.append((f"{entity.name} ({entity.char}) is here.", (255, 180, 180)))
+                description = _creature_description(entity)
+                if description:
+                    lines.append((description, (190, 170, 170)))
             elif entity.item:
                 lines.append((f"You see {entity.name} ({entity.char}) lying here.", (180, 200, 255)))
             elif getattr(entity, "interactable", None):
@@ -486,3 +496,11 @@ class GameMap:
         g = min(int(color[1] + tint[1] * 255), 255)
         b = min(int(color[2] + tint[2] * 255), 255)
         return (r, g, b)
+
+
+def _creature_description(entity) -> str:
+    """The field-guide line for a creature, looked up by species."""
+    from data.enemies import description_of
+
+    species = (entity.ai_config or {}).get("species")
+    return description_of(species) if species else ""

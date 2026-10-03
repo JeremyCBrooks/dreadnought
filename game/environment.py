@@ -324,8 +324,11 @@ def apply_environment_tick(engine: Engine) -> None:
 def apply_environment_tick_entity(engine: Engine, entity: Entity) -> None:
     """Apply per-tile hazard damage to a non-player entity (enemies have no suit).
 
-    Non-organic entities (bots, drones) are immune to vacuum.
+    Non-organic entities (bots, drones) are immune to vacuum, and any
+    creature may be immune to more (see game.creatures.is_immune).
     """
+    from game.creatures import is_immune
+
     if not entity.fighter or entity.fighter.hp <= 0:
         return
     if entity is engine.player:
@@ -343,7 +346,7 @@ def apply_environment_tick_entity(engine: Engine, entity: Entity) -> None:
             continue
         if severity <= 0:
             continue
-        if hazard_type == "vacuum" and not entity.organic:
+        if is_immune(entity, hazard_type):
             continue
         if not _affects_tile(engine.game_map, hazard_type, ex, ey):
             continue
@@ -362,3 +365,6 @@ def apply_environment_tick_entity(engine: Engine, entity: Entity) -> None:
         place_death_gore(engine.game_map, entity)
         if entity in engine.game_map.entities:
             engine.game_map.entities.remove(entity)
+        from game.creatures import release_death_effect
+
+        release_death_effect(engine, entity)

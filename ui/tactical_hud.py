@@ -183,6 +183,7 @@ def render_stats(console: Any, engine: Engine, layout: SimpleNamespace, view: Hu
     if nearby_entries:
         _cat_colors = {
             "creature": (255, 80, 80),
+            "neutral": (130, 200, 170),
             "hazard": (255, 255, 0),
             "container": (80, 200, 80),
             "item": (100, 200, 255),

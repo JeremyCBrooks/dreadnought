@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from data.enemies import BOARDING, CHORES, ENEMIES, TEMPERAMENTS, creatures_for, enemy_by_name
+from data.enemies import BOARDING, CHORES, COMMUNITIES, ENEMIES, TEMPERAMENTS, creatures_for, enemy_by_name
 from data.hazards import HAZARD_BY_TYPE
 from data.interactables import FLOOR_INTERACTABLES
 from data.items import ITEMS, NATURAL_WEAPONS, all_loot, natural_weapon_by_name
@@ -12,7 +12,6 @@ from data.names import WRECK_LOC_TYPE
 from world.loc_profiles import PROFILES
 
 LOCATION_TYPES = tuple(PROFILES)
-KNOWN_HABITATS = {*LOCATION_TYPES, BOARDING}
 
 
 def _ids(defs):
@@ -30,9 +29,9 @@ class TestEveryCreatureIsWellFormed:
     def test_temperament_is_known(self, creature):
         assert creature.temperament in TEMPERAMENTS
 
-    def test_lives_somewhere(self, creature):
-        assert creature.habitats, "a creature with no habitat never appears"
-        assert set(creature.habitats) <= KNOWN_HABITATS
+    def test_belongs_to_some_community(self, creature):
+        members = {name for communities in COMMUNITIES.values() for c in communities for name in c.members}
+        assert creature.name in members, "a creature in no community never appears"
 
     def test_spawn_settings_are_sane(self, creature):
         low, high = creature.group
@@ -59,16 +58,11 @@ class TestEveryCreatureIsWellFormed:
     def test_chores_are_known(self, creature):
         assert set(creature.chores) <= CHORES
 
-    def test_light_is_a_radius_and_colour(self, creature):
-        if creature.light is not None:
-            radius, color = creature.light
-            assert radius > 0
-            assert len(color) == 3
 
-    def test_ai_config_is_plain_json_data(self, creature):
-        import json
+def test_every_chore_has_an_implementation():
+    from game.creatures import _CHORES
 
-        json.dumps(creature.to_ai_config())
+    assert set(_CHORES) == CHORES
 
 
 class TestRosterShape:
@@ -109,9 +103,9 @@ class TestRosterShape:
 
 
 class TestCreaturesFor:
-    def test_only_creatures_of_that_habitat(self):
-        for creature in creatures_for("asteroid", depth=5):
-            assert "asteroid" in creature.habitats
+    def test_only_creatures_of_that_location_type(self):
+        asteroid_life = {name for c in COMMUNITIES["asteroid"] for name in c.members}
+        assert {c.name for c in creatures_for("asteroid", depth=5)} <= asteroid_life
 
     def test_respects_minimum_depth(self):
         shallow = creatures_for("starbase", depth=0)

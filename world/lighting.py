@@ -2,6 +2,7 @@
 
 import math
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -24,6 +25,17 @@ class LightSource:
     def __post_init__(self) -> None:
         if self.base_color is None:
             self.base_color = self.color
+
+
+def entity_lights(entities: Iterable) -> list[LightSource]:
+    """Light given off by living, glowing creatures (``ai_config["light"]`` = [radius, colour])."""
+    lights: list[LightSource] = []
+    for entity in entities:
+        glow = (entity.ai_config or {}).get("light")
+        if glow and entity.fighter is not None and entity.fighter.hp > 0:
+            radius, color = glow
+            lights.append(LightSource(x=entity.x, y=entity.y, radius=radius, color=tuple(color)))
+    return lights
 
 
 def compute_light_map(

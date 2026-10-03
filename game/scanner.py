@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from data.colors import HAZARD_ENV_DAMAGE, HP_YELLOW, INTERACT_EMPTY, NEUTRAL, WARNING
+from game.creatures import is_disguised, reveal
 from game.helpers import chebyshev as _chebyshev
 
 if TYPE_CHECKING:
@@ -144,11 +145,15 @@ _STATE_INDICATORS = {
 
 
 def _visible_creature_entry(entity: Entity, dist: int) -> NearbyEntry:
+    from game.creatures import temperament_of
+
     st = getattr(entity, "ai_state", "wandering")
     indicator = _STATE_INDICATORS.get(st, "...")
     hp_str = f"{entity.fighter.hp}/{entity.fighter.max_hp}"
     label = f"{entity.name} {hp_str} {indicator}"
-    return NearbyEntry(entity.x, entity.y, dist, "creature", entity.char, entity.color, label)
+    # Anything that would not attack on sight is listed apart from the threats.
+    category = "creature" if temperament_of(entity).attacks_on_sight else "neutral"
+    return NearbyEntry(entity.x, entity.y, dist, category, entity.char, entity.color, label)
 
 
 def _visible_item_entry(entity: Entity, dist: int) -> NearbyEntry:
@@ -192,6 +197,9 @@ def perform_area_scan(engine: Engine, entity: Entity, *, scanner: Entity | None 
         dist = _chebyshev(px, py, e.x, e.y)
         if dist > scan_range or dist == 0:
             continue
+
+        if is_disguised(e):
+            reveal(engine, e, "Your scanner picks up a heartbeat inside the {furnishing}: a {creature}!")
 
         if e.fighter and e.ai:
             char, color, label = _format_creature(e, tier)
@@ -298,7 +306,7 @@ def build_nearby_entries(engine: Engine) -> list[NearbyEntry]:
             continue
         dist = _chebyshev(px, py, e.x, e.y)
 
-        if e.fighter and e.ai:
+        if e.fighter and e.ai and not is_disguised(e):
             entries.append(_visible_creature_entry(e, dist))
             seen_entities.add(id(e))
         elif e.interactable:

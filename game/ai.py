@@ -1,4 +1,4 @@
-"""Enemy AI behaviours - 4-state creature AI with pathfinding."""
+"""Creature AI: a small state machine with pathfinding, steered by each creature's temperament."""
 
 from __future__ import annotations
 
@@ -11,6 +11,9 @@ if TYPE_CHECKING:
 
     from engine.game_state import Engine
     from game.entity import Entity
+
+# How close a companion likes to stay to the player.
+_FOLLOW_DISTANCE = 2
 
 # AI config field defaults (used when ai_config is empty/missing fields)
 _DEFAULTS = {
@@ -37,7 +40,11 @@ def _clean_stolen_loot(owner: Entity, item: Entity) -> None:
 
 
 class CreatureAI:
-    """4-state AI: sleeping, wandering, hunting, fleeing."""
+    """States: sleeping, wandering, hunting, fleeing, and lurking (disguised, waiting).
+
+    What a creature does on seeing the player, and whether it ever fights,
+    comes from its temperament (see data.enemies.TEMPERAMENTS).
+    """
 
     def __init__(self) -> None:
         self._cached_cost: np.ndarray | None = None
@@ -49,6 +56,8 @@ class CreatureAI:
         from game.environment import has_low_gravity
 
         speed = self._cfg(owner, "move_speed")
+        if speed <= 0:
+            return  # rooted in place: a turret never banks a step
         if owner.organic and has_low_gravity(engine):
             speed = max(1, speed // 2)
         owner.ai_energy = min(owner.ai_energy + speed, ACTION_COST * 2)
@@ -351,8 +360,11 @@ class CreatureAI:
     # ---- attack ----
 
     def _attack(self, owner: Entity, engine: Engine) -> None:
+        from game.creatures import temperament_of
         from game.helpers import chebyshev
 
+        if not temperament_of(owner).attacks:
+            return
         target = engine.player
         distance = chebyshev(owner.x, owner.y, target.x, target.y)
 
@@ -392,11 +404,16 @@ class CreatureAI:
             handler(self, owner, engine)
 
     def _do_sleeping(self, owner: Entity, engine: Engine) -> None:
+        from game.creatures import temperament_of
+
         if self._can_see_player(owner, engine):
             from game.helpers import chebyshev
 
             dist = chebyshev(owner.x, owner.y, engine.player.x, engine.player.y)
             if dist <= self._cfg(owner, "sleep_aggro_distance"):
+                if not temperament_of(owner).attacks_on_sight:
+                    owner.ai_state = "wandering"
+                    return
                 owner.ai_state = "hunting"
                 owner.ai_target = (engine.player.x, engine.player.y)
                 owner.ai_turns_since_seen = 0
@@ -408,20 +425,50 @@ class CreatureAI:
                 self._do_hunting(owner, engine)
 
     def _do_wandering(self, owner: Entity, engine: Engine) -> None:
+        from game.creatures import perform_chores, temperament_of
+
+        if owner.ai_energy >= ACTION_COST and perform_chores(engine, owner):
+            owner.ai_energy -= ACTION_COST
+            return
         if self._can_see_player(owner, engine):
             from game.helpers import chebyshev
 
             dist = chebyshev(owner.x, owner.y, engine.player.x, engine.player.y)
-            if dist <= self._cfg(owner, "aggro_distance"):
+            on_sight = temperament_of(owner).on_sight
+            if on_sight == "hunt" and dist <= self._cfg(owner, "aggro_distance"):
                 owner.ai_state = "hunting"
                 owner.ai_target = (engine.player.x, engine.player.y)
                 owner.ai_turns_since_seen = 0
                 owner.ai_wander_goal = None
                 self._do_hunting(owner, engine)
                 return
+            if on_sight == "flee" and dist <= self._cfg(owner, "aggro_distance"):
+                owner.ai_state = "fleeing"
+                owner.ai_wander_goal = None
+                self._do_fleeing(owner, engine)
+                return
+            if on_sight == "follow":
+                self._follow(owner, engine, dist)
+                return
         if self._try_use_item(owner, engine):
             return
         self._wander(owner, engine)
+
+    def _follow(self, owner: Entity, engine: Engine, dist: int) -> None:
+        """Keep close to the player: step after them when they get ahead, otherwise settle."""
+        owner.ai_wander_goal = None
+        if dist <= _FOLLOW_DISTANCE or not self._can_spend_move(owner, engine):
+            return
+        path = self._compute_path(owner, engine, (engine.player.x, engine.player.y))
+        self._move_along_path(owner, engine, path)
+
+    def _do_lurking(self, owner: Entity, engine: Engine) -> None:
+        """Hold still, disguised or not, until the player is within reach; then strike."""
+        from game.creatures import spring_ambush
+        from game.helpers import chebyshev
+
+        if chebyshev(owner.x, owner.y, engine.player.x, engine.player.y) <= 1:
+            spring_ambush(engine, owner)
 
     def _do_hunting(self, owner: Entity, engine: Engine) -> None:
         from game.helpers import chebyshev
@@ -555,7 +602,8 @@ class CreatureAI:
         # Movement - spend energy, possibly multiple steps for fast creatures
         while self._can_spend_move(owner, engine):
             if not self._flee_pathfind(owner, engine):
-                # No escape route - fight if adjacent (recompute after movement)
+                # No escape route - fight if adjacent (recompute after movement);
+                # a creature that never fights just cowers (_attack declines).
                 current_dist = chebyshev(owner.x, owner.y, target.x, target.y)
                 if current_dist <= 1:
                     self._attack(owner, engine)
@@ -566,4 +614,5 @@ class CreatureAI:
         "wandering": _do_wandering,
         "hunting": _do_hunting,
         "fleeing": _do_fleeing,
+        "lurking": _do_lurking,
     }

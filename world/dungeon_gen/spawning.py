@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from dataclasses import asdict
 
-from data.enemies import EnemyDef, creatures_for
+from data.enemies import EnemyDef
 from data.hazards import HAZARDS
 from data.interactables import FLOOR_INTERACTABLES, interactable_by_name
 from data.items import ITEMS, all_loot
@@ -71,25 +71,20 @@ def _spawn_enemies(
     max_enemies: int = 2,
     exit_pos: tuple[int, int] | None = None,
     remaining: int | None = None,
-    loc_type: str = "derelict",
-    depth: int = 0,
+    pool: list[EnemyDef] | None = None,
 ) -> int:
-    """Spawn native creatures of *loc_type* at *depth* into *room*; returns how many.
+    """Spawn creatures drawn from *pool* into *room*; returns how many.
 
-    Each encounter is one creature or a whole group (a swarm, a pack). The
-    room holds at most ``max_enemies`` creatures (and never more than
-    ``MAX_ENEMIES_PER_ROOM``, or *remaining* for the level), so groups grow
-    with depth.
+    Up to ``max_enemies`` encounters, each one creature or a whole group (a
+    swarm, a pack). However they come, the room never holds more than
+    ``MAX_ENEMIES_PER_ROOM`` creatures, nor the level more than *remaining*.
     """
-    pool = creatures_for(loc_type, depth)
     if not pool:
         return 0
     weights = [c.spawn_weight for c in pool]
-    budget = min(max_enemies, MAX_ENEMIES_PER_ROOM)
-    if remaining is not None:
-        budget = min(budget, remaining)
+    budget = MAX_ENEMIES_PER_ROOM if remaining is None else min(MAX_ENEMIES_PER_ROOM, remaining)
     spawned = 0
-    for _ in range(rng.randint(0, budget)):
+    for _ in range(rng.randint(0, min(max_enemies, budget))):
         if spawned >= budget:
             break
         x, y = _random_room_pos(room, rng)

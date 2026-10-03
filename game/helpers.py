@@ -156,7 +156,11 @@ def find_drop_tile(game_map: GameMap, x: int, y: int) -> tuple[int, int] | None:
 
 
 def drop_all_inventory(entity: Entity, game_map: GameMap) -> None:
-    """Drop all inventory items at or near entity's position."""
+    """Drop all inventory items at or near entity's position.
+
+    A creature's built-in weapon is part of it and dies with it.
+    """
+    entity.inventory[:] = [item for item in entity.inventory if not (item.item and item.item.get("natural"))]
     for item in list(entity.inventory):
         tile = find_drop_tile(game_map, entity.x, entity.y)
         if tile is None:

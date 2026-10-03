@@ -54,11 +54,13 @@ def generate_dungeon(
     has_nav_unit: bool = False,
     player_ship: bool = False,
     depth: int = 0,
+    community: str | None = None,
 ) -> tuple[GameMap, list[RectRoom], tuple[int, int] | None]:
     """Returns (game_map, rooms, exit_pos).
 
-    Creatures draw from their own random stream, so the same seed always
-    builds the same place whatever lives in it.
+    The place is home to one *community* of *loc_type* (picked from the seed
+    when not given). Creatures draw from their own random stream, so the same
+    seed always builds the same place whatever lives in it.
     """
     rng = random.Random(seed)
     creature_rng = _creature_rng(seed)
@@ -153,7 +155,9 @@ def generate_dungeon(
     else:
         # Last, so the place is finished before anything moves in: what
         # lives here never changes how it is built.
-        _populate_rooms(game_map, rooms[1:], creature_rng, max_enemies, max_total_enemies, exit_pos, loc_type, depth)
+        _populate_rooms(
+            game_map, rooms[1:], creature_rng, max_enemies, max_total_enemies, exit_pos, loc_type, depth, community
+        )
 
     game_map.invalidate_hazards()
     return game_map, rooms, exit_pos
@@ -213,12 +217,15 @@ def respawn_creatures(
     max_total_enemies: int = MAX_ENEMIES_PER_LEVEL,
     loc_type: str = "derelict",
     depth: int = 0,
+    community: str | None = None,
 ) -> None:
     """Remove all entities with AI (creatures) and spawn new ones in rooms[1:].
     Does not touch items or the map. Uses seed for deterministic placement if given.
     """
     game_map.entities[:] = [e for e in game_map.entities if not e.ai]
-    _populate_rooms(game_map, rooms[1:], random.Random(seed), max_enemies, max_total_enemies, None, loc_type, depth)
+    _populate_rooms(
+        game_map, rooms[1:], random.Random(seed), max_enemies, max_total_enemies, None, loc_type, depth, community
+    )
 
 
 def _populate_rooms(
@@ -230,8 +237,17 @@ def _populate_rooms(
     exit_pos: tuple[int, int] | None,
     loc_type: str,
     depth: int,
+    community: str | None = None,
 ) -> None:
-    """Fill *rooms* with the creatures native to *loc_type* at *depth*, up to the level cap."""
+    """Fill *rooms* with one community of *loc_type* at *depth*, up to the level cap.
+
+    Every creature in a place comes from the same community, so they make
+    sense together; *community* names it, otherwise one is drawn from *rng*.
+    """
+    from data.enemies import community_named, pick_community
+
+    chosen = community_named(loc_type, community) if community else pick_community(loc_type, rng)
+    pool = chosen.creatures(depth) if chosen else []
     total_spawned = 0
     for room in rooms:
         remaining = max_total_enemies - total_spawned
@@ -244,6 +260,5 @@ def _populate_rooms(
             max_enemies,
             exit_pos=exit_pos,
             remaining=remaining,
-            loc_type=loc_type,
-            depth=depth,
+            pool=pool,
         )

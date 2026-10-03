@@ -117,6 +117,10 @@ class TacticalState(State):
         self._layout = _layout(engine)
         layout = self._layout
         loc_type = self.location.loc_type if self.location else "derelict"
+        from game.creatures import community_of
+
+        community = community_of(self.location) if self.location else None
+        community_name = community.name if community else None
 
         cached = engine.area_cache.get(key)
         wreck = getattr(self.location, "wreck", None)
@@ -136,7 +140,15 @@ class TacticalState(State):
             game_map = cached["game_map"]
             rooms = cached["rooms"]
             self.exit_pos = cached["exit_pos"]
-            respawn_creatures(game_map, rooms, max_enemies=max_enemies, seed=None, loc_type=loc_type, depth=self.depth)
+            respawn_creatures(
+                game_map,
+                rooms,
+                max_enemies=max_enemies,
+                seed=None,
+                loc_type=loc_type,
+                depth=self.depth,
+                community=community_name,
+            )
         else:
             game_map, rooms, exit_pos = generate_dungeon(
                 width=layout.map_w,
@@ -147,6 +159,7 @@ class TacticalState(State):
                 loc_type=loc_type,
                 has_nav_unit=getattr(self.location, "has_nav_unit", False),
                 depth=self.depth,
+                community=community_name,
             )
             self.exit_pos = exit_pos
             engine.area_cache[key] = {
@@ -559,13 +572,15 @@ class TacticalState(State):
             else:
                 engine.message_log.add_message("No ranged weapon equipped.", (255, 100, 100))
             return
+        from game.creatures import is_target
+
         # Find visible enemies, sorted by distance (closest first)
         px, py = engine.player.x, engine.player.y
         self._visible_enemies = sorted(
             [
                 e
                 for e in engine.game_map.entities
-                if e is not engine.player and e.fighter and e.fighter.hp > 0 and engine.game_map.visible[e.x, e.y]
+                if e is not engine.player and is_target(e) and engine.game_map.visible[e.x, e.y]
             ],
             key=lambda e: max(abs(e.x - px), abs(e.y - py)),
         )
