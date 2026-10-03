@@ -444,8 +444,8 @@ ENEMIES: list[EnemyDef] = [
         chores=("seal_breaches", "close_doors"),
     ),
     EnemyDef(
-        char="C",
-        color=(200, 190, 160),
+        char="@",  # a person, like you; the colour tells you apart
+        color=(120, 200, 150),
         name="Colonist",
         hp=4,
         defense=0,

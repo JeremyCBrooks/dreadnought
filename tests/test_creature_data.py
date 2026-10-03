@@ -65,6 +65,23 @@ def test_every_chore_has_an_implementation():
     assert set(_CHORES) == CHORES
 
 
+class TestColonistsLookLikePeople:
+    def test_colonists_are_drawn_as_people(self):
+        assert enemy_by_name("Colonist").char == "@"
+
+    def test_but_never_in_the_player_s_colour(self):
+        from game.player_state import new_player
+
+        player = new_player(0, 0)
+        colonist = enemy_by_name("Colonist")
+        assert colonist.color != player.color
+        # Clearly apart, not a near-white the eye would mistake for you.
+        assert sum(abs(a - b) for a, b in zip(colonist.color, player.color, strict=True)) >= 150
+
+    def test_only_people_share_the_player_s_glyph(self):
+        assert [c.name for c in ENEMIES if c.char == "@"] == ["Colonist"]
+
+
 class TestRosterShape:
     def test_both_flesh_and_machine(self):
         assert any(c.organic for c in ENEMIES)
