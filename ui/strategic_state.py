@@ -81,6 +81,11 @@ _DRIFT_DAMAGE_MSGS: list[str] = [
     "An alarm blares as the hull deforms under impact.",
 ]
 
+_MITE_DAMAGE_MSGS: list[str] = [
+    "Hull mites chew through a plate somewhere aft.",
+    "Something in the hold chews through the plating. You hear the hiss.",
+]
+
 _BREAK_AWAY_DAMAGE_MSGS: list[str] = [
     "Hull plating peels away where the clamps held on.",
     "The airlock frame buckles as the boarding craft is ripped off.",
@@ -332,7 +337,23 @@ class StrategicState(State):
         else:
             self.galaxy.arrive_at(dest_name)
         self.selected = 0
+        if self._life_between_jumps(engine):
+            return
         self._check_victory(engine)
+
+    def _life_between_jumps(self, engine: Engine) -> bool:
+        """Wrecks get settled and stowaways get busy. Returns True if that ended the game."""
+        from game.shipboard import colonise_wrecks, life_between_jumps
+
+        # Jumps take no tactical turns, so the jump count keeps each one's rolls fresh.
+        jump = getattr(self.galaxy, "jumps", 0) + 1
+        self.galaxy.jumps = jump
+        colonise_wrecks(self.galaxy, engine.rng(f"colonise_wrecks:{jump}"))
+        rng = engine.rng(f"stowaways_aboard:{jump}")
+        chewed = life_between_jumps(engine, rng)
+        return bool(chewed) and self._damage_hull(
+            engine, chewed, _MITE_DAMAGE_MSGS, "Hull mites ate through your ship.", rng
+        )
 
     def _attached_interdiction(self) -> Any | None:
         """The unresolved interdiction holding the ship in this system, if any."""

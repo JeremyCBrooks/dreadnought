@@ -29,6 +29,8 @@ class WreckRecord:
     tile_changes: list[tuple[int, int, int]] = field(default_factory=list)
     # Indices of furnishings already searched; they regenerate in the same order.
     consumed_furnishings: list[int] = field(default_factory=list)
+    # The wreck community that has moved in since (see game.shipboard.colonise_wrecks).
+    community: str | None = None
     # --- Transient: the freshly generated ship the live map is diffed against ---
     pristine_tile_ids: Any | None = field(default=None, repr=False, compare=False)
     pristine_furnishings: list[Entity] | None = field(default=None, repr=False, compare=False)

@@ -136,6 +136,19 @@ class TacticalState(State):
             game_map = cached["game_map"]
             rooms = cached["rooms"]
             self.exit_pos = cached["exit_pos"]
+            if wreck.community:
+                from game.shipboard import report_settlement
+
+                respawn_creatures(
+                    game_map,
+                    rooms,
+                    max_enemies=max_enemies,
+                    seed=None,
+                    loc_type=loc_type,
+                    depth=self.depth,
+                    community=wreck.community,
+                )
+                report_settlement(engine, self.location)
         elif cached and cached["game_map"].width == layout.map_w and cached["game_map"].height == layout.map_h:
             game_map = cached["game_map"]
             rooms = cached["rooms"]
@@ -251,6 +264,10 @@ class TacticalState(State):
                 # Detach surviving pirates from the map so they persist on the
                 # Interdiction object across ship-explore sessions.
                 detach_pirates(engine)
+                # Surviving stowaways go back into hiding; the crew stays aboard.
+                from game.shipboard import settle_ship_life
+
+                settle_ship_life(engine, engine.game_map)
                 # Collect floor items back into ship cargo.
                 if engine.ship is not None:
                     engine.ship.collect_floor_items(engine.game_map)
@@ -272,6 +289,10 @@ class TacticalState(State):
                     restore_original_ship_map(interdiction, engine.ship)
             else:
                 self._bring_salvage_home(engine, p)
+                from game.shipboard import adopt_companions, take_on_stowaways
+
+                take_on_stowaways(engine, engine.game_map, engine.rng("stowaways"))
+                adopt_companions(engine, engine.game_map)
                 wreck = getattr(self.location, "wreck", None)
                 if wreck is not None:
                     wreck.refresh(engine.game_map)
@@ -342,6 +363,9 @@ class TacticalState(State):
         game_map.entities.append(player)
         engine.game_map = game_map
         engine.player = player
+        from game.shipboard import welcome_aboard
+
+        welcome_aboard(engine, game_map)
         game_map.update_fov(player.x, player.y)
         engine.message_log.add_message("You explore your ship.", (200, 200, 255))
         self._update_ground_underfoot(engine)

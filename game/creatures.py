@@ -37,6 +37,12 @@ def community_of(location) -> Community | None:
 
     if getattr(location, "is_dreadnought", False):
         return pick_community(DREADNOUGHT, location.name) or COMMUNITIES[DREADNOUGHT][0]
+    record = getattr(location, "wreck", None)
+    if record is not None:
+        # A wreck holds only what has moved in since it was left.
+        from data.enemies import community_named
+
+        return community_named(record.community) if record.community else None
     return pick_community(location.loc_type, location.name)
 
 

@@ -34,6 +34,9 @@ class Ship:
         self.fuel = fuel
         self.max_fuel = max_fuel
         self.cargo: list[Entity] = []
+        # Species hiding in the hold, and species aboard as crew (see game.shipboard).
+        self.stowaways: list[str] = []
+        self.crew: list[str] = []
         self.scanner_quality = scanner_quality
         self.nav_units: int = 0
         self.hull = hull

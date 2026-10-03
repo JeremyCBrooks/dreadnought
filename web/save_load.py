@@ -150,6 +150,8 @@ def _ship_to_dict(ship, floor_items: list | None = None) -> dict | None:
         "consumed_furnishings": ship.consumed_furnishing_indices(),
         # ...and what keeps the holes in the hull where they were.
         "hull_breaches": [list(pos) for pos in ship.hull_breach_positions()],
+        "stowaways": list(ship.stowaways),
+        "crew": list(ship.crew),
     }
 
 
@@ -167,6 +169,8 @@ def _ship_from_dict(d: dict | None):
     )
     ship.nav_units = d.get("nav_units", 0)
     ship.cargo = [_entity_from_dict(e) for e in d.get("cargo", [])]
+    ship.stowaways = list(d.get("stowaways", []))
+    ship.crew = list(d.get("crew", []))
     return ship
 
 
@@ -239,6 +243,7 @@ def _wreck_to_dict(wreck) -> dict | None:
         "ship_seed": wreck.ship_seed,
         "tile_changes": [list(change) for change in wreck.tile_changes],
         "consumed_furnishings": list(wreck.consumed_furnishings),
+        "community": wreck.community,
     }
 
 
@@ -251,6 +256,7 @@ def _wreck_from_dict(d: dict | None):
         ship_seed=d["ship_seed"],
         tile_changes=[tuple(change) for change in d.get("tile_changes", [])],
         consumed_furnishings=list(d.get("consumed_furnishings", [])),
+        community=d.get("community"),
     )
 
 
@@ -287,6 +293,7 @@ def _galaxy_to_dict(galaxy) -> dict | None:
         "home_system": galaxy.home_system,
         "current_system": galaxy.current_system,
         "dreadnought_system": galaxy.dreadnought_system,
+        "jumps": getattr(galaxy, "jumps", 0),
         "generated_frontiers": list(galaxy._generated_frontiers),
         "unexplored_frontier": list(galaxy._unexplored_frontier),
         "nav_unit_rings": {str(k): v for k, v in galaxy._nav_unit_rings.items()},
@@ -308,6 +315,7 @@ def _galaxy_from_dict(d: dict | None):
     galaxy._unexplored_frontier: set[str] = set(d.get("unexplored_frontier", []))
     galaxy._nav_unit_rings: dict[int, str] = {int(k): v for k, v in d.get("nav_unit_rings", {}).items()}
     galaxy.dreadnought_system = d.get("dreadnought_system")
+    galaxy.jumps = d.get("jumps", 0)
 
     # Lazy data tables (populated on first use by methods that need generation)
     from data.names import LOCATION_TYPES, LOCATION_WORDS, SYSTEM_WORDS

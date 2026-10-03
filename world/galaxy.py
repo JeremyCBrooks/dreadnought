@@ -113,6 +113,7 @@ class Galaxy:
         self._generated_frontiers: set[str] = set()
         self._unexplored_frontier: set[str] = set()
         self._nav_unit_rings: dict[int, str] = {}
+        self.jumps = 0  # jumps the player has made (see StrategicState)
 
         # Cache data tables
         self._sw = SYSTEM_WORDS

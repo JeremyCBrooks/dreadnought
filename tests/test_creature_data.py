@@ -115,8 +115,14 @@ class TestRosterShape:
         deep = set(_ids(creatures_for(loc_type, depth=5)))
         assert deep > shallow
 
-    def test_nothing_lives_on_a_wreck(self):
-        assert creatures_for(WRECK_LOC_TYPE, depth=5) == []
+    def test_a_fresh_wreck_is_empty(self):
+        from types import SimpleNamespace
+
+        from game.creatures import community_of
+        from game.wreck import WreckRecord
+
+        wreck = SimpleNamespace(name="Raider 1", loc_type=WRECK_LOC_TYPE, wreck=WreckRecord(ship_seed=1))
+        assert community_of(wreck) is None
 
 
 class TestCreaturesFor:

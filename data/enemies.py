@@ -17,9 +17,14 @@ import random
 from dataclasses import dataclass, replace
 from typing import Literal
 
+from data.names import WRECK_LOC_TYPE
+
 # Not location types: the crews of pirate boarding craft, and the Dreadnought itself.
 BOARDING = "boarding"
 DREADNOUGHT = "dreadnought"
+
+# What a stowaway gets up to between jumps (see game.shipboard).
+MISCHIEF: frozenset[str] = frozenset({"chew_hull", "eat_cargo"})
 
 # Upkeep a creature may keep doing while it wanders (see game.creatures).
 CHORES: frozenset[str] = frozenset({"close_doors", "seal_breaches", "scavenge"})
@@ -88,6 +93,14 @@ class Service:
 
 
 @dataclass(frozen=True, slots=True)
+class Stowaway:
+    """A chance to slip into the player's cargo on the way out, and what it does once aboard."""
+
+    chance: float
+    mischief: str  # a MISCHIEF entry
+
+
+@dataclass(frozen=True, slots=True)
 class Brood:
     """Young a stationary mother keeps birthing while she is awake."""
 
@@ -141,6 +154,9 @@ class EnemyDef:
     realm: str = "floor"  # "space": lives and moves only in open space
     service: Service | None = None
     stock: tuple[str, ...] = ()  # what a trader sells (item names)
+    stowaway: Stowaway | None = None
+    hunts: tuple[str, ...] = ()  # stowaways it catches when it is crew
+    adoptable: bool = False  # follows a player aboard their ship
 
     def to_ai_config(self) -> dict[str, object]:
         """The per-creature behaviour config, as plain JSON data (it is saved with the entity)."""
@@ -169,6 +185,9 @@ class EnemyDef:
             "service": self.service.kind if self.service else None,
             "service_strength": self.service.strength if self.service else None,
             "stock": list(self.stock),
+            "stowaway": {"chance": self.stowaway.chance, "mischief": self.stowaway.mischief} if self.stowaway else None,
+            "hunts": list(self.hunts),
+            "adoptable": self.adoptable,
         }
         cfg.update({key: value for key, value in optional.items() if value})
         if self.service and self.service.uses is not None:
@@ -225,6 +244,7 @@ ENEMIES: list[EnemyDef] = [
         memory_turns=12,
         vision_radius=6,
         move_speed=6,
+        stowaway=Stowaway(chance=0.25, mischief="eat_cargo"),
     ),
     EnemyDef(
         char="b",
@@ -426,6 +446,7 @@ ENEMIES: list[EnemyDef] = [
         spawn_weight=4,
         group=(3, 5),
         hazard_immunities=("vacuum",),
+        stowaway=Stowaway(chance=0.2, mischief="chew_hull"),
     ),
     # ---- Native life of caves and colonies ----
     EnemyDef(
@@ -582,6 +603,8 @@ ENEMIES: list[EnemyDef] = [
         aggro_distance=6,
         vision_radius=8,
         move_speed=5,
+        hunts=("Rat", "Hull Mite"),
+        adoptable=True,
         spawn_weight=2,
     ),
     # ---- Additions: the heavy, the harmless and the hard-shelled ----
@@ -1009,6 +1032,26 @@ COMMUNITIES: dict[str, tuple[Community, ...]] = {
         ),
     ),
     BOARDING: (Community("Boarding crew", "", (*_PIRATE_CREWS, "Breacher")),),
+    WRECK_LOC_TYPE: (
+        Community(
+            "Mite colony",
+            "Mites have found the breach scars. The hull is crawling.",
+            ("Hull Mite", "Rust Beetle", "Hull Leech", "Glowmoth"),
+            weight=40,
+        ),
+        Community(
+            "Scavenger camp",
+            "Someone else has found your wreck and is stripping it.",
+            ("Rival Scavenger", "Ship's Cat", "Glowmoth"),
+            weight=30,
+        ),
+        Community(
+            "Glowmoth roost",
+            "The wreck glows faintly. Moths have moved into the dark.",
+            ("Glowmoth", "Echo Flitter"),
+            weight=30,
+        ),
+    ),
     DREADNOUGHT: (
         Community(
             "Dreadnought guardians",

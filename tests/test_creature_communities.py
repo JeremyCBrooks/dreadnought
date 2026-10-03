@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from data.enemies import BOARDING, COMMUNITIES, DREADNOUGHT, TEMPERAMENTS, enemy_by_name, pick_community
+from data.names import WRECK_LOC_TYPE
 from world.dungeon_gen import generate_dungeon, respawn_creatures
 from world.loc_profiles import PROFILES
 
@@ -27,7 +28,7 @@ def _community(loc_type: str, name: str):
 
 
 def test_every_location_type_has_communities():
-    assert set(COMMUNITIES) == {*LOCATION_TYPES, BOARDING, DREADNOUGHT}
+    assert set(COMMUNITIES) == {*LOCATION_TYPES, BOARDING, DREADNOUGHT, WRECK_LOC_TYPE}
 
 
 @pytest.mark.parametrize(("loc_type", "community"), _ALL, ids=[f"{lt}:{c.name}" for lt, c in _ALL])
@@ -83,7 +84,7 @@ class TestPickCommunity:
             assert not pick_community("derelict", f"Hulk {i}", allow_peaceful=False).peaceful
 
     def test_unknown_location_types_have_none(self):
-        assert pick_community("wreck", "Raider 590") is None
+        assert pick_community("nowhere", "Raider 590") is None
 
 
 class TestSpawningByCommunity:
