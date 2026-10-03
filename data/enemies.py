@@ -464,7 +464,7 @@ ENEMIES: list[EnemyDef] = [
         loot_table=(("Med-kit", 0.3), ("O2 Canister", 0.2)),
     ),
     EnemyDef(
-        char="☼",
+        char="∞",  # wings; the sun glyph reads as a light or reactor core
         color=(255, 230, 140),
         name="Glowmoth",
         hp=1,

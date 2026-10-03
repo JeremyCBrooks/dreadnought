@@ -29,7 +29,7 @@
     "rooms": "b5e763c8869c11d3",
     "map": "1a2dd81df2b51fbe",
     "lights": "ed95c4692c418ce9",
-    "entities": "c099dba3abc1a7b3"
+    "entities": "d90bacaf0d6852a8"
   },
   "derelict-5": {
     "structure": "56f01a0947605cd9",
@@ -45,7 +45,7 @@
     "rooms": "5506a3945dd1a7aa",
     "map": "0d0abd0b4f151862",
     "lights": "0582b69ac81cd427",
-    "entities": "27943e45625fa098"
+    "entities": "77b7340ec1cc85f5"
   },
   "asteroid-2": {
     "structure": "183c3eb0741c80cf",
@@ -61,7 +61,7 @@
     "rooms": "4fd8723e40350f5c",
     "map": "df8372e43065cb66",
     "lights": "b2b97c18faa7267d",
-    "entities": "c84c202196f2f400"
+    "entities": "5b67a3009150fc26"
   },
   "asteroid-4": {
     "structure": "3461b80c415beaf6",
@@ -69,7 +69,7 @@
     "rooms": "f3c2d7be59a9982a",
     "map": "bcb752d411bd5e0b",
     "lights": "4a84a229c4b5a419",
-    "entities": "7df5f94529fa8b89"
+    "entities": "3667baf45635eb2f"
   },
   "asteroid-5": {
     "structure": "a0ef7823a683a71c",
@@ -77,7 +77,7 @@
     "rooms": "39e95eca57da4f32",
     "map": "5058cc14d5d63717",
     "lights": "952b10d74237862f",
-    "entities": "5a362ec8b837c6dd"
+    "entities": "09984bd062dd35e4"
   },
   "starbase-1": {
     "structure": "0d24f095b1b9115c",
@@ -229,7 +229,7 @@
     "rooms": "c801285f89e11d04",
     "map": "ff303e70bb29b578",
     "lights": "ac649da88a6ded16",
-    "entities": "14b0546756bd5bff"
+    "entities": "8240ba0771aa57b7"
   },
   "colony-three_items": {
     "structure": "ffabddca23fccfd6",
@@ -253,7 +253,7 @@
     "rooms": "33702049378c4a63",
     "map": "008b1a651329891c",
     "lights": "c018de4f9b7ff6f4",
-    "entities": "4756eea0e3272201"
+    "entities": "8bb3a9430388d5e0"
   },
   "derelict-respawned": {
     "structure": "464e13e8e38f1611",
